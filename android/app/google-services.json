@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "1019218679560",
+    "project_id": "save-d84c2",
+    "storage_bucket": "save-d84c2.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:1019218679560:android:be7c9c4f485026284e3ebd",
+        "android_client_info": {
+          "package_name": "com.example.save"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDB5hs-T5WvHRU-VuDzQzkRAlRSIa6ygIM"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
