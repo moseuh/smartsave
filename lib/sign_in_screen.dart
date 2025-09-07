@@ -1,25 +1,90 @@
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
-import 'dart:io' show File, SocketException;
+import 'dart:io' show SocketException;
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'dart:async';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:intl/intl.dart';
 import 'package:permission_handler/permission_handler.dart';
+import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_sign_in/google_sign_in.dart';
+import 'package:connectivity_plus/connectivity_plus.dart';
 import 'graph.dart' as graph;
 
 // Google Sign-In Client ID for Web
 const String webClientId = '825042983512-b3eea0b1eg88hvqks2c7d0i989tj79qf.apps.googleusercontent.com';
 
-// Check internet connectivity without connectivity_plus
+// Helper function to parse error messages
+String _parseErrorMessage(dynamic response, {String? fallbackMessage}) {
+  String defaultMessage = fallbackMessage ?? 'An error occurred. Please try again.';
+
+  // Handle non-JSON responses (e.g., HTML or plain text)
+  if (response.headers['content-type']?.contains('application/json') != true) {
+    if (response.statusCode == 404) {
+      return 'Service unavailable. Please contact support.';
+    } else if (response.statusCode == 500) {
+      return 'Server error. Please try again later.';
+    } else if (response.body.contains('<html') || response.body.contains('<br')) {
+      return 'Unable to process your request. Please try again.';
+    }
+    return defaultMessage;
+  }
+
+  // Handle JSON responses
+  try {
+    final jsonResponse = jsonDecode(response.body);
+    String? message = jsonResponse['message']?.toString().trim();
+    if (message != null && message.isNotEmpty) {
+      // Map server error messages to user-friendly versions (case-insensitive)
+      switch (message.toLowerCase()) {
+        case 'email and password required':
+          return 'Please enter both email and password.';
+        case 'user not found':
+          return 'No account found with this email.';
+        case 'invalid password':
+          return 'Incorrect password. Please try again.';
+        case 'aml check failed':
+          return 'Login denied due to compliance restrictions.';
+        case 'email already exists':
+          return 'This email is already registered.';
+        case 'invalid email format':
+          return 'Please enter a valid email address.';
+        case 'invalid phone number':
+          return 'Please enter a valid phone number.';
+        case 'invalid date of birth':
+          return 'Please enter a valid date of birth (YYYY-MM-DD).';
+        case 'weak password':
+          return 'Password must be at least 8 characters long.';
+        default:
+          return message; // Use server-provided message if no specific mapping
+      }
+    }
+  } catch (e) {
+    debugPrint('Error parsing JSON response: $e');
+  }
+
+  return defaultMessage;
+}
+
+// Check internet connectivity using connectivity_plus
 Future<bool> checkInternetConnectivity() async {
   try {
-    final response = await http.get(Uri.parse('http://8.8.8.8')).timeout(const Duration(seconds: 5));
+    final connectivityResult = await Connectivity().checkConnectivity();
+    if (connectivityResult == ConnectivityResult.none) {
+      debugPrint('No network connectivity detected.');
+      return false;
+    }
+
+    final url = kIsWeb
+        ? Uri.parse('https://jsonplaceholder.typicode.com/todos/1')
+        : Uri.parse('https://apis.gnmprimesource.co.ke/apis/');
+    final response = await http.get(url).timeout(const Duration(seconds: 5));
+    debugPrint('Connectivity check response: ${response.statusCode}');
     return response.statusCode == 200;
   } catch (e) {
+    debugPrint('Connectivity check error: $e');
     return false;
   }
 }
@@ -41,17 +106,159 @@ class MyApp extends StatelessWidget {
         primarySwatch: Colors.blue,
         visualDensity: VisualDensity.adaptivePlatformDensity,
       ),
-      home: const SignInScreen(),
+      home: const SplashScreen(),
+      routes: {
+        '/sign_in': (context) => const SignInScreen(),
+        '/home': (context) => graph.SavingsDashboard(
+              userId: ModalRoute.of(context)!.settings.arguments as String? ?? 'default_user',
+            ),
+      },
+      onGenerateRoute: (settings) {
+        debugPrint('onGenerateRoute called for: ${settings.name}');
+        if (settings.name == '/sign_up') {
+          final args = settings.arguments as Map<String, dynamic>? ?? {};
+          return MaterialPageRoute(
+            builder: (context) => SignUpScreen(
+              isGoogleSignIn: args['isGoogleSignIn'] ?? false,
+              googleName: args['googleName'],
+              googleEmail: args['googleEmail'],
+              googleIdToken: args['googleIdToken'],
+              googlePhotoUrl: args['googlePhotoUrl'],
+            ),
+          );
+        }
+        return null;
+      },
+    );
+  }
+}
+
+// Splash Screen
+class SplashScreen extends StatefulWidget {
+  const SplashScreen({super.key});
+
+  @override
+  _SplashScreenState createState() => _SplashScreenState();
+}
+
+class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderStateMixin {
+  late AnimationController _controller;
+  late Animation<double> _scaleAnimation;
+
+  @override
+  void initState() {
+    super.initState();
+
+    _controller = AnimationController(
+      duration: const Duration(seconds: 2),
+      vsync: this,
+    )..repeat(reverse: true);
+
+    _scaleAnimation = Tween<double>(begin: 0.8, end: 1.2).animate(
+      CurvedAnimation(parent: _controller, curve: Curves.easeInOut),
+    );
+
+    Future.delayed(const Duration(seconds: 3), () async {
+      if (mounted) {
+        final prefs = await SharedPreferences.getInstance();
+        final userId = prefs.getString('user_id');
+        if (userId != null && userId.isNotEmpty) {
+          Navigator.pushReplacementNamed(context, '/home', arguments: userId);
+        } else {
+          Navigator.pushReplacementNamed(context, '/sign_in');
+        }
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.grey[850],
+      body: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            AnimatedBuilder(
+              animation: _controller,
+              builder: (context, child) {
+                return Transform.scale(
+                  scale: _scaleAnimation.value,
+                  child: Container(
+                    padding: const EdgeInsets.all(20),
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      gradient: const LinearGradient(
+                        colors: [Colors.yellow, Colors.amber],
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                      ),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.yellow.withOpacity(0.6),
+                          blurRadius: 20,
+                          spreadRadius: 5,
+                        ),
+                      ],
+                    ),
+                    child: Image.asset(
+                      'assets/logo.png',
+                      width: 100,
+                      height: 100,
+                      fit: BoxFit.contain,
+                      errorBuilder: (context, error, stackTrace) {
+                        debugPrint('Asset loading error: $error');
+                        return const Icon(Icons.error, size: 100, color: Colors.red);
+                      },
+                    ),
+                  ),
+                );
+              },
+            ),
+            const SizedBox(height: 20),
+            const Text(
+              'Haba na Haba',
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 24,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: 20),
+            const CircularProgressIndicator(
+              valueColor: AlwaysStoppedAnimation<Color>(Colors.yellow),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }
 
 // Sign Up Screen
 class SignUpScreen extends StatefulWidget {
-  const SignUpScreen({super.key});
+  final bool isGoogleSignIn;
+  final String? googleName;
+  final String? googleEmail;
+  final String? googleIdToken;
+  final String? googlePhotoUrl;
+
+  const SignUpScreen({
+    super.key,
+    this.isGoogleSignIn = false,
+    this.googleName,
+    this.googleEmail,
+    this.googleIdToken,
+    this.googlePhotoUrl,
+  });
 
   @override
-  // ignore: library_private_types_in_public_api
   State<SignUpScreen> createState() => _SignUpScreenState();
 }
 
@@ -63,7 +270,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
   final _dobController = TextEditingController();
   final _passwordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
-  File? _selfieImage;
+  XFile? _selfieImage;
   bool _obscurePassword = true;
   bool _obscureConfirmPassword = true;
   bool _isLoading = false;
@@ -71,14 +278,34 @@ class _SignUpScreenState extends State<SignUpScreen> {
 
   final ImagePicker _picker = ImagePicker();
 
+  @override
+  void initState() {
+    super.initState();
+    if (widget.isGoogleSignIn) {
+      _fullNameController.text = widget.googleName ?? '';
+      _emailController.text = widget.googleEmail ?? '';
+    }
+  }
+
   Future<void> _pickSelfie() async {
+    if (kIsWeb) {
+      final pickedFile = await _picker.pickImage(source: ImageSource.gallery);
+      if (pickedFile != null) {
+        setState(() {
+          _selfieImage = pickedFile;
+          _isSelfieUploaded = true;
+        });
+      }
+      return;
+    }
+
     var cameraStatus = await Permission.camera.request();
     var photosStatus = await Permission.photos.request();
     if (cameraStatus.isGranted || photosStatus.isGranted) {
       final pickedFile = await _picker.pickImage(source: ImageSource.camera);
       if (pickedFile != null) {
         setState(() {
-          _selfieImage = File(pickedFile.path);
+          _selfieImage = pickedFile;
           _isSelfieUploaded = true;
         });
       }
@@ -92,7 +319,6 @@ class _SignUpScreenState extends State<SignUpScreen> {
   }
 
   Future<void> _registerUser() async {
-    // Check connectivity
     if (!await checkInternetConnectivity()) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -101,17 +327,23 @@ class _SignUpScreenState extends State<SignUpScreen> {
       return;
     }
 
-    // Input validation
     if (_fullNameController.text.isEmpty ||
         _emailController.text.isEmpty ||
         _phoneController.text.isEmpty ||
         _nationalIdController.text.isEmpty ||
-        _dobController.text.isEmpty ||
-        _passwordController.text.isEmpty ||
-        _confirmPasswordController.text.isEmpty) {
+        _dobController.text.isEmpty) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Please fill in all fields')),
+      );
+      return;
+    }
+
+    if (!widget.isGoogleSignIn &&
+        (_passwordController.text.isEmpty || _confirmPasswordController.text.isEmpty)) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please enter and confirm your password')),
       );
       return;
     }
@@ -124,7 +356,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
       return;
     }
 
-    if (_passwordController.text != _confirmPasswordController.text) {
+    if (!widget.isGoogleSignIn && _passwordController.text != _confirmPasswordController.text) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Passwords do not match')),
@@ -147,7 +379,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
     try {
       var request = http.MultipartRequest(
         'POST',
-        Uri.parse('http://apis.gnmprimesource.co.ke/apis/register'),
+        Uri.parse('https://apis.gnmprimesource.co.ke/apis/register'),
       );
 
       request.fields['full_name'] = _fullNameController.text;
@@ -155,87 +387,94 @@ class _SignUpScreenState extends State<SignUpScreen> {
       request.fields['phone_number'] = _phoneController.text;
       request.fields['national_id'] = _nationalIdController.text;
       request.fields['date_of_birth'] = _dobController.text;
-      request.fields['password'] = _passwordController.text;
+
+      if (widget.isGoogleSignIn) {
+        request.fields['google_id_token'] = widget.googleIdToken ?? '';
+        request.fields['is_google_sign_in'] = 'true';
+      } else {
+        request.fields['password'] = _passwordController.text;
+      }
 
       if (_selfieImage != null) {
-        request.files.add(
-          await http.MultipartFile.fromPath('selfie', _selfieImage!.path),
-        );
+        if (kIsWeb) {
+          final bytes = await _selfieImage!.readAsBytes();
+          request.files.add(
+            http.MultipartFile.fromBytes('selfie', bytes, filename: 'selfie.jpg'),
+          );
+        } else {
+          request.files.add(
+            await http.MultipartFile.fromPath('selfie', _selfieImage!.path),
+          );
+        }
       }
 
       final response = await request.send().timeout(const Duration(seconds: 30));
       final responseData = await response.stream.bytesToString();
-      final jsonResponse = jsonDecode(responseData);
-      debugPrint('Register API Response: $jsonResponse');
+      debugPrint('Register API Response Status: ${response.statusCode}');
+      debugPrint('Register API Response Body: $responseData');
 
-      setState(() {
-        _isLoading = false;
-      });
+      if (response.statusCode >= 200 && response.statusCode < 300 && response.headers['content-type']?.contains('application/json') == true) {
+        final jsonResponse = jsonDecode(responseData);
+        debugPrint('Parsed Register API Response: $jsonResponse');
 
-      if (jsonResponse['status'] == 'success') {
-        final prefs = await SharedPreferences.getInstance();
-        final userId = jsonResponse['userId'].toString();
-        await prefs.setString('user_id', userId);
-        await prefs.setString('user_name', _fullNameController.text);
-        await prefs.setString('email', _emailController.text);
-        await prefs.setString('phone_number', _phoneController.text);
-        await prefs.setString('selfie_path', jsonResponse['selfie_path'] ?? '');
+        setState(() {
+          _isLoading = false;
+        });
 
-        if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Registration successful!')),
-        );
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(builder: (context) => const SignInScreen()),
-        );
-      } else {
-        String errorMessage;
-        switch (jsonResponse['message']) {
-          case 'Email already exists':
-            errorMessage = 'This email is already registered.';
-            break;
-          case 'Invalid email format':
-            errorMessage = 'Please enter a valid email address.';
-            break;
-          case 'Invalid phone number':
-            errorMessage = 'Please enter a valid phone number.';
-            break;
-          case 'Invalid date of birth':
-            errorMessage = 'Please enter a valid date of birth (YYYY-MM-DD).';
-            break;
-          case 'Weak password':
-            errorMessage = 'Password must be at least 8 characters long.';
-            break;
-          default:
-            errorMessage = jsonResponse['message']?.toString() ?? 'An unknown error occurred.';
+        if (jsonResponse['status'] == 'success' || jsonResponse['status'] == 'warning') {
+          final prefs = await SharedPreferences.getInstance();
+          final userId = jsonResponse['userId'].toString();
+          await prefs.setString('user_id', userId);
+          await prefs.setString('user_name', _fullNameController.text);
+          await prefs.setString('email', _emailController.text);
+          await prefs.setString('phone_number', _phoneController.text);
+          await prefs.setString('selfie_path', jsonResponse['selfie_path'] ?? widget.googlePhotoUrl ?? '');
+
+          if (!mounted) return;
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Registration successful!')),
+          );
+
+          if (Navigator.of(context).canPop()) {
+            Navigator.of(context).pop(true);
+          } else {
+            Navigator.pushReplacement(
+              context,
+              MaterialPageRoute(builder: (context) => graph.SavingsDashboard(userId: userId)),
+            );
+          }
+        } else {
+          final errorMessage = _parseErrorMessage(response, fallbackMessage: 'Registration failed. Please try again.');
+          if (!mounted) return;
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text(errorMessage)),
+          );
         }
+      } else {
+        final errorMessage = _parseErrorMessage(response, fallbackMessage: 'Registration failed. Please try again.');
         if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Registration failed: $errorMessage')),
+          SnackBar(content: Text(errorMessage)),
         );
       }
-    } catch (e) {
+    } catch (e, stackTrace) {
       setState(() {
         _isLoading = false;
       });
       debugPrint('Error sending registration request: $e');
+      debugPrint('Stack trace: $stackTrace');
+      String errorMessage;
       if (e is SocketException) {
-        if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Network error: Please check your internet connection')),
-        );
+        errorMessage = 'No internet connection. Please check your network.';
       } else if (e is TimeoutException) {
-        if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Request timed out. Server might be slow or unreachable.')),
-        );
+        errorMessage = 'Request timed out. Please try again.';
       } else {
-        if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to connect to the server: $e')),
-        );
+        errorMessage = 'An error occurred during registration. Please try again.';
       }
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(errorMessage)),
+      );
     }
   }
 
@@ -282,16 +521,16 @@ class _SignUpScreenState extends State<SignUpScreen> {
                     const SizedBox(height: 8),
                     Center(
                       child: Text(
-                        'Please fill in the details to sign up',
+                        'Please fill in all fields to sign up',
                         style: TextStyle(
                           fontSize: screenWidth * 0.04,
-                          color: Colors.grey[400],
+                          color: Colors.grey,
                         ),
                       ),
                     ),
                     const SizedBox(height: 32),
                     _buildTextField(
-                      label: 'Full Name',
+                      label: 'Full name',
                       icon: Icons.person,
                       controller: _fullNameController,
                     ),
@@ -300,6 +539,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
                       label: 'Email',
                       icon: Icons.email,
                       controller: _emailController,
+                      readOnly: widget.isGoogleSignIn,
                     ),
                     const SizedBox(height: 16),
                     _buildTextField(
@@ -319,32 +559,34 @@ class _SignUpScreenState extends State<SignUpScreen> {
                       icon: Icons.calendar_today,
                       controller: _dobController,
                     ),
-                    const SizedBox(height: 16),
-                    _buildTextField(
-                      label: 'Password',
-                      icon: Icons.lock,
-                      isPassword: true,
-                      controller: _passwordController,
-                      obscureText: _obscurePassword,
-                      onToggleObscure: () {
-                        setState(() {
-                          _obscurePassword = !_obscurePassword;
-                        });
-                      },
-                    ),
-                    const SizedBox(height: 16),
-                    _buildTextField(
-                      label: 'Confirm Password',
-                      icon: Icons.lock,
-                      isPassword: true,
-                      controller: _confirmPasswordController,
-                      obscureText: _obscureConfirmPassword,
-                      onToggleObscure: () {
-                        setState(() {
-                          _obscureConfirmPassword = !_obscureConfirmPassword;
-                        });
-                      },
-                    ),
+                    if (!widget.isGoogleSignIn) ...[
+                      const SizedBox(height: 16),
+                      _buildTextField(
+                        label: 'Password',
+                        icon: Icons.lock,
+                        isPassword: true,
+                        controller: _passwordController,
+                        obscureText: _obscurePassword,
+                        onToggleObscure: () {
+                          setState(() {
+                            _obscurePassword = !_obscurePassword;
+                          });
+                        },
+                      ),
+                      const SizedBox(height: 16),
+                      _buildTextField(
+                        label: 'Confirm Password',
+                        icon: Icons.lock,
+                        isPassword: true,
+                        controller: _confirmPasswordController,
+                        obscureText: _obscureConfirmPassword,
+                        onToggleObscure: () {
+                          setState(() {
+                            _obscureConfirmPassword = !_obscureConfirmPassword;
+                          });
+                        },
+                      ),
+                    ],
                     const SizedBox(height: 16),
                     GestureDetector(
                       onTap: _pickSelfie,
@@ -407,10 +649,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
                     Center(
                       child: GestureDetector(
                         onTap: () {
-                          Navigator.pushReplacement(
-                            context,
-                            MaterialPageRoute(builder: (context) => const SignInScreen()),
-                          );
+                          Navigator.pushReplacementNamed(context, '/sign_in');
                         },
                         child: Text(
                           'Already have an account? Sign in',
@@ -436,14 +675,29 @@ class _SignUpScreenState extends State<SignUpScreen> {
   Widget _buildTopNavigationBar() {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
-      child: Align(
-        alignment: Alignment.centerLeft,
-        child: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.white),
-          onPressed: () {
-            Navigator.pop(context);
-          },
-        ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          IconButton(
+            icon: const Icon(Icons.arrow_back, color: Colors.white),
+            onPressed: () {
+              Navigator.pop(context);
+            },
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.pop(context);
+            },
+            child: Text(
+              'Sign In',
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: MediaQuery.of(context).size.width * 0.035,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -455,6 +709,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
     bool isPassword = false,
     bool obscureText = false,
     VoidCallback? onToggleObscure,
+    bool readOnly = false,
   }) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -470,6 +725,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
         TextField(
           controller: controller,
           obscureText: isPassword ? obscureText : false,
+          readOnly: readOnly,
           style: const TextStyle(color: Colors.white),
           decoration: InputDecoration(
             filled: true,
@@ -502,7 +758,6 @@ class SignInScreen extends StatefulWidget {
   const SignInScreen({super.key});
 
   @override
-  // ignore: library_private_types_in_public_api
   State<SignInScreen> createState() => _SignInScreenState();
 }
 
@@ -534,7 +789,6 @@ class _SignInScreenState extends State<SignInScreen> {
   }
 
   Future<void> _loginUser() async {
-    // Check connectivity
     if (!await checkInternetConnectivity()) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -543,7 +797,6 @@ class _SignInScreenState extends State<SignInScreen> {
       return;
     }
 
-    // Input validation
     if (_emailController.text.isEmpty || _passwordController.text.isEmpty) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -564,12 +817,15 @@ class _SignInScreenState extends State<SignInScreen> {
       _isLoading = true;
     });
 
-    const String apiUrl = 'http://apis.gnmprimesource.co.ke/apis/login/';
+    const String apiUrl = 'https://apis.gnmprimesource.co.ke/apis/login';
 
     try {
       final response = await http.post(
         Uri.parse(apiUrl),
-        headers: {'Content-Type': 'application/json'},
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
         body: jsonEncode({
           'email': _emailController.text,
           'password': _passwordController.text,
@@ -580,109 +836,96 @@ class _SignInScreenState extends State<SignInScreen> {
         _isLoading = false;
       });
 
-      final jsonResponse = jsonDecode(response.body);
-      debugPrint('Login API Response: $jsonResponse');
+      debugPrint('Login API Response Status: ${response.statusCode}');
+      debugPrint('Login API Response Headers: ${response.headers}');
+      debugPrint('Login API Response Body: ${response.body}');
 
-      if (jsonResponse['status'] == 'success') {
-        final prefs = await SharedPreferences.getInstance();
-        final userId = jsonResponse['userId'].toString();
-        await prefs.setString('user_id', userId);
+      if (response.headers['content-type']?.contains('application/json') == true) {
+        final jsonResponse = jsonDecode(response.body);
+        debugPrint('Parsed Login API Response: $jsonResponse');
 
-        if (_rememberMe) {
-          await prefs.setString('email', _emailController.text);
-          await prefs.setString('password', _passwordController.text);
-        }
+        if (jsonResponse['status'] == 'success' && response.statusCode >= 200 && response.statusCode < 300) {
+          final prefs = await SharedPreferences.getInstance();
+          final userId = jsonResponse['userId'].toString();
+          await prefs.setString('user_id', userId);
 
-        try {
-          final userResponse = await http.get(
-            Uri.parse('http://apis.gnmprimesource.co.ke/apis/user/$userId'),
-            headers: {'Content-Type': 'application/json'},
-          ).timeout(const Duration(seconds: 10));
-
-          final userData = jsonDecode(userResponse.body);
-          debugPrint('User API Response: $userData');
-
-          if (userData['status'] == 'success') {
-            final userName = userData['name'] ?? 'User';
-            final selfiePath = userData['selfie_path'] ?? '';
-            final email = userData['email'] ?? _emailController.text;
-            final phone = userData['phone_number'] ?? '';
-            await prefs.setString('user_name', userName);
-            await prefs.setString('selfie_path', selfiePath);
-            await prefs.setString('email', email);
-            await prefs.setString('phone_number', phone);
+          if (_rememberMe) {
+            await prefs.setString('email', _emailController.text);
+            await prefs.setString('password', _passwordController.text);
           }
-        } catch (userError) {
-          debugPrint('Error fetching user data: $userError');
-        }
 
-        if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Login successful!')),
-        );
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(builder: (context) => graph.SavingsDashboard(userId: userId)),
-        );
-      } else {
-        String errorMessage;
-        switch (jsonResponse['message']) {
-          case 'Email and password required':
-            errorMessage = 'Please enter both email and password.';
-            break;
-          case 'User not found':
-            errorMessage = 'No account found with this email.';
-            break;
-          case 'Invalid password':
-            errorMessage = 'Incorrect password. Please try again.';
-            break;
-          default:
-            if (jsonResponse['message'].toString().startsWith('AML check failed')) {
-              errorMessage = 'Login denied due to AML restrictions.';
-            } else {
-              errorMessage = jsonResponse['message']?.toString() ?? 'An unknown error occurred.';
+          try {
+            final userResponse = await http.get(
+              Uri.parse('https://apis.gnmprimesource.co.ke/apis/user/$userId'),
+              headers: {'Content-Type': 'application/json'},
+            ).timeout(const Duration(seconds: 10));
+
+            final userData = jsonDecode(userResponse.body);
+            debugPrint('User API Response: $userData');
+
+            if (userData['status'] == 'success') {
+              final userName = userData['name'] ?? 'User';
+              final selfiePath = userData['selfie_path'] ?? '';
+              final email = userData['email'] ?? _emailController.text;
+              final phone = userData['phone_number'] ?? '';
+              await prefs.setString('user_name', userName);
+              await prefs.setString('selfie_path', selfiePath);
+              await prefs.setString('email', email);
+              await prefs.setString('phone_number', phone);
             }
+          } catch (userError) {
+            debugPrint('Error fetching user data: $userError');
+          }
+
+          if (!mounted) return;
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Login successful!')),
+          );
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(builder: (context) => graph.SavingsDashboard(userId: userId)),
+          );
+        } else {
+          final errorMessage = _parseErrorMessage(response, fallbackMessage: 'Login failed. Please try again.');
+          if (!mounted) return;
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text(errorMessage)),
+          );
+          if (errorMessage == 'Login failed. Please try again.' || response.statusCode >= 500) {
+            _showFallbackLoginDialog(errorMessage);
+          }
         }
+      } else {
+        final errorMessage = _parseErrorMessage(response, fallbackMessage: 'Login failed. Please try again.');
         if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Login failed: $errorMessage')),
+          SnackBar(content: Text(errorMessage)),
         );
+        _showFallbackLoginDialog(errorMessage);
       }
-    } catch (e) {
+    } catch (e, stackTrace) {
       setState(() {
         _isLoading = false;
       });
       debugPrint('Error sending login request: $e');
+      debugPrint('Stack trace: $stackTrace');
+      String errorMessage;
       if (e is SocketException) {
-        if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Network error: Please check your internet connection')),
-        );
+        errorMessage = 'No internet connection. Please check your network.';
       } else if (e is TimeoutException) {
-        if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Request timed out. Server might be slow or unreachable.')),
-        );
+        errorMessage = 'Request timed out. Please try again.';
       } else {
-        if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: const Text('Failed to connect to the server. Try again or use fallback login.'),
-            duration: const Duration(seconds: 5),
-            action: SnackBarAction(
-              label: 'Try Again',
-              onPressed: _loginUser,
-            ),
-          ),
-        );
+        errorMessage = 'An error occurred during login. Please try again.';
       }
       if (!mounted) return;
-      _showFallbackLoginDialog();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(errorMessage)),
+      );
+      _showFallbackLoginDialog(errorMessage);
     }
   }
 
   Future<void> _signInWithGoogle() async {
-    // Check connectivity
     if (!await checkInternetConnectivity()) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -696,125 +939,211 @@ class _SignInScreenState extends State<SignInScreen> {
     });
 
     try {
-      final GoogleSignIn googleSignIn = GoogleSignIn(
-        scopes: ['email'],
-        clientId: kIsWeb ? webClientId : null,
-      );
+      await Firebase.initializeApp();
+      final FirebaseAuth auth = FirebaseAuth.instance;
+      UserCredential userCredential;
 
-      final GoogleSignInAccount? googleUser = await googleSignIn.signIn();
-      if (googleUser == null) {
-        throw Exception('Google Sign-In cancelled');
-      }
-
-      // Handle scope authorization for web
       if (kIsWeb) {
-        bool isAuthorized = await googleSignIn.canAccessScopes(['email']);
-        if (!isAuthorized) {
-          await googleSignIn.requestScopes(['email']);
-        }
-      }
-
-      final GoogleSignInAuthentication googleAuth = await googleUser.authentication;
-      final String email = googleUser.email;
-      final String name = googleUser.displayName ?? 'Google User';
-      final String? photoUrl = googleUser.photoUrl;
-      final String userId = googleUser.id;
-
-      // Check if user exists in backend
-      try {
-        final loginResponse = await http.post(
-          Uri.parse('http://apis.gnmprimesource.co.ke/apis/login/'),
-          headers: {'Content-Type': 'application/json'},
-          body: jsonEncode({
-            'email': email,
-            'google_id_token': googleAuth.idToken,
-            'is_google_sign_in': true,
-          }),
-        ).timeout(const Duration(seconds: 30));
-
-        final jsonResponse = jsonDecode(loginResponse.body);
-        debugPrint('Google Login API Response: $jsonResponse');
-
-        if (jsonResponse['status'] == 'success') {
-          // User exists
-          final prefs = await SharedPreferences.getInstance();
-          await prefs.setString('user_id', userId);
-          await prefs.setString('user_name', name);
-          await prefs.setString('email', email);
-          await prefs.setString('phone_number', '');
-          await prefs.setString('selfie_path', photoUrl ?? '');
-
+        final GoogleAuthProvider googleProvider = GoogleAuthProvider();
+        googleProvider.addScope('email openid profile');
+        userCredential = await auth.signInWithPopup(googleProvider);
+      } else {
+        final GoogleSignIn googleSignIn = GoogleSignIn(
+          clientId: kIsWeb ? webClientId : null,
+          scopes: ['email', 'openid', 'profile'],
+        );
+        final GoogleSignInAccount? googleUser = await googleSignIn.signIn();
+        if (googleUser == null) {
+          setState(() {
+            _isLoading = false;
+          });
           if (!mounted) return;
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Google Sign-In successful!')),
+            const SnackBar(content: Text('Google Sign-In was cancelled.')),
           );
-          Navigator.pushReplacement(
-            context,
-            MaterialPageRoute(builder: (context) => graph.SavingsDashboard(userId: userId)),
-          );
-        } else if (jsonResponse['message'] == 'User not found') {
-          // Prompt for additional details and register
-          final additionalDetails = await _promptForAdditionalDetails(context, name, email);
-          if (additionalDetails == null) {
-            throw Exception('Registration cancelled');
+          return;
+        }
+        final GoogleSignInAuthentication googleAuth = await googleUser.authentication;
+        final OAuthCredential credential = GoogleAuthProvider.credential(
+          accessToken: googleAuth.accessToken,
+          idToken: googleAuth.idToken,
+        );
+        userCredential = await auth.signInWithCredential(credential);
+      }
+
+      final User? user = userCredential.user;
+      if (user == null) {
+        throw Exception('Google Sign-In failed: No user returned.');
+      }
+
+      final String? idToken = await user.getIdToken();
+      if (idToken == null) {
+        throw Exception('Authentication token is missing.');
+      }
+
+      final String email = user.email ?? '';
+      final String name = user.displayName ?? 'Google User';
+      final String? photoUrl = user.photoURL;
+
+      debugPrint('Firebase Sign-In: Email: $email, Name: $name, PhotoURL: $photoUrl');
+
+      final loginResponse = await http.post(
+        Uri.parse('https://apis.gnmprimesource.co.ke/apis/login'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
+        body: jsonEncode({
+          'email': email,
+          'google_id_token': idToken,
+          'is_google_sign_in': true,
+        }),
+      ).timeout(const Duration(seconds: 30));
+
+      debugPrint('Google Login API Response Status: ${loginResponse.statusCode}');
+      debugPrint('Google Login API Response Body: ${loginResponse.body}');
+
+      if (loginResponse.headers['content-type']?.contains('application/json') == true) {
+        final jsonResponse = jsonDecode(loginResponse.body);
+        debugPrint('Parsed Google Login API Response: $jsonResponse');
+
+        if (jsonResponse['status'] == 'success') {
+          final String backendUserId = jsonResponse['userId'].toString();
+          final bool faceVerified = jsonResponse['faceVerified'] == true || jsonResponse['faceVerified'] == 1;
+          debugPrint('Backend User ID: $backendUserId, Face Verified: $faceVerified');
+
+          final prefs = await SharedPreferences.getInstance();
+          await prefs.setString('user_id', backendUserId);
+
+          Map<String, dynamic> userData = {};
+          try {
+            final userResponse = await http.get(
+              Uri.parse('https://apis.gnmprimesource.co.ke/apis/user/$backendUserId'),
+              headers: {'Content-Type': 'application/json'},
+            ).timeout(const Duration(seconds: 10));
+
+            debugPrint('User API Response Status: ${userResponse.statusCode}');
+            debugPrint('User API Response Body: ${userResponse.body}');
+
+            if (userResponse.statusCode == 200 && userResponse.headers['content-type']?.contains('application/json') == true) {
+              userData = jsonDecode(userResponse.body);
+              debugPrint('Parsed User API Response: $userData');
+            } else {
+              debugPrint('User API failed with status: ${userResponse.statusCode}');
+              throw Exception('Failed to fetch user data.');
+            }
+          } catch (userError) {
+            debugPrint('Error fetching user data: $userError');
           }
 
-          final registerRequest = http.MultipartRequest(
-            'POST',
-            Uri.parse('http://apis.gnmprimesource.co.ke/apis/register'),
-          );
-          registerRequest.fields['full_name'] = additionalDetails['name']!;
-          registerRequest.fields['email'] = email;
-          registerRequest.fields['phone_number'] = additionalDetails['phone']!;
-          registerRequest.fields['national_id'] = additionalDetails['national_id']!;
-          registerRequest.fields['date_of_birth'] = additionalDetails['dob']!;
-          registerRequest.fields['password'] = '';
-          registerRequest.fields['google_id_token'] = googleAuth.idToken!;
+          await prefs.setString('user_name', userData['name']?.toString() ?? name);
+          await prefs.setString('email', userData['email']?.toString() ?? email);
+          await prefs.setString('phone_number', userData['phone_number']?.toString() ?? '');
+          await prefs.setString('selfie_path', userData['selfie_path']?.toString() ?? photoUrl ?? '');
 
-          final registerResponse = await registerRequest.send().timeout(const Duration(seconds: 30));
-          final registerData = await registerResponse.stream.bytesToString();
-          final registerJson = jsonDecode(registerData);
-          debugPrint('Google Register API Response: $registerJson');
-
-          if (registerJson['status'] == 'success') {
-            final prefs = await SharedPreferences.getInstance();
-            await prefs.setString('user_id', userId);
-            await prefs.setString('user_name', name);
-            await prefs.setString('email', email);
-            await prefs.setString('phone_number', additionalDetails['phone']!);
-            await prefs.setString('selfie_path', photoUrl ?? '');
-
+          if (faceVerified) {
             if (!mounted) return;
             ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('Google Sign-In and registration successful!')),
+              const SnackBar(content: Text('Google Sign-In successful!')),
             );
             Navigator.pushReplacement(
               context,
-              MaterialPageRoute(builder: (context) => graph.SavingsDashboard(userId: userId)),
+              MaterialPageRoute(
+                builder: (context) => graph.SavingsDashboard(userId: backendUserId),
+              ),
             );
           } else {
-            throw Exception('Registration failed: ${registerJson['message']}');
+            if (!mounted) return;
+            final registered = await showDialog<bool>(
+              context: context,
+              barrierDismissible: false,
+              builder: (context) => Dialog(
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                child: SizedBox(
+                  width: MediaQuery.of(context).size.width * 0.9,
+                  height: MediaQuery.of(context).size.height * 0.8,
+                  child: SignUpScreen(
+                    isGoogleSignIn: true,
+                    googleName: name,
+                    googleEmail: email,
+                    googleIdToken: idToken,
+                    googlePhotoUrl: photoUrl,
+                  ),
+                ),
+              ),
+            );
+
+            if (registered == true && mounted) {
+              Navigator.pushReplacement(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => graph.SavingsDashboard(userId: backendUserId),
+                ),
+              );
+            }
+          }
+        } else if (jsonResponse['message'] == 'User not found') {
+          debugPrint('User not found, showing SignUpScreen dialog');
+          if (!mounted) return;
+          final registered = await showDialog<bool>(
+            context: context,
+            barrierDismissible: false,
+            builder: (context) => Dialog(
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              child: SizedBox(
+                width: MediaQuery.of(context).size.width * 0.9,
+                height: MediaQuery.of(context).size.height * 0.8,
+                child: SignUpScreen(
+                  isGoogleSignIn: true,
+                  googleName: name,
+                  googleEmail: email,
+                  googleIdToken: idToken,
+                  googlePhotoUrl: photoUrl,
+                ),
+              ),
+            ),
+          );
+
+          if (registered == true && mounted) {
+            final prefs = await SharedPreferences.getInstance();
+            final userId = prefs.getString('user_id') ?? 'default_user';
+            Navigator.pushReplacement(
+              context,
+              MaterialPageRoute(
+                builder: (context) => graph.SavingsDashboard(userId: userId),
+              ),
+            );
           }
         } else {
-          throw Exception('Login failed: ${jsonResponse['message']}');
+          final errorMessage = _parseErrorMessage(loginResponse, fallbackMessage: 'Google Sign-In failed. Please try again.');
+          if (!mounted) return;
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text(errorMessage)),
+          );
         }
-      } catch (e) {
-        debugPrint('Error with backend integration: $e');
-        throw Exception('Backend integration failed: $e');
+      } else {
+        final errorMessage = _parseErrorMessage(loginResponse, fallbackMessage: 'Google Sign-In failed. Please try again.');
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(errorMessage)),
+        );
       }
-    } catch (e) {
-      debugPrint('Google Sign-In error: $e');
-      String errorMessage = 'Google Sign-In failed';
-      if (e.toString().contains('ApiException: 10')) {
-        errorMessage = 'Invalid client ID or SHA-1 fingerprint';
-      } else if (e.toString().contains('network_error')) {
-        errorMessage = 'Network error during Google Sign-In';
-      } else if (e.toString().contains('cancelled')) {
-        errorMessage = 'Google Sign-In was cancelled';
+    } catch (e, stackTrace) {
+      debugPrint('Firebase Google Sign-In error: $e');
+      debugPrint('Stack trace: $stackTrace');
+      String errorMessage;
+      if (e.toString().contains('cancelled')) {
+        errorMessage = 'Google Sign-In was cancelled.';
+      } else if (e is SocketException) {
+        errorMessage = 'No internet connection. Please check your network.';
+      } else if (e is TimeoutException) {
+        errorMessage = 'Request timed out. Please try again.';
+      } else {
+        errorMessage = 'An error occurred during Google Sign-In. Please try again.';
       }
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('$errorMessage: $e')),
+        SnackBar(content: Text(errorMessage)),
       );
     } finally {
       if (mounted) {
@@ -825,90 +1154,53 @@ class _SignInScreenState extends State<SignInScreen> {
     }
   }
 
-  Future<Map<String, String>?> _promptForAdditionalDetails(BuildContext context, String name, String email) async {
-    final phoneController = TextEditingController();
-    final nationalIdController = TextEditingController();
-    final dobController = TextEditingController();
-
-    final result = await showDialog<Map<String, String>>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Complete Registration'),
-        content: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextField(
-                controller: phoneController,
-                decoration: const InputDecoration(labelText: 'Phone Number (e.g., 0700123456)'),
-              ),
-              TextField(
-                controller: nationalIdController,
-                decoration: const InputDecoration(labelText: 'National ID'),
-              ),
-              TextField(
-                controller: dobController,
-                decoration: const InputDecoration(labelText: 'Date of Birth (YYYY-MM-DD)'),
-              ),
-            ],
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
-          ),
-          TextButton(
-            onPressed: () {
-              if (phoneController.text.isEmpty ||
-                  nationalIdController.text.isEmpty ||
-                  dobController.text.isEmpty) {
-                if (!mounted) return;
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Please fill in all fields')),
-                );
-                return;
-              }
-              Navigator.pop(context, {
-                'name': name,
-                'phone': phoneController.text,
-                'national_id': nationalIdController.text,
-                'dob': dobController.text,
-              });
-            },
-            child: const Text('Submit'),
-          ),
-        ],
-      ),
-    );
-
-    phoneController.dispose();
-    nationalIdController.dispose();
-    dobController.dispose();
-    return result;
-  }
-
-  void _showFallbackLoginDialog() {
+  void _showFallbackLoginDialog(String errorMessage) {
     if (!mounted) return;
     showDialog(
       context: context,
       builder: (BuildContext context) {
         return AlertDialog(
-          title: const Text('Server Connection Issue'),
-          content: const Text('We\'re having trouble connecting to our servers. Would you like to:'),
+          backgroundColor: const Color(0xFF1F2937),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          title: Text(
+            'Login Issue',
+            style: TextStyle(
+              color: Colors.white,
+              fontSize: MediaQuery.of(context).size.width * 0.05,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          content: Text(
+            'Unable to log in: $errorMessage',
+            style: TextStyle(
+              color: Colors.grey[200],
+              fontSize: MediaQuery.of(context).size.width * 0.035,
+            ),
+          ),
           actions: [
             TextButton(
-              child: const Text('Try Again'),
+              child: Text(
+                'Try Again',
+                style: TextStyle(
+                  color: const Color(0xFFFFC107),
+                  fontSize: MediaQuery.of(context).size.width * 0.04,
+                ),
+              ),
               onPressed: () {
                 Navigator.of(context).pop();
                 _loginUser();
               },
             ),
             TextButton(
-              child: const Text('Demo Mode'),
+              child: Text(
+                'Cancel',
+                style: TextStyle(
+                  color: const Color(0xFFFFC107),
+                  fontSize: MediaQuery.of(context).size.width * 0.04,
+                ),
+              ),
               onPressed: () {
                 Navigator.of(context).pop();
-                _mockLoginUser();
               },
             ),
           ],
@@ -917,37 +1209,357 @@ class _SignInScreenState extends State<SignInScreen> {
     );
   }
 
-  Future<void> _mockLoginUser() async {
-    setState(() {
-      _isLoading = true;
-    });
+  // Show Forgot Password Dialog
+  void _showForgotPasswordDialog() {
+    final forgotPasswordController = TextEditingController();
+    bool isLoading = false;
 
-    await Future.delayed(const Duration(seconds: 1));
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        final screenWidth = MediaQuery.of(context).size.width;
+        return StatefulBuilder(
+          builder: (context, setStateDialog) {
+            return AlertDialog(
+              backgroundColor: const Color(0xFF1F2937),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              title: Text(
+                'Forgot Password',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: screenWidth * 0.05,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Enter your email to receive a password reset link.',
+                    style: TextStyle(
+                      color: Colors.grey[200],
+                      fontSize: screenWidth * 0.035,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  TextField(
+                    controller: forgotPasswordController,
+                    style: TextStyle(color: Colors.white),
+                    decoration: InputDecoration(
+                      filled: true,
+                      fillColor: const Color(0xFF374151),
+                      prefixIcon: Icon(Icons.email, color: Colors.grey[400]),
+                      hintText: 'Enter your email',
+                      hintStyle: TextStyle(color: Colors.grey[400]),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(8),
+                        borderSide: BorderSide.none,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              actions: [
+                TextButton(
+                  child: Text(
+                    'Cancel',
+                    style: TextStyle(
+                      color: const Color(0xFFFFC107),
+                      fontSize: screenWidth * 0.04,
+                    ),
+                  ),
+                  onPressed: () {
+                    Navigator.of(context).pop();
+                  },
+                ),
+                TextButton(
+                  child: isLoading
+                      ? SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                          ),
+                        )
+                      : Text(
+                          'Send Reset Link',
+                          style: TextStyle(
+                            color: const Color(0xFFFFC107),
+                            fontSize: screenWidth * 0.04,
+                          ),
+                        ),
+                  onPressed: isLoading
+                      ? null
+                      : () async {
+                          final email = forgotPasswordController.text.trim();
+                          if (email.isEmpty) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(content: Text('Please enter your email')),
+                            );
+                            return;
+                          }
+                          if (!RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$').hasMatch(email)) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(content: Text('Please enter a valid email address')),
+                            );
+                            return;
+                          }
 
-    const String demoUserId = '12345';
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString('user_id', demoUserId);
-    await prefs.setString('user_name', 'Demo User');
-    await prefs.setString('email', 'demo@example.com');
-    await prefs.setString('phone_number', '0700123456');
-    await prefs.setString('selfie_path', '');
-    await prefs.setString('is_demo_mode', 'true');
+                          setStateDialog(() {
+                            isLoading = true;
+                          });
 
-    setState(() {
-      _isLoading = false;
-    });
+                          await _requestPasswordReset(email);
 
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Logged in with demo account'),
-        duration: Duration(seconds: 3),
-      ),
+                          if (mounted) {
+                            setStateDialog(() {
+                              isLoading = false;
+                            });
+                            Navigator.of(context).pop();
+                          }
+                        },
+                ),
+              ],
+            );
+          },
+        );
+      },
     );
+  }
 
-    Navigator.pushReplacement(
-      context,
-      MaterialPageRoute(builder: (context) => graph.SavingsDashboard(userId: demoUserId)),
+  // Request Password Reset
+  Future<void> _requestPasswordReset(String email) async {
+    if (!await checkInternetConnectivity()) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('No internet connection. Please check your network.')),
+      );
+      return;
+    }
+
+    const String apiUrl = 'https://apis.gnmprimesource.co.ke/apis/forgot-password';
+
+    try {
+      final response = await http.post(
+        Uri.parse(apiUrl),
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
+        body: jsonEncode({
+          'email': email,
+        }),
+      ).timeout(const Duration(seconds: 15));
+
+      debugPrint('Forgot Password API Response Status: ${response.statusCode}');
+      debugPrint('Forgot Password API Response Body: ${response.body}');
+
+      if (response.headers['content-type']?.contains('application/json') == true) {
+        final jsonResponse = jsonDecode(response.body);
+        debugPrint('Parsed Forgot Password API Response: $jsonResponse');
+
+        if (jsonResponse['status'] == 'success' && response.statusCode >= 200 && response.statusCode < 300) {
+          if (!mounted) return;
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Password reset link sent to your email.')),
+          );
+        } else {
+          final errorMessage = _parseErrorMessage(response, fallbackMessage: 'Failed to send reset link. Please try again.');
+          if (!mounted) return;
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text(errorMessage)),
+          );
+        }
+      } else {
+        final errorMessage = _parseErrorMessage(response, fallbackMessage: 'Failed to send reset link. Please try again.');
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(errorMessage)),
+        );
+      }
+    } catch (e, stackTrace) {
+      debugPrint('Error sending forgot password request: $e');
+      debugPrint('Stack trace: $stackTrace');
+      String errorMessage;
+      if (e is SocketException) {
+        errorMessage = 'No internet connection. Please check your network.';
+      } else if (e is TimeoutException) {
+        errorMessage = 'Request timed out. Please try again.';
+      } else {
+        errorMessage = 'An error occurred while sending the reset link. Please try again.';
+      }
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(errorMessage)),
+      );
+    }
+  }
+
+  // Show Privacy Policy Dialog
+  void _showPrivacyPolicyDialog() {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        final screenWidth = MediaQuery.of(context).size.width;
+        return AlertDialog(
+          backgroundColor: const Color(0xFF1F2937),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          title: Text(
+            'Privacy Policy',
+            style: TextStyle(
+              color: Colors.white,
+              fontSize: screenWidth * 0.05,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          content: SingleChildScrollView(
+            child: Text(
+              '''
+Haba na Haba Privacy Policy
+Last Updated: August 15, 2025
+
+1. Information We Collect
+We collect personal information you provide, such as:
+- Name, email, phone number, national ID, and date of birth.
+- Selfie for identity verification.
+- Google account details (if using Google Sign-In).
+- Usage data (e.g., app interactions, device information).
+
+2. How We Use Your Information
+Your information is used to:
+- Create and manage your account.
+- Verify your identity for security and compliance.
+- Provide personalized savings and financial services.
+- Improve our app and services.
+
+3. Data Sharing
+We may share your data with:
+- Service providers for verification and analytics.
+- Regulatory authorities as required by law.
+We do not sell your personal information.
+
+4. Data Security
+We use encryption and secure servers to protect your data. However, no system is completely secure, and you share information at your own risk.
+
+5. Your Rights
+You may:
+- Access or update your personal information.
+- Request deletion of your account (subject to legal obligations).
+- Opt out of non-essential communications.
+
+6. Contact Us
+For questions, contact us at support@habanahaba.com.
+
+This policy may be updated periodically. Continued use of the app constitutes acceptance of the updated policy.
+              ''',
+              style: TextStyle(
+                color: Colors.grey[200],
+                fontSize: screenWidth * 0.035,
+              ),
+            ),
+          ),
+          actions: [
+            TextButton(
+              child: Text(
+                'Close',
+                style: TextStyle(
+                  color: const Color(0xFFFFC107),
+                  fontSize: screenWidth * 0.04,
+                ),
+              ),
+              onPressed: () {
+                Navigator.of(context).pop();
+              },
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  // Show Terms of Service Dialog
+  void _showTermsOfServiceDialog() {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        final screenWidth = MediaQuery.of(context).size.width;
+        return AlertDialog(
+          backgroundColor: const Color(0xFF1F2937),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          title: Text(
+            'Terms of Service',
+            style: TextStyle(
+              color: Colors.white,
+              fontSize: screenWidth * 0.05,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          content: SingleChildScrollView(
+            child: Text(
+              '''
+Haba na Haba Terms of Service
+Last Updated: August 15, 2025
+
+1. Acceptance of Terms
+By using Haba na Haba, you agree to these Terms of Service. If you do not agree, please do not use the app.
+
+2. Account Responsibilities
+- You must provide accurate information during registration.
+- Keep your password secure and do not share it.
+- You are responsible for all activities under your account.
+
+3. Acceptable Use
+You agree not to:
+- Use the app for illegal activities.
+- Attempt to hack or disrupt the app.
+- Submit false or misleading information.
+
+4. Service Limitations
+- The app is provided "as is" with no warranties.
+- We may suspend or terminate your access for violations of these terms.
+- Service availability may vary due to maintenance or technical issues.
+
+5. Termination
+We may terminate your account for:
+- Breach of these terms.
+- Suspicious or fraudulent activity.
+You may delete your account at any time.
+
+6. Limitation of Liability
+Haba na Haba is not liable for:
+- Losses due to unauthorized access to your account.
+- Service interruptions or data loss.
+- Financial decisions based on app features.
+
+7. Contact Us
+For support, contact support@habanahaba.com.
+
+We may update these terms periodically. Continued use constitutes acceptance of the updated terms.
+              ''',
+              style: TextStyle(
+                color: Colors.grey[200],
+                fontSize: screenWidth * 0.035,
+              ),
+            ),
+          ),
+          actions: [
+            TextButton(
+              child: Text(
+                'Close',
+                style: TextStyle(
+                  color: const Color(0xFFFFC107),
+                  fontSize: screenWidth * 0.04,
+                ),
+              ),
+              onPressed: () {
+                Navigator.of(context).pop();
+              },
+            ),
+          ],
+        );
+      },
     );
   }
 
@@ -1036,11 +1648,9 @@ class _SignInScreenState extends State<SignInScreen> {
                           ],
                         ),
                         GestureDetector(
-                          onTap: () {
-                            debugPrint('Forget password tapped');
-                          },
+                          onTap: _showForgotPasswordDialog,
                           child: Text(
-                            'Forget password?',
+                            'Forgot password?',
                             style: TextStyle(
                               color: Colors.grey[400],
                               fontSize: screenWidth * 0.035,
@@ -1094,7 +1704,16 @@ class _SignInScreenState extends State<SignInScreen> {
                     SizedBox(
                       width: double.infinity,
                       child: ElevatedButton.icon(
-                        icon: const Icon(Icons.g_mobiledata, color: Colors.white, size: 30),
+                        icon: Image.asset(
+                          'assets/google.png',
+                          width: 28,
+                          height: 28,
+                          fit: BoxFit.contain,
+                          errorBuilder: (context, error, stackTrace) {
+                            debugPrint('Google logo loading error: $error');
+                            return const Icon(Icons.error, color: Colors.white, size: 28);
+                          },
+                        ),
                         label: Text(
                           'Continue with Google',
                           style: TextStyle(
@@ -1117,9 +1736,14 @@ class _SignInScreenState extends State<SignInScreen> {
                     Center(
                       child: GestureDetector(
                         onTap: () {
+                          debugPrint('Navigating to SignUpScreen');
                           Navigator.push(
                             context,
-                            MaterialPageRoute(builder: (context) => const SignUpScreen()),
+                            MaterialPageRoute(
+                              builder: (context) => const SignUpScreen(
+                                isGoogleSignIn: false,
+                              ),
+                            ),
                           );
                         },
                         child: Text(
@@ -1137,9 +1761,7 @@ class _SignInScreenState extends State<SignInScreen> {
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
                         GestureDetector(
-                          onTap: () {
-                            debugPrint('Privacy Policy tapped');
-                          },
+                          onTap: _showPrivacyPolicyDialog,
                           child: Text(
                             'Privacy Policy',
                             style: TextStyle(
@@ -1158,9 +1780,7 @@ class _SignInScreenState extends State<SignInScreen> {
                         ),
                         const SizedBox(width: 10),
                         GestureDetector(
-                          onTap: () {
-                            debugPrint('Terms of Service tapped');
-                          },
+                          onTap: _showTermsOfServiceDialog,
                           child: Text(
                             'Terms of Service',
                             style: TextStyle(

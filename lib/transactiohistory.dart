@@ -17,6 +17,7 @@ class _TransactionHistoryState extends State<TransactionHistory> {
   int _selectedIndex = 1; // Transactions tab is selected
   String _selectedFilter = 'Today'; // Default filter
   List<Map<String, dynamic>> transactions = [];
+  List<Map<String, dynamic>> allTransactions = []; // Store all transactions for filtering
   bool isLoading = true;
   bool hasError = false;
 
@@ -43,19 +44,29 @@ class _TransactionHistoryState extends State<TransactionHistory> {
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
-        if (data['status'] == 'success') {
+        if (data['status'] == 'success' && data['data'] is List) {
           setState(() {
-            transactions = List<Map<String, dynamic>>.from(data['data']).map((transaction) {
+            allTransactions = List<Map<String, dynamic>>.from(data['data']).map((transaction) {
+              final createdAt = transaction['created_at'] ?? DateTime.now().toIso8601String();
+              DateTime? parsedDate;
+              try {
+                parsedDate = DateTime.parse(createdAt);
+              } catch (e) {
+                debugPrint('Invalid timestamp format: $createdAt');
+                parsedDate = DateTime.now();
+              }
               return {
                 'icon': _getTransactionIcon(transaction['type'] ?? 'unknown'),
                 'iconColor': _getIconColor(transaction['type'] ?? 'unknown'),
-                'title': transaction['business_name'] ?? 'Unknown Merchant',
+                'title': transaction['business_name']?.toString() ?? 'Unknown Merchant',
                 'status': transaction['transaction_status']?.toString().capitalize() ?? 'Unknown',
                 'amount': double.tryParse(transaction['total_amount']?.toString() ?? '0.0') ?? 0.0,
-                'timestamp': _formatTimestamp(transaction['created_at'] ?? DateTime.now().toIso8601String()),
+                'timestamp': _formatTimestamp(createdAt),
+                'date': parsedDate, // Store raw DateTime
               };
             }).toList();
             isLoading = false;
+            _applyFilter(_selectedFilter); // Apply initial filter
           });
         } else {
           throw Exception(data['message'] ?? 'Failed to load transactions');
@@ -68,45 +79,22 @@ class _TransactionHistoryState extends State<TransactionHistory> {
       setState(() {
         isLoading = false;
         hasError = true;
+        allTransactions = [];
+        transactions = [];
       });
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Error loading transactions: $e'),
-          action: SnackBarAction(
-            label: 'Retry',
-            onPressed: fetchTransactions,
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error loading transactions: $e'),
+            action: SnackBarAction(
+              label: 'Retry',
+              onPressed: fetchTransactions,
+            ),
           ),
-        ),
-      );
-
-      // Fallback to mock data
-      setState(() {
-        transactions = _getMockTransactions();
-      });
+        );
+      }
     }
-  }
-
-  // Mock transactions for fallback
-  List<Map<String, dynamic>> _getMockTransactions() {
-    return [
-      {
-        'icon': Icons.shopping_cart,
-        'iconColor': Colors.green,
-        'title': 'Demo Merchant',
-        'status': 'Completed',
-        'amount': 1500.75,
-        'timestamp': _formatTimestamp(DateTime.now().toIso8601String()),
-      },
-      {
-        'icon': Icons.account_balance_wallet,
-        'iconColor': Colors.blue,
-        'title': 'Demo Utility',
-        'status': 'Pending',
-        'amount': 500.00,
-        'timestamp': _formatTimestamp(DateTime.now().subtract(const Duration(days: 1)).toIso8601String()),
-      },
-    ];
   }
 
   IconData _getTransactionIcon(String type) {
@@ -140,7 +128,7 @@ class _TransactionHistoryState extends State<TransactionHistory> {
       } else if (dateTime.day == now.day - 1 && dateTime.month == now.month && dateTime.year == now.year) {
         return 'Yesterday ${dateTime.hour.toString().padLeft(2, '0')}:${dateTime.minute.toString().padLeft(2, '0')}';
       } else {
-        return '${dateTime.day}/${dateTime.month}/${dateTime.year}';
+        return '${dateTime.day.toString().padLeft(2, '0')}/${dateTime.month.toString().padLeft(2, '0')}/${dateTime.year}';
       }
     } catch (e) {
       return timestamp;
@@ -176,51 +164,38 @@ class _TransactionHistoryState extends State<TransactionHistory> {
     setState(() {
       _selectedFilter = filter;
     });
-    fetchTransactionsWithFilter(filter);
+    _applyFilter(filter);
+  }
+
+  void _applyFilter(String filter) {
+    final now = DateTime.now();
+    setState(() {
+      transactions = allTransactions.where((transaction) {
+        final DateTime transactionDate = transaction['date'] as DateTime;
+        switch (filter) {
+          case 'Today':
+            return transactionDate.year == now.year &&
+                transactionDate.month == now.month &&
+                transactionDate.day == now.day;
+          case 'Week':
+            final startOfWeek = now.subtract(Duration(days: now.weekday - 1));
+            return transactionDate.isAfter(startOfWeek.subtract(const Duration(days: 1))) &&
+                transactionDate.isBefore(now.add(const Duration(days: 1)));
+          case 'Month':
+            return transactionDate.year == now.year &&
+                transactionDate.month == now.month;
+          case 'Year':
+            return transactionDate.year == now.year;
+          default:
+            return true; // Show all transactions if filter is invalid
+        }
+      }).toList();
+    });
   }
 
   Future<void> fetchTransactionsWithFilter(String filter) async {
-    setState(() {
-      isLoading = true;
-      hasError = false;
-    });
-
-    try {
-      await fetchTransactions();
-      final now = DateTime.now();
-      setState(() {
-        transactions = transactions.where((transaction) {
-          final timestamp = transaction['timestamp'] as String;
-          if (timestamp.startsWith('Today')) {
-            return filter == 'Today';
-          } else if (timestamp.startsWith('Yesterday')) {
-            return filter == 'Today' || filter == 'Week';
-          } else {
-            final dateParts = timestamp.split('/');
-            final transactionDate = DateTime(
-              int.parse(dateParts[2]),
-              int.parse(dateParts[1]),
-              int.parse(dateParts[0]),
-            );
-            if (filter == 'Week') {
-              return now.difference(transactionDate).inDays <= 7;
-            } else if (filter == 'Month') {
-              return now.difference(transactionDate).inDays <= 30;
-            } else if (filter == 'Year') {
-              return now.difference(transactionDate).inDays <= 365;
-            }
-            return true;
-          }
-        }).toList();
-        isLoading = false;
-      });
-    } catch (e) {
-      debugPrint('Error filtering transactions: $e');
-      setState(() {
-        isLoading = false;
-        hasError = true;
-      });
-    }
+    // Since the API doesn't support server-side filtering, fetch all and filter client-side
+    await fetchTransactions();
   }
 
   void _onSearchTapped() {
@@ -321,7 +296,7 @@ class _TransactionHistoryState extends State<TransactionHistory> {
                                   ),
                                   const SizedBox(height: 4),
                                   Text(
-                                    '$transactionCount Transactions',
+                                    '$transactionCount Transaction${transactionCount == 1 ? '' : 's'}',
                                     style: const TextStyle(
                                       color: Colors.white70,
                                       fontSize: 12,
@@ -358,7 +333,7 @@ class _TransactionHistoryState extends State<TransactionHistory> {
                         transactions.isEmpty
                             ? const Center(
                                 child: Text(
-                                  'No transactions found',
+                                  'No transactions found for this period',
                                   style: TextStyle(color: Colors.white70, fontSize: 16),
                                 ),
                               )
@@ -425,6 +400,7 @@ class _TransactionHistoryState extends State<TransactionHistory> {
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
         decoration: BoxDecoration(
           color: isSelected ? Colors.blue : Colors.grey[800],
+          borderRadius: BorderRadius.circular(8),
         ),
         child: Text(
           label,
@@ -487,6 +463,7 @@ class _TransactionHistoryState extends State<TransactionHistory> {
                       fontSize: 16,
                       fontWeight: FontWeight.bold,
                     ),
+                    overflow: TextOverflow.ellipsis,
                   ),
                   const SizedBox(height: 4),
                   Row(
@@ -512,7 +489,7 @@ class _TransactionHistoryState extends State<TransactionHistory> {
               ),
             ),
             Text(
-              '${isPositive ? "+" : "-"}KSH ${amount.abs().toStringAsFixed(2)}',
+              '${isPositive ? "+" : "-"}KSh ${amount.abs().toStringAsFixed(2)}',
               style: TextStyle(
                 color: isPositive ? Colors.green : Colors.red,
                 fontSize: 16,

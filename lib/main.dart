@@ -1,17 +1,36 @@
 // ignore_for_file: deprecated_member_use
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'firebase_options.dart';
 import 'sign_in_screen.dart';
 import 'homepage.dart';
-import 'package:shared_preferences/shared_preferences.dart';
+import 'dart:async';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await Firebase.initializeApp(
-    options: DefaultFirebaseOptions.currentPlatform,
-  );
-  runApp(const MainApp());
+  try {
+    await Firebase.initializeApp(
+      options: DefaultFirebaseOptions.currentPlatform,
+    );
+    runApp(const MainApp());
+  } catch (e) {
+    print('Firebase initialization failed: $e');
+    runApp(const ErrorApp());
+  }
+}
+
+class ErrorApp extends StatelessWidget {
+  const ErrorApp({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      home: Scaffold(
+        body: Center(child: Text('Failed to initialize app')),
+      ),
+    );
+  }
 }
 
 class MainApp extends StatelessWidget {
@@ -24,7 +43,27 @@ class MainApp extends StatelessWidget {
       home: const SplashScreen(),
       routes: {
         '/sign_in': (context) => const SignInScreen(),
-        '/home': (context) => HomePage(userId: ModalRoute.of(context)!.settings.arguments as String? ?? 'default_user'),
+        '/home': (context) => const HomePage(),
+      },
+    );
+  }
+}
+
+class AuthWrapper extends StatelessWidget {
+  const AuthWrapper({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return StreamBuilder<User?>(
+      stream: FirebaseAuth.instance.authStateChanges(),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Scaffold(body: Center(child: CircularProgressIndicator()));
+        }
+        if (snapshot.hasData) {
+          return const HomePage();
+        }
+        return const SignInScreen();
       },
     );
   }
@@ -37,136 +76,105 @@ class SplashScreen extends StatefulWidget {
   _SplashScreenState createState() => _SplashScreenState();
 }
 
-class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderStateMixin {
+class _SplashScreenState extends State<SplashScreen>
+    with SingleTickerProviderStateMixin {
   late AnimationController _controller;
-  late Animation<double> _scaleAnimation;
-  late Animation<double> _rotationAnimation;
+  late Animation<double> _progressAnimation;
+  late Timer _timer;
 
   @override
   void initState() {
     super.initState();
 
-    // Animation Controller
+    // Animation Controller for progress bar (3 seconds)
     _controller = AnimationController(
-      duration: const Duration(seconds: 2),
+      duration: const Duration(seconds: 3),
       vsync: this,
-    )..repeat(reverse: true);
+    )..forward();
 
-    // Scale Animation
-    _scaleAnimation = Tween<double>(begin: 0.8, end: 1.2).animate(
-      CurvedAnimation(parent: _controller, curve: Curves.easeInOut),
+    // Progress Animation from 0.0 to 1.0
+    _progressAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
+      CurvedAnimation(parent: _controller, curve: Curves.linear),
     );
 
-    // Rotation Animation
-    _rotationAnimation = Tween<double>(begin: -0.1, end: 0.1).animate(
-      CurvedAnimation(parent: _controller, curve: Curves.easeInOut),
-    );
-
-    // Check login status and navigate after 3 seconds
-    Future.delayed(const Duration(seconds: 3), () async {
+    // Navigate to AuthWrapper after 3 seconds
+    _timer = Timer(const Duration(seconds: 3), () {
       if (mounted) {
-        final prefs = await SharedPreferences.getInstance();
-        final userId = prefs.getString('user_id');
-        if (userId != null && userId.isNotEmpty) {
-          Navigator.pushReplacementNamed(context, '/home', arguments: userId);
-        } else {
-          Navigator.pushReplacementNamed(context, '/sign_in');
-        }
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (context) => const AuthWrapper()),
+        );
+      }
+    });
+
+    // Dispose the controller when navigation occurs
+    _controller.addStatusListener((status) {
+      if (status == AnimationStatus.completed && mounted) {
+        _controller.dispose();
       }
     });
   }
 
   @override
   void dispose() {
-    _controller.dispose();
+    _timer.cancel();
+    _controller.dispose(); // Ensure disposal if not already handled
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.grey[850],
+      backgroundColor: const Color(0xFF4B5563), // Fintech-themed dark grayish-blue
       body: Center(
         child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
+          mainAxisAlignment: MainAxisAlignment.spaceBetween, // Spread content vertically
           children: [
-            AnimatedBuilder(
-              animation: _controller,
-              builder: (context, child) {
-                return Transform(
-                  transform: Matrix4.identity()
-                    ..scale(_scaleAnimation.value)
-                    ..rotateZ(_rotationAnimation.value),
-                  alignment: Alignment.center,
-                  child: Container(
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      gradient: const LinearGradient(
-                        colors: [Colors.yellow, Colors.amber],
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
+            const SizedBox(height: 20), // Spacer at the top
+            Image.asset(
+              'assets/logo.png', // Logo without enclosing container
+              width: 120,
+              height: 120,
+              fit: BoxFit.contain,
+              errorBuilder: (context, error, stackTrace) =>
+                  const Icon(Icons.account_balance, size: 120, color: Colors.white),
+            ),
+            Column(
+              children: [
+                const SizedBox(height: 20),
+                SizedBox(
+                  width: 200, // Fixed width for progress bar
+                  child: AnimatedBuilder(
+                    animation: _controller,
+                    builder: (context, child) {
+                      return LinearProgressIndicator(
+                        value: _progressAnimation.value,
+                        backgroundColor: Colors.grey[700],
+                        valueColor: const AlwaysStoppedAnimation<Color>(Color(0xFFD4AF37)), // Gold progress
+                        minHeight: 8,
+                      );
+                    },
+                  ),
+                ),
+                const SizedBox(height: 20),
+                const Text(
+                  'Empowering Your Finances...',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 26,
+                    fontWeight: FontWeight.w600,
+                    fontFamily: 'Inter', // Fallback to Roboto
+                    letterSpacing: 0.5,
+                    shadows: [
+                      Shadow(
+                        color: Color(0xFFD4AF37), // Gold shadow
+                        blurRadius: 8,
+                        offset: Offset(0, 2),
                       ),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.yellow.withOpacity(0.6),
-                          blurRadius: 20,
-                          spreadRadius: 5,
-                          offset: const Offset(0, 5),
-                        ),
-                        BoxShadow(
-                          color: Colors.black.withOpacity(0.4),
-                          blurRadius: 15,
-                          spreadRadius: 2,
-                          offset: const Offset(0, -5),
-                        ),
-                      ],
-                    ),
-                    padding: const EdgeInsets.all(20),
-                    child: Image.asset(
-                      'assets/logo.png',
-                      width: 100,
-                      height: 100,
-                      fit: BoxFit.contain,
-                    ),
+                    ],
                   ),
-                );
-              },
-            ),
-            const SizedBox(height: 30),
-            const Text(
-              'Processing Your Wealth...',
-              style: TextStyle(
-                color: Colors.white,
-                fontSize: 24,
-                fontWeight: FontWeight.bold,
-                fontFamily: 'Roboto',
-                shadows: [
-                  Shadow(
-                    color: Colors.yellowAccent,
-                    blurRadius: 10,
-                    offset: Offset(0, 2),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 20),
-            Container(
-              padding: const EdgeInsets.all(10),
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                border: Border.all(color: Colors.yellow, width: 2),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.yellow.withOpacity(0.3),
-                    blurRadius: 15,
-                    spreadRadius: 2,
-                  ),
-                ],
-              ),
-              child: const CircularProgressIndicator(
-                valueColor: AlwaysStoppedAnimation<Color>(Colors.yellow),
-                strokeWidth: 3,
-              ),
+                ),
+              ],
             ),
           ],
         ),

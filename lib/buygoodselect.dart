@@ -5,14 +5,40 @@ import 'package:pdf/widgets.dart' as pw;
 import 'package:path_provider/path_provider.dart';
 import 'package:open_file/open_file.dart';
 import 'dart:io';
+import 'dart:async';
 import 'graph.dart'; // SavingsDashboard
 import 'addtofavourites.dart';
 import 'homepage.dart';
 import 'favourites.dart';
 
-class ProcessingDialog extends StatelessWidget {
+class ProcessingDialog extends StatefulWidget {
   final VoidCallback? onCancel;
   const ProcessingDialog({super.key, this.onCancel});
+
+  @override
+  _ProcessingDialogState createState() => _ProcessingDialogState();
+}
+
+class _ProcessingDialogState extends State<ProcessingDialog> {
+  int remainingSeconds = 90;
+
+  @override
+  void initState() {
+    super.initState();
+    _startTimer();
+  }
+
+  void _startTimer() {
+    Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (!mounted || remainingSeconds <= 0) {
+        timer.cancel();
+        return;
+      }
+      setState(() {
+        remainingSeconds--;
+      });
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -23,15 +49,15 @@ class ProcessingDialog extends StatelessWidget {
         children: [
           const CircularProgressIndicator(color: Color(0xFFF5BB1B)),
           const SizedBox(height: 16),
-          const Text(
-            'Waiting for PIN entry...\nPlease complete the M-PESA prompt.',
-            style: TextStyle(color: Colors.black, fontSize: 16),
+          Text(
+            'Waiting for PIN entry...\nPlease complete the M-PESA prompt.\nTime remaining: $remainingSeconds seconds',
+            style: const TextStyle(color: Colors.black, fontSize: 16),
             textAlign: TextAlign.center,
           ),
           const SizedBox(height: 16),
-          if (onCancel != null)
+          if (widget.onCancel != null)
             TextButton(
-              onPressed: onCancel,
+              onPressed: widget.onCancel,
               child: const Text(
                 'Cancel',
                 style: TextStyle(color: Color(0xFFF5BB1B), fontSize: 16),
@@ -124,7 +150,6 @@ class _BuyGoodsSelectState extends State<BuyGoodsSelect> {
       }
     } catch (e) {
       debugPrint('Error fetching user details: $e');
-      _showSnackBar('Error loading user details: $e');
       setState(() {
         isLoadingUserDetails = false;
       });
@@ -156,14 +181,12 @@ class _BuyGoodsSelectState extends State<BuyGoodsSelect> {
         calculateRoundUp();
       } else {
         debugPrint('Failed to fetch round-up settings: ${response.statusCode}');
-        _showSnackBar('Failed to fetch round-up settings: ${response.statusCode}');
         setState(() {
           isLoadingSettings = false;
         });
       }
     } catch (e) {
       debugPrint('Error fetching round-up settings: $e');
-      _showSnackBar('Error fetching round-up settings');
       setState(() {
         isLoadingSettings = false;
       });
@@ -203,14 +226,12 @@ class _BuyGoodsSelectState extends State<BuyGoodsSelect> {
         });
       } else {
         debugPrint('Failed to fetch last payment: ${response.statusCode}');
-        _showSnackBar('Failed to fetch last payment: ${response.statusCode}');
         setState(() {
           lastPayment = null;
         });
       }
     } catch (e) {
       debugPrint('Error fetching last payment: $e');
-      _showSnackBar('Error fetching last payment');
       setState(() {
         lastPayment = null;
       });
@@ -278,69 +299,67 @@ class _BuyGoodsSelectState extends State<BuyGoodsSelect> {
   }
 
   Future<Map<String, dynamic>?> fetchTransactionStatus(String transactionId) async {
-    try {
-      debugPrint('Fetching transaction status for ID: $transactionId');
-      final response = await http.get(
-        Uri.parse('https://apis.gnmprimesource.co.ke/apis/transaction-status/$transactionId'),
-        headers: {'Content-Type': 'application/json'},
-      );
+    const maxRetries = 3;
+    int attempt = 0;
 
-      debugPrint('Transaction status response: ${response.statusCode}, body: ${response.body}');
-      if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
-        if (data['status'] == 'success') {
-          debugPrint('Transaction status fetched: ${data['data']}');
-          return data['data'];
+    while (attempt < maxRetries) {
+      try {
+        debugPrint('Fetching transaction status for ID: $transactionId (Attempt ${attempt + 1})');
+        final response = await http.get(
+          Uri.parse('https://apis.gnmprimesource.co.ke/apis/transaction-status/$transactionId'),
+          headers: {'Content-Type': 'application/json'},
+        ).timeout(const Duration(seconds: 5));
+
+        debugPrint('Transaction status response: ${response.statusCode}, body: ${response.body}');
+        if (response.statusCode == 200) {
+          final data = jsonDecode(response.body);
+          if (data['status'] == 'success') {
+            debugPrint('Transaction status fetched: ${data['data']}');
+            return data['data'];
+          } else {
+            debugPrint('Transaction not found: ${data['message']}');
+            return null;
+          }
         } else {
-          debugPrint('Transaction not found: ${data['message']}');
-          return null;
+          debugPrint('Failed to fetch transaction status: ${response.statusCode}');
+          attempt++;
+          if (attempt >= maxRetries) return null;
+          await Future.delayed(const Duration(seconds: 2));
         }
-      } else {
-        debugPrint('Failed to fetch transaction status: ${response.statusCode}');
-        return null;
+      } catch (e) {
+        debugPrint('Error fetching transaction status: $e');
+        attempt++;
+        if (attempt >= maxRetries) return null;
+        await Future.delayed(const Duration(seconds: 2));
       }
-    } catch (e) {
-      debugPrint('Error fetching transaction status: $e');
-      return null;
     }
-  }
-
-  void _showSnackBar(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        backgroundColor: Color(0xFF9CA3AF),
-        content: Text(
-          message,
-          style: TextStyle(color: Colors.black),
-        ),
-      ),
-    );
+    return null;
   }
 
   Future<void> savePaymentData() async {
     if (tillNumberController.text.isEmpty || amountController.text.isEmpty) {
-      _showSnackBar('Please fill in all required fields');
+      debugPrint('Validation error: Please fill in all required fields');
       return;
     }
 
     if (!RegExp(r'^\d{6}$').hasMatch(tillNumberController.text)) {
-      _showSnackBar('Till number must be 6 digits');
+      debugPrint('Validation error: Till number must be 6 digits');
       return;
     }
 
     double enteredAmount = double.tryParse(amountController.text) ?? 0.0;
     if (enteredAmount <= 0) {
-      _showSnackBar('Please enter a valid amount');
+      debugPrint('Validation error: Please enter a valid amount');
       return;
     }
 
     if (!isBuyGoods && accountNumberController.text.isEmpty) {
-      _showSnackBar('Please enter an account number for Pay Bill');
+      debugPrint('Validation error: Please enter an account number for Pay Bill');
       return;
     }
 
     if (userDetails == null || userDetails?['phone_number'] == null) {
-      _showSnackBar('User phone number not available');
+      debugPrint('Validation error: User phone number not available');
       return;
     }
 
@@ -485,12 +504,14 @@ class _BuyGoodsSelectState extends State<BuyGoodsSelect> {
       String tillNumber = tillNumberController.text;
       String accountNumber = isBuyGoods ? '' : accountNumberController.text;
 
-      const maxAttempts = 2;
-      for (int attempt = 0; attempt < maxAttempts; attempt++) {
+      const maxTimeoutSeconds = 90;
+      const pollIntervalSeconds = 10;
+      final startTime = DateTime.now();
+      while (DateTime.now().difference(startTime).inSeconds < maxTimeoutSeconds) {
         if (isCancelled) {
           transactionStatus = 'error';
           errorMessage = 'Transaction cancelled by user';
-          debugPrint('Transaction cancelled by user at attempt $attempt');
+          debugPrint('Transaction cancelled by user');
           break;
         }
 
@@ -500,7 +521,7 @@ class _BuyGoodsSelectState extends State<BuyGoodsSelect> {
           mpesaReceipt = transaction['mpesa_receipt']?.toString() ?? 'N/A';
           merchantReference = transaction['merchant_reference']?.toString() ?? 'N/A';
 
-          debugPrint('Polling attempt $attempt: status=$status, mpesa_receipt=$mpesaReceipt, merchant_reference=$merchantReference');
+          debugPrint('Polling: status=$status, mpesa_receipt=$mpesaReceipt, merchant_reference=$merchantReference');
 
           if (status == 'completed' || (mpesaReceipt != 'N/A' && merchantReference != 'N/A')) {
             transactionStatus = 'success';
@@ -508,18 +529,18 @@ class _BuyGoodsSelectState extends State<BuyGoodsSelect> {
             dateTime = transaction['created_at']?.toString() ?? dateTime;
             tillNumber = transaction['merchant_paybill']?.toString() ?? tillNumber;
             accountNumber = transaction['merchant_account']?.toString() ?? accountNumber;
-            debugPrint('Transaction successful at attempt $attempt');
+            debugPrint('Transaction successful');
             break;
           } else if (status == 'failed') {
             transactionStatus = 'error';
             errorMessage = transaction['error_message']?.toString() ?? 'Payment failed';
-            debugPrint('Transaction failed at attempt $attempt: $errorMessage');
+            debugPrint('Transaction failed: $errorMessage');
             break;
           }
         } else {
-          debugPrint('Polling attempt $attempt: No transaction data');
+          debugPrint('Polling: No transaction data');
         }
-        await Future.delayed(const Duration(seconds: 10));
+        await Future.delayed(const Duration(seconds: pollIntervalSeconds));
       }
 
       if (mounted && Navigator.of(context).canPop()) {
@@ -529,7 +550,7 @@ class _BuyGoodsSelectState extends State<BuyGoodsSelect> {
       if (transactionStatus != 'success' && errorMessage == null) {
         errorMessage = isCancelled
             ? 'Transaction cancelled by user'
-            : transaction?['error_message']?.toString() ?? 'Payment timed out: Please try again';
+            : 'Payment timed out: Please try again after some time';
         debugPrint('Transaction result: $errorMessage');
       }
 
@@ -641,22 +662,21 @@ class _BuyGoodsSelectState extends State<BuyGoodsSelect> {
 
       final result = await OpenFile.open(file.path);
       if (result.type != ResultType.done) {
-        _showSnackBar('Failed to open PDF: ${result.message}');
+        debugPrint('Failed to open PDF: ${result.message}');
       }
     } catch (e) {
-      _showSnackBar('Error generating PDF: $e');
+      debugPrint('Error generating PDF: $e');
     }
   }
 
-  // Modified saveToFavourites to navigate to Favourites screen
   Future<void> saveToFavourites() async {
     if (tillNumberController.text.isEmpty) {
-      _showSnackBar('Please enter a till or pay bill number');
+      debugPrint('Validation error: Please enter a till or pay bill number');
       return;
     }
 
     if (!RegExp(r'^\d{6}$').hasMatch(tillNumberController.text)) {
-      _showSnackBar('Till number must be 6 digits');
+      debugPrint('Validation error: Till number must be 6 digits');
       return;
     }
 
@@ -685,8 +705,7 @@ class _BuyGoodsSelectState extends State<BuyGoodsSelect> {
           setState(() {
             showAddToFavourites = false;
           });
-          _showSnackBar('Added to favourites successfully');
-          // Navigate to Favourites screen
+          debugPrint('Added to favourites successfully');
           Navigator.push(
             context,
             MaterialPageRoute(
@@ -694,16 +713,14 @@ class _BuyGoodsSelectState extends State<BuyGoodsSelect> {
             ),
           );
         } else {
-          _showSnackBar('Failed to save to favourites: ${responseData['message'] ?? 'Unknown error'}');
+          debugPrint('Failed to save to favourites: ${responseData['message'] ?? 'Unknown error'}');
         }
       } else {
         final errorData = jsonDecode(response.body);
         debugPrint('Failed to save favourite: ${response.statusCode}, Response: ${response.body}');
-        _showSnackBar('Failed to save to favourites: ${errorData['message'] ?? response.statusCode}');
       }
     } catch (e) {
       debugPrint('Error saving favourite: $e');
-      _showSnackBar('Error saving to favourites: $e');
     }
   }
 

@@ -5,12 +5,13 @@ import 'dart:io' show File, Platform;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:cached_network_image/cached_network_image.dart';
-import 'graph.dart' as graph; // Alias for graph.dart
-import 'buygoodselect.dart'; // Import BuyGoodsSelect
-import 'sign_in_screen.dart'; // Import SignInScreen
-import 'transactiohistory.dart'; // Import TransactionHistory
-// Note: Removed import of 'sign_in_screen.dart' with conflicting SavingsDashboard if not needed
-// If you need both, import as: import 'sign_in_screen.dart' as signIn;
+import 'graph.dart' as graph;
+import 'buygoodselect.dart';
+import 'sign_in_screen.dart';
+import 'loans_credit_score.dart';
+import 'wallet_page.dart';
+import 'loan_products.dart';
+import 'jobs_page.dart';
 
 class Profile extends StatefulWidget {
   final String userId;
@@ -21,6 +22,7 @@ class Profile extends StatefulWidget {
 }
 
 class _ProfileState extends State<Profile> {
+  final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
   Map<String, dynamic>? userDetails;
   bool isLoading = true;
   bool isUploading = false;
@@ -35,6 +37,7 @@ class _ProfileState extends State<Profile> {
 
   Future<void> _validateAndFetchUserDetails() async {
     if (widget.userId.isEmpty) {
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Invalid user ID. Please log in again.')),
       );
@@ -50,7 +53,6 @@ class _ProfileState extends State<Profile> {
     });
 
     try {
-      // Changed to HTTPS for Android compatibility
       final response = await http.get(
         Uri.parse('https://apis.gnmprimesource.co.ke/apis/user-details/${widget.userId}'),
         headers: {'Content-Type': 'application/json'},
@@ -72,6 +74,7 @@ class _ProfileState extends State<Profile> {
         throw Exception('Failed to load user details: ${response.statusCode}');
       }
     } catch (e) {
+      if (!mounted) return;
       setState(() {
         isLoading = false;
       });
@@ -90,6 +93,7 @@ class _ProfileState extends State<Profile> {
   Future<void> _logout() async {
     SharedPreferences prefs = await SharedPreferences.getInstance();
     await prefs.clear();
+    if (!mounted) return;
     Navigator.pushReplacement(
       context,
       MaterialPageRoute(builder: (context) => const SignInScreen()),
@@ -97,20 +101,20 @@ class _ProfileState extends State<Profile> {
   }
 
   void _onItemTapped(int index) {
+    if (!mounted) return;
     setState(() {
       _selectedIndex = index;
     });
 
     if (index == 0) {
-      // Navigate to SavingsDashboard from graph.dart
       Navigator.pushReplacement(
         context,
-        MaterialPageRoute(builder: (context) => graph.SavingsDashboard(userId: widget.userId)),
+        MaterialPageRoute(builder: (context) => WalletPage(userId: widget.userId)),
       );
     } else if (index == 1) {
       Navigator.pushReplacement(
         context,
-        MaterialPageRoute(builder: (context) => TransactionHistory(userId: widget.userId)),
+        MaterialPageRoute(builder: (context) => LoansCreditScore(userId: widget.userId)),
       );
     } else if (index == 2) {
       Navigator.pushReplacement(
@@ -158,9 +162,11 @@ class _ProfileState extends State<Profile> {
       await _uploadProfilePicture(imageFile);
       await fetchUserDetails();
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error changing profile picture: $e')),
-      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error changing profile picture: $e')),
+        );
+      }
     }
   }
 
@@ -170,7 +176,6 @@ class _ProfileState extends State<Profile> {
     });
 
     try {
-      // Changed to HTTPS
       var request = http.MultipartRequest(
         'POST',
         Uri.parse('https://apis.gnmprimesource.co.ke/apis/upload-profile-picture/${widget.userId}'),
@@ -192,9 +197,11 @@ class _ProfileState extends State<Profile> {
       });
 
       if (response.statusCode == 200 && responseData['status'] == 'success') {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Profile picture updated successfully')),
-        );
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Profile picture updated successfully')),
+          );
+        }
       } else {
         throw Exception(responseData['message'] ?? 'Failed to upload profile picture: ${response.statusCode}');
       }
@@ -202,13 +209,16 @@ class _ProfileState extends State<Profile> {
       setState(() {
         isUploading = false;
       });
-      throw Exception('Error uploading profile picture: $e');
+      if (mounted) {
+        throw Exception('Error uploading profile picture: $e');
+      }
     }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      key: _scaffoldKey,
       backgroundColor: const Color(0xFF1F2937),
       appBar: PreferredSize(
         preferredSize: const Size.fromHeight(70.0),
@@ -218,6 +228,12 @@ class _ProfileState extends State<Profile> {
             padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
             child: Row(
               children: [
+                IconButton(
+                  icon: const Icon(Icons.menu, color: Colors.white),
+                  onPressed: () {
+                    _scaffoldKey.currentState?.openDrawer();
+                  },
+                ),
                 Stack(
                   alignment: Alignment.bottomRight,
                   children: [
@@ -292,6 +308,130 @@ class _ProfileState extends State<Profile> {
           ),
         ),
       ),
+      drawer: Drawer(
+        backgroundColor: const Color(0xFF374151),
+        width: 250,
+        child: ListView(
+          padding: EdgeInsets.zero,
+          children: [
+            DrawerHeader(
+              decoration: const BoxDecoration(
+                color: Color(0xFF1F2937),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  CircleAvatar(
+                    radius: 28,
+                    backgroundColor: Colors.grey[300],
+                    child: userDetails != null && userDetails!['selfie_path'] != null
+                        ? CachedNetworkImage(
+                            imageUrl: userDetails!['selfie_path'],
+                            fit: BoxFit.cover,
+                            width: 56,
+                            height: 56,
+                          )
+                        : const Icon(Icons.person, size: 28, color: Colors.white),
+                  ),
+                  const SizedBox(height: 12),
+                  Text(
+                    userDetails != null ? userDetails!['full_name'] ?? 'User' : 'Loading...',
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  Text(
+                    userDetails != null ? userDetails!['email'] ?? '' : '',
+                    style: const TextStyle(
+                      color: Colors.white70,
+                      fontSize: 14,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            ListTile(
+              leading: const Icon(Icons.account_balance_wallet, color: Color(0xFFF5BB1B)),
+              title: const Text('Wallet', style: TextStyle(color: Colors.white)),
+              onTap: () {
+                Navigator.pop(context);
+                Navigator.pushReplacement(
+                  context,
+                  MaterialPageRoute(builder: (context) => WalletPage(userId: widget.userId)),
+                );
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.work, color: Color(0xFFF5BB1B)),
+              title: const Text('Jobs', style: TextStyle(color: Colors.white)),
+              onTap: () {
+                Navigator.pop(context);
+                Navigator.pushReplacement(
+                  context,
+                  MaterialPageRoute(builder: (context) => JobsPage(userId: widget.userId)),
+                );
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.school, color: Color(0xFFF5BB1B)),
+              title: const Text('Scholarships & Funding', style: TextStyle(color: Colors.white)),
+              onTap: () {
+                Navigator.pop(context);
+                // TODO: Navigate to Scholarships page
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.chat, color: Color(0xFFF5BB1B)),
+              title: const Text('Chat', style: TextStyle(color: Colors.white)),
+              onTap: () {
+                Navigator.pop(context);
+                // TODO: Navigate to Chat page
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.leaderboard, color: Color(0xFFF5BB1B)),
+              title: const Text('Leaderboard', style: TextStyle(color: Colors.white)),
+              onTap: () {
+                Navigator.pop(context);
+                // TODO: Navigate to Leaderboard page
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.class_, color: Color(0xFFF5BB1B)),
+              title: const Text('Classes', style: TextStyle(color: Colors.white)),
+              onTap: () {
+                Navigator.pop(context);
+                // TODO: Navigate to Classes page
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.account_balance, color: Color(0xFFF5BB1B)),
+              title: const Text('Loans & Credit', style: TextStyle(color: Colors.white)),
+              onTap: () {
+                Navigator.pop(context);
+                Navigator.pushReplacement(
+                  context,
+                  MaterialPageRoute(builder: (context) => LoansCreditScore(userId: widget.userId)),
+                );
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.monetization_on, color: Color(0xFFF5BB1B)),
+              title: const Text('Get a Loan', style: TextStyle(color: Colors.white)),
+              onTap: () {
+                Navigator.pop(context);
+                Navigator.pushReplacement(
+                  context,
+                  MaterialPageRoute(builder: (context) => LoanProducts(userId: widget.userId)),
+                );
+              },
+            ),
+          ],
+        ),
+      ),
+      drawerEnableOpenDragGesture: true,
       body: Padding(
         padding: const EdgeInsets.all(16.0),
         child: isLoading
@@ -371,8 +511,8 @@ class _ProfileState extends State<Profile> {
             type: BottomNavigationBarType.fixed,
             items: const [
               BottomNavigationBarItem(
-                icon: Icon(Icons.home),
-                label: 'Home',
+                icon: Icon(Icons.account_balance_wallet),
+                label: 'Wallet',
               ),
               BottomNavigationBarItem(
                 icon: Icon(Icons.bar_chart),
