@@ -26,7 +26,7 @@ class _AddToFavouritesState extends State<AddToFavourites> {
   Future<void> fetchTillNumbers() async {
     try {
       final response = await http.get(
-        Uri.parse('http://apis.gnmprimesource.co.ke/apis/buy-goods-payments?userId=${widget.userId}'),
+        Uri.parse('http://apis.nebo.co.ke/apis/buy-goods-payments?userId=${widget.userId}'),
         headers: {'Content-Type': 'application/json'},
       );
 

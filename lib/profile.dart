@@ -54,7 +54,7 @@ class _ProfileState extends State<Profile> {
 
     try {
       final response = await http.get(
-        Uri.parse('https://apis.gnmprimesource.co.ke/apis/user-details/${widget.userId}'),
+        Uri.parse('http://apis.nebo.co.ke/apis/user-details/${widget.userId}'),
         headers: {'Content-Type': 'application/json'},
       );
 
@@ -178,7 +178,7 @@ class _ProfileState extends State<Profile> {
     try {
       var request = http.MultipartRequest(
         'POST',
-        Uri.parse('https://apis.gnmprimesource.co.ke/apis/upload-profile-picture/${widget.userId}'),
+        Uri.parse('http://apis.nebo.co.ke/apis/upload-profile-picture/${widget.userId}'),
       );
 
       request.files.add(

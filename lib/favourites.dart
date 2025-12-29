@@ -30,7 +30,7 @@ class _FavouritesState extends State<Favourites> {
 
     try {
       final response = await http.get(
-        Uri.parse('https://apis.gnmprimesource.co.ke/apis/favourites/${widget.userId}'),
+        Uri.parse('http://apis.nebo.co.ke/apis/favourites/${widget.userId}'),
         headers: {'Content-Type': 'application/json'},
       );
 
@@ -79,7 +79,7 @@ class _FavouritesState extends State<Favourites> {
   Future<void> deleteFavourite(int favouriteId) async {
     try {
       final response = await http.delete(
-        Uri.parse('https://apis.gnmprimesource.co.ke/apis/favourites/$favouriteId'),
+        Uri.parse('http://apis.nebo.co.ke/apis/favourites/$favouriteId'),
         headers: {'Content-Type': 'application/json'},
       );
 

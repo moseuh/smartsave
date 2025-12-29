@@ -1,107 +1,35 @@
-
+// wallet_page.dart
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:cached_network_image/cached_network_image.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter_spinkit/flutter_spinkit.dart';
-import 'package:intl/intl.dart';
-import 'package:local_auth/local_auth.dart';
-import 'package:csv/csv.dart';
-import 'package:path_provider/path_provider.dart';
-import 'package:open_filex/open_filex.dart';
-import 'package:universal_html/html.dart' as html;
-import 'dart:io' show Platform, File;
+import 'loan_products.dart';
+// === YOUR PAGES ===
 import 'buygoodselect.dart';
-import 'sign_in_screen.dart';
+import 'sign_in_screen.dart' as signIn;
 import 'loans_credit_score.dart';
 import 'profile.dart';
 import 'jobs_page.dart';
+import 'till.dart';
+import 'goals_dashboard.dart';
+import 'graph.dart';
 
-// Placeholder pages for navigation
-class ScholarshipsPage extends StatelessWidget {
-  final String userId;
-  const ScholarshipsPage({super.key, required this.userId});
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Scholarships', style: TextStyle(color: Colors.white)),
-        backgroundColor: const Color(0xFF374151),
-      ),
-      backgroundColor: const Color(0xFF1F2937),
-      body: const Center(
-        child: Text(
-          'Scholarships Page Under Construction',
-          style: TextStyle(color: Colors.white70, fontSize: 16),
-        ),
-      ),
-    );
-  }
-}
-
-class ChatPage extends StatelessWidget {
-  final String userId;
-  const ChatPage({super.key, required this.userId});
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Chat', style: TextStyle(color: Colors.white)),
-        backgroundColor: const Color(0xFF374151),
-      ),
-      backgroundColor: const Color(0xFF1F2937),
-      body: const Center(
-        child: Text(
-          'Chat Page Under Construction',
-          style: TextStyle(color: Colors.white70, fontSize: 16),
-        ),
-      ),
-    );
-  }
-}
-
+// Placeholder page
 class LeaderboardPage extends StatelessWidget {
   final String userId;
   const LeaderboardPage({super.key, required this.userId});
   @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Leaderboard', style: TextStyle(color: Colors.white)),
-        backgroundColor: const Color(0xFF374151),
-      ),
-      backgroundColor: const Color(0xFF1F2937),
-      body: const Center(
-        child: Text(
-          'Leaderboard Page Under Construction',
-          style: TextStyle(color: Colors.white70, fontSize: 16),
-        ),
-      ),
-    );
-  }
+  Widget build(BuildContext context) => Scaffold(
+        appBar: AppBar(title: const Text('Leaderboard')),
+        body: const Center(child: Text('Coming Soon')),
+      );
 }
 
-class ClassesPage extends StatelessWidget {
-  final String userId;
-  const ClassesPage({super.key, required this.userId});
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Classes', style: TextStyle(color: Colors.white)),
-        backgroundColor: const Color(0xFF374151),
-      ),
-      backgroundColor: const Color(0xFF1F2937),
-      body: const Center(
-        child: Text(
-          'Classes Page Under Construction',
-          style: TextStyle(color: Colors.white70, fontSize: 16),
-        ),
-      ),
-    );
-  }
-}
+// ==================================================
+// =============== MAIN WALLET PAGE =================
+// ==================================================
 
 class WalletPage extends StatefulWidget {
   final String userId;
@@ -112,830 +40,259 @@ class WalletPage extends StatefulWidget {
 }
 
 class _WalletPageState extends State<WalletPage> {
-  final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
   Map<String, dynamic>? userDetails;
   Map<String, dynamic>? walletData;
-  List<dynamic>? transactions;
+  Map<String, dynamic>? savingsData;
+  List<Map<String, dynamic>> userGoals = [];
   bool isLoading = true;
-  int _selectedIndex = 0;
-  String _selectedCurrency = 'KES';
-  Map<String, double> _exchangeRates = {'KES': 1.0, 'USD': 0.0078, 'EUR': 0.0070};
-  final LocalAuthentication _localAuth = LocalAuthentication();
-  bool _isQuickTransferEnabled = true;
-  bool _isBiometricEnabled = false;
-  String? _pin;
-  String _filterType = 'All';
-  DateTimeRange? _dateRange;
+  bool _isPayBillMode = false;
+
+  static const String baseUrl = 'https://apis.nebo.co.ke/apis';
 
   @override
   void initState() {
     super.initState();
-    _loadPreferences();
-    _validateAndFetchData();
+    _loadData();
   }
 
-  Future<void> _loadPreferences() async {
-    SharedPreferences prefs = await SharedPreferences.getInstance();
-    setState(() {
-      _isQuickTransferEnabled = prefs.getBool('quick_transfer') ?? true;
-      _isBiometricEnabled = prefs.getBool('biometric_lock') ?? false;
-      _pin = prefs.getString('wallet_pin');
-    });
-  }
-
-  Future<void> _savePreferences() async {
-    SharedPreferences prefs = await SharedPreferences.getInstance();
-    await prefs.setBool('quick_transfer', _isQuickTransferEnabled);
-    await prefs.setBool('biometric_lock', _isBiometricEnabled);
-    if (_pin != null) await prefs.setString('wallet_pin', _pin!);
-  }
-
-  Future<void> _validateAndFetchData() async {
-    if (widget.userId.isEmpty) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Invalid user ID. Please log in again.')),
-      );
-      await _logout();
-      return;
-    }
-    await fetchUserDetails();
-    if (userDetails != null) {
-      await fetchExchangeRates();
-      await fetchWalletData();
-    } else {
-      if (!mounted) return;
-      setState(() {
-        isLoading = false;
-      });
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('User details not found. Please update your profile.')),
-      );
-    }
+  Future<void> _loadData() async {
+    await Future.wait([
+      fetchUserDetails(),
+      fetchWalletData(),
+      fetchSavingsBalance(),
+      fetchUserGoals(),
+    ]);
+    setState(() => isLoading = false);
   }
 
   Future<void> fetchUserDetails() async {
-    setState(() {
-      isLoading = true;
-    });
-
     try {
-      SharedPreferences prefs = await SharedPreferences.getInstance();
-      String? token = prefs.getString('auth_token');
-      final response = await http.get(
-        Uri.parse('https://apis.gnmprimesource.co.ke/apis/user-details/${widget.userId}'),
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': 'Bearer $token',
-        },
-      );
-
-      if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
+      final res = await http.get(Uri.parse('http://apis.nebo.co.ke/apis/user-details/${widget.userId}'));
+      if (res.statusCode == 200) {
+        final data = jsonDecode(res.body);
         if (data['status'] == 'success') {
-          setState(() {
-            userDetails = data['data'];
-            isLoading = false;
-          });
-        } else {
-          throw Exception(data['message'] ?? 'Failed to load user details');
+          userDetails = data['data'];
+          if (userDetails?['selfie_path'] != null) {
+            userDetails!['selfie_path'] = userDetails!['selfie_path'].toString().replaceAll('\\', '/');
+          }
         }
-      } else if (response.statusCode == 404) {
-        throw Exception('User not found. Please log in again.');
-      } else {
-        throw Exception('Failed to load user details: ${response.statusCode}');
       }
-    } catch (e) {
-      if (!mounted) return;
-      setState(() {
-        isLoading = false;
-      });
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Error loading profile: $e'),
-          action: SnackBarAction(
-            label: 'Retry',
-            onPressed: fetchUserDetails,
-          ),
-        ),
-      );
-    }
-  }
-
-  Future<void> fetchExchangeRates() async {
-    try {
-      final response = await http.get(
-        Uri.parse('https://api.exchangerate-api.com/v4/latest/KES'),
-      );
-      if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
-        setState(() {
-          _exchangeRates = {
-            'KES': 1.0,
-            'USD': data['rates']['USD']?.toDouble() ?? 0.0078,
-            'EUR': data['rates']['EUR']?.toDouble() ?? 0.0070,
-          };
-        });
-      }
-    } catch (e) {
-      _exchangeRates = {'KES': 1.0, 'USD': 0.0078, 'EUR': 0.0070};
-    }
+    } catch (e) {}
   }
 
   Future<void> fetchWalletData() async {
-    setState(() {
-      isLoading = true;
-    });
-
     try {
-      SharedPreferences prefs = await SharedPreferences.getInstance();
-      String? token = prefs.getString('auth_token');
-      final response = await http.get(
-        Uri.parse('https://apis.gnmprimesource.co.ke/apis/wallet/${widget.userId}'),
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': 'Bearer $token',
-        },
-      );
-
-      if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
-        if (data['status'] == 'success') {
-          setState(() {
-            walletData = data['data'];
-            transactions = data['data']['transactions'] ?? [];
-            isLoading = false;
-          });
-        } else {
-          throw Exception(data['message'] ?? 'Failed to load wallet data');
-        }
-      } else {
-        throw Exception('Failed to load wallet data: ${response.statusCode}');
+      final res = await http.get(Uri.parse('http://apis.nebo.co.ke/apis/wallet/${widget.userId}'));
+      if (res.statusCode == 200) {
+        final data = jsonDecode(res.body);
+        if (data['status'] == 'success') walletData = data['data'];
       }
     } catch (e) {
-      if (!mounted) return;
-      setState(() {
-        isLoading = false;
-        walletData = {
-          'balance': 12540.0,
-          'accounts': [
-            {'type': 'Bank', 'name': 'KCB Bank', 'last4': '1234', 'balance': 5000.0},
-            {'type': 'Mobile Money', 'name': 'M-Pesa', 'last4': '5678', 'balance': 3000.0},
-            {'type': 'Card', 'name': 'Visa', 'last4': '9012', 'balance': 0.0},
-            {'type': 'Virtual Card', 'name': 'Virtual Card', 'last4': '3456', 'balance': 0.0},
-          ],
-          'transactions': [
-            {'type': 'Deposit', 'amount': 1000.0, 'date': '2025-08-20'},
-            {'type': 'Withdrawal', 'amount': 500.0, 'date': '2025-08-18'},
-            {'type': 'Transfer', 'amount': 200.0, 'date': '2025-08-15'},
-          ],
-        };
-        transactions = walletData!['transactions'];
-      });
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Using default wallet data due to error: $e'),
-          action: SnackBarAction(
-            label: 'Retry',
-            onPressed: fetchWalletData,
-          ),
-        ),
-      );
+      walletData = {'balance': 12540.0};
     }
   }
 
-  Future<bool> _authenticate({required String reason}) async {
-    if (_isBiometricEnabled) {
-      try {
-        return await _localAuth.authenticate(localizedReason: reason);
-      } catch (e) {
-        if (!mounted) return false;
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Biometric authentication failed: $e')),
-        );
-        return false;
-      }
-    } else if (_pin != null && !_isQuickTransferEnabled) {
-      final pinController = TextEditingController();
-      bool authenticated = false;
-      await showDialog(
-        context: context,
-        builder: (context) => AlertDialog(
-          backgroundColor: const Color(0xFF374151),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-          title: const Text('Enter PIN', style: TextStyle(color: Colors.white)),
-          content: TextField(
-            controller: pinController,
-            style: const TextStyle(color: Colors.white),
-            obscureText: true,
-            decoration: InputDecoration(
-              labelText: 'PIN',
-              labelStyle: const TextStyle(color: Colors.white70),
-              enabledBorder: OutlineInputBorder(
-                borderSide: const BorderSide(color: Colors.white54),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              focusedBorder: OutlineInputBorder(
-                borderSide: const BorderSide(color: Color(0xFFF5BB1B)),
-                borderRadius: BorderRadius.circular(8),
-              ),
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('Cancel', style: TextStyle(color: Colors.white70)),
-            ),
-            ElevatedButton(
-              onPressed: () {
-                if (pinController.text == _pin) {
-                  authenticated = true;
-                  Navigator.pop(context);
-                } else {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Invalid PIN')),
-                  );
-                }
-              },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFFF5BB1B),
-                foregroundColor: Colors.black,
-              ),
-              child: const Text('Confirm'),
-            ),
-          ],
-        ),
-      );
-      return authenticated;
-    }
-    return true;
-  }
-
-  Future<void> initiateP2PTransfer(String recipientId, double amount, String currency) async {
-    if (amount <= 0 || recipientId.isEmpty || recipientId == widget.userId) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Invalid recipient ID or amount')),
-      );
-      return;
-    }
-
-    double amountInKES = amount / _exchangeRates[currency]!;
-    if ((walletData?['balance'] ?? 0.0) < amountInKES) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Insufficient balance')),
-      );
-      return;
-    }
-
-    if (!await _authenticate(reason: 'Authenticate to send money')) {
-      return;
-    }
-
-    setState(() {
-      isLoading = true;
-    });
-
+  Future<void> fetchSavingsBalance() async {
     try {
-      SharedPreferences prefs = await SharedPreferences.getInstance();
-      String? token = prefs.getString('auth_token');
-      final validateResponse = await http.get(
-        Uri.parse('https://apis.gnmprimesource.co.ke/apis/user-details/$recipientId'),
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': 'Bearer $token',
-        },
-      );
-
-      if (validateResponse.statusCode != 200 || jsonDecode(validateResponse.body)['status'] != 'success') {
-        throw Exception('Recipient not found');
+      final res = await http.get(Uri.parse('$baseUrl/user-savings/${widget.userId}'));
+      if (res.statusCode == 200) {
+        final json = jsonDecode(res.body);
+        if (json['status'] == 'success') savingsData = json['data'];
       }
+    } catch (e) {}
+  }
 
-      final response = await http.post(
-        Uri.parse('https://apis.gnmprimesource.co.ke/apis/wallet/transfer'),
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': 'Bearer $token',
-        },
-        body: jsonEncode({
-          'sender_id': widget.userId,
-          'recipient_id': recipientId,
-          'amount': amountInKES,
-          'currency': 'KES',
-        }),
-      );
-
-      if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
+  Future<void> fetchUserGoals() async {
+    try {
+      final res = await http.get(Uri.parse('$baseUrl/goalslist/${widget.userId}'));
+      if (res.statusCode == 200) {
+        final data = jsonDecode(res.body);
         if (data['status'] == 'success') {
-          setState(() {
-            walletData!['balance'] -= amountInKES;
-            transactions?.insert(0, {
-              'type': 'Transfer',
-              'amount': amount,
-              'currency': currency,
-              'date': DateTime.now().toString().split(' ')[0],
-            });
-            isLoading = false;
-          });
-          if (!mounted) return;
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Transfer of $currency ${amount.toStringAsFixed(2)} successful')),
-          );
-        } else {
-          throw Exception(data['message'] ?? 'Transfer failed');
+          userGoals = List<Map<String, dynamic>>.from(data['data'] ?? []);
         }
-      } else {
-        throw Exception('Transfer failed: ${response.statusCode}');
       }
     } catch (e) {
-      if (!mounted) return;
-      setState(() {
-        isLoading = false;
-      });
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Error initiating transfer: $e'),
-          action: SnackBarAction(
-            label: 'Retry',
-            onPressed: () => initiateP2PTransfer(recipientId, amount, currency),
-          ),
-        ),
-      );
+      userGoals = [];
     }
   }
 
-  Future<void> addMoney(double amount, String currency, String method) async {
-    if (amount <= 0) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Invalid amount')),
-      );
-      return;
-    }
-
-    if (!await _authenticate(reason: 'Authenticate to add money')) {
-      return;
-    }
-
-    setState(() {
-      isLoading = true;
-    });
-
+  // ================== API HELPERS ==================
+  Future<Map<String, dynamic>> _post(String endpoint, Map<String, dynamic> body) async {
     try {
-      SharedPreferences prefs = await SharedPreferences.getInstance();
-      String? token = prefs.getString('auth_token');
-      double amountInKES = amount / _exchangeRates[currency]!;
-      final response = await http.post(
-        Uri.parse('https://apis.gnmprimesource.co.ke/apis/wallet/deposit'),
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': 'Bearer $token',
-        },
-        body: jsonEncode({
-          'user_id': widget.userId,
-          'amount': amountInKES,
-          'currency': 'KES',
-          'method': method,
-        }),
+      final res = await http.post(
+        Uri.parse('$baseUrl$endpoint'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode(body),
       );
-
-      if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
-        if (data['status'] == 'success') {
-          setState(() {
-            walletData!['balance'] += amountInKES;
-            transactions?.insert(0, {
-              'type': 'Deposit',
-              'amount': amount,
-              'currency': currency,
-              'date': DateTime.now().toString().split(' ')[0],
-            });
-            isLoading = false;
-          });
-          if (!mounted) return;
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Deposited $currency ${amount.toStringAsFixed(2)} via $method')),
-          );
-        } else {
-          throw Exception(data['message'] ?? 'Deposit failed');
-        }
-      } else {
-        throw Exception('Deposit failed: ${response.statusCode}');
-      }
+      return jsonDecode(res.body);
     } catch (e) {
-      if (!mounted) return;
-      setState(() {
-        isLoading = false;
-      });
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Error adding money: $e'),
-          action: SnackBarAction(
-            label: 'Retry',
-            onPressed: () => addMoney(amount, currency, method),
-          ),
-        ),
-      );
+      return {'status': 'error', 'message': 'Network error'};
     }
   }
 
-  Future<void> withdrawMoney(double amount, String currency, String method) async {
-    if (amount <= 0) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Invalid amount')),
-      );
-      return;
-    }
+  Future<void> deposit(double amount, String phone, {int? goalId}) async {
+    final body = {
+      "user_id": int.parse(widget.userId),
+      "amount": amount.toInt(),
+      "phone": phone.startsWith('0') ? '254${phone.substring(1)}' : phone,
+    };
+    if (goalId != null) body["goal_id"] = goalId;
 
-    double amountInKES = amount / _exchangeRates[currency]!;
-    if ((walletData?['balance'] ?? 0.0) < amountInKES) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Insufficient balance')),
-      );
-      return;
-    }
+    final res = await _post('/deposit', body);
+    _showResult(res['message'] ?? 'STK Push sent!');
+  }
 
-    if (!await _authenticate(reason: 'Authenticate to withdraw money')) {
-      return;
-    }
-
-    setState(() {
-      isLoading = true;
+  Future<void> withdraw(double amount, String phone) async {
+    final res = await _post('/withdraw', {
+      "user_id": int.parse(widget.userId),
+      "amount": amount.toInt(),
+      "phone": phone.startsWith('0') ? '254${phone.substring(1)}' : phone,
     });
-
-    try {
-      SharedPreferences prefs = await SharedPreferences.getInstance();
-      String? token = prefs.getString('auth_token');
-      final response = await http.post(
-        Uri.parse('https://apis.gnmprimesource.co.ke/apis/wallet/withdraw'),
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': 'Bearer $token',
-        },
-        body: jsonEncode({
-          'user_id': widget.userId,
-          'amount': amountInKES,
-          'currency': 'KES',
-          'method': method,
-        }),
-      );
-
-      if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
-        if (data['status'] == 'success') {
-          setState(() {
-            walletData!['balance'] -= amountInKES;
-            transactions?.insert(0, {
-              'type': 'Withdrawal',
-              'amount': amount,
-              'currency': currency,
-              'date': DateTime.now().toString().split(' ')[0],
-            });
-            isLoading = false;
-          });
-          if (!mounted) return;
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Withdrawn $currency ${amount.toStringAsFixed(2)} via $method')),
-          );
-        } else {
-          throw Exception(data['message'] ?? 'Withdrawal failed');
-        }
-      } else {
-        throw Exception('Withdrawal failed: ${response.statusCode}');
-      }
-    } catch (e) {
-      if (!mounted) return;
-      setState(() {
-        isLoading = false;
-      });
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Error withdrawing money: $e'),
-          action: SnackBarAction(
-            label: 'Retry',
-            onPressed: () => withdrawMoney(amount, currency, method),
-          ),
-        ),
-      );
-    }
+    _showResult(res['message'] ?? 'Withdrawal sent!');
+    if (res['status'] == 'success') _loadData();
   }
 
-  Future<void> exchangeCurrency(double amount, String fromCurrency, String toCurrency) async {
-    if (amount <= 0 || fromCurrency == toCurrency) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Invalid amount or currency')),
-      );
-      return;
-    }
+  Future<void> buyGoods({
+    required String till,
+    required double amount,
+    String account = '',
+    double roundUp = 0,
+    int? goalId,
+  }) async {
+    final body = {
+      "user_id": int.parse(widget.userId),
+      "till_number": till,
+      "amount": amount.toInt(),
+    };
+    if (account.isNotEmpty) body["account_number"] = account;
+    if (roundUp > 0) body["round_up_savings"] = roundUp.toInt();
+    if (goalId != null && roundUp > 0) body["goal_id"] = goalId;
 
-    double amountInKES = amount / _exchangeRates[fromCurrency]!;
-    if ((walletData?['balance'] ?? 0.0) < amountInKES) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Insufficient balance')),
-      );
-      return;
-    }
+    final res = await _post('/buy-goods-payment', body);
+    _showResult(res['message'] ?? 'Payment initiated!');
+  }
 
-    if (!await _authenticate(reason: 'Authenticate to exchange currency')) {
-      return;
-    }
-
-    setState(() {
-      isLoading = true;
+  Future<void> payBill({required double amount, required String paybill, required String account, required String phone}) async {
+    final res = await _post('/process-paybill-payment', {
+      "user_id": int.parse(widget.userId),
+      "phone_number": phone.startsWith('0') ? '254${phone.substring(1)}' : phone,
+      "amount": amount.toInt(),
+      "merchant_paybill": paybill,
+      "merchant_account": account,
     });
-
-    try {
-      SharedPreferences prefs = await SharedPreferences.getInstance();
-      String? token = prefs.getString('auth_token');
-      final response = await http.post(
-        Uri.parse('https://apis.gnmprimesource.co.ke/apis/wallet/exchange'),
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': 'Bearer $token',
-        },
-        body: jsonEncode({
-          'user_id': widget.userId,
-          'amount': amountInKES,
-          'from_currency': 'KES',
-          'to_currency': toCurrency,
-        }),
-      );
-
-      if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
-        if (data['status'] == 'success') {
-          double convertedAmount = amount * _exchangeRates[toCurrency]! / _exchangeRates[fromCurrency]!;
-          setState(() {
-            walletData!['balance'] -= amountInKES;
-            transactions?.insert(0, {
-              'type': 'Exchange',
-              'amount': convertedAmount,
-              'currency': toCurrency,
-              'date': DateTime.now().toString().split(' ')[0],
-            });
-            isLoading = false;
-          });
-          if (!mounted) return;
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('Exchanged $fromCurrency ${amount.toStringAsFixed(2)} to $toCurrency ${convertedAmount.toStringAsFixed(2)}'),
-            ),
-          );
-        } else {
-          throw Exception(data['message'] ?? 'Exchange failed');
-        }
-      } else {
-        throw Exception('Exchange failed: ${response.statusCode}');
-      }
-    } catch (e) {
-      if (!mounted) return;
-      setState(() {
-        isLoading = false;
-      });
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Error exchanging currency: $e'),
-          action: SnackBarAction(
-            label: 'Retry',
-            onPressed: () => exchangeCurrency(amount, fromCurrency, toCurrency),
-          ),
-        ),
-      );
-    }
+    _showResult(res['message'] ?? 'PayBill STK sent!');
   }
 
-  void _showP2PTransferDialog() {
-    final recipientController = TextEditingController();
-    final amountController = TextEditingController();
-    String selectedCurrency = _selectedCurrency;
-    final formKey = GlobalKey<FormState>();
-
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        backgroundColor: const Color(0xFF374151),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        title: const Text('Send Money', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-        content: ConstrainedBox(
-          constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.8),
-          child: Form(
-            key: formKey,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                TextFormField(
-                  controller: recipientController,
-                  style: const TextStyle(color: Colors.white),
-                  decoration: InputDecoration(
-                    labelText: 'Recipient User ID',
-                    labelStyle: const TextStyle(color: Colors.white70),
-                    enabledBorder: OutlineInputBorder(
-                      borderSide: const BorderSide(color: Colors.white54),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    focusedBorder: OutlineInputBorder(
-                      borderSide: const BorderSide(color: Color(0xFFF5BB1B)),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                  ),
-                  validator: (value) {
-                    if (value == null || value.isEmpty) return 'Enter recipient ID';
-                    if (value == widget.userId) return 'Cannot send to self';
-                    return null;
-                  },
-                ),
-                const SizedBox(height: 16),
-                TextFormField(
-                  controller: amountController,
-                  style: const TextStyle(color: Colors.white),
-                  keyboardType: TextInputType.number,
-                  decoration: InputDecoration(
-                    labelText: 'Amount ($selectedCurrency)',
-                    labelStyle: const TextStyle(color: Colors.white70),
-                    enabledBorder: OutlineInputBorder(
-                      borderSide: const BorderSide(color: Colors.white54),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    focusedBorder: OutlineInputBorder(
-                      borderSide: const BorderSide(color: Color(0xFFF5BB1B)),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                  ),
-                  validator: (value) {
-                    if (value == null || value.isEmpty) return 'Enter amount';
-                    final amount = double.tryParse(value);
-                    if (amount == null || amount <= 0) return 'Enter a valid amount';
-                    if (amount * _exchangeRates[_selectedCurrency]! > (walletData?['balance'] ?? 0.0)) {
-                      return 'Insufficient balance';
-                    }
-                    return null;
-                  },
-                ),
-                const SizedBox(height: 16),
-                DropdownButtonFormField<String>(
-                  value: selectedCurrency,
-                  decoration: InputDecoration(
-                    labelText: 'Currency',
-                    labelStyle: const TextStyle(color: Colors.white70),
-                    enabledBorder: OutlineInputBorder(
-                      borderSide: const BorderSide(color: Colors.white54),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    focusedBorder: OutlineInputBorder(
-                      borderSide: const BorderSide(color: Color(0xFFF5BB1B)),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                  ),
-                  dropdownColor: const Color(0xFF374151),
-                  style: const TextStyle(color: Colors.white),
-                  items: ['KES', 'USD', 'EUR'].map((currency) {
-                    return DropdownMenuItem(value: currency, child: Text(currency));
-                  }).toList(),
-                  onChanged: (value) => setState(() => selectedCurrency = value!),
-                ),
-              ],
-            ),
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel', style: TextStyle(color: Colors.white70)),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              if (formKey.currentState!.validate()) {
-                Navigator.pop(context);
-                initiateP2PTransfer(recipientController.text, double.parse(amountController.text), selectedCurrency);
-              }
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFFF5BB1B),
-              foregroundColor: Colors.black,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-            ),
-            child: const Text('Send'),
-          ),
-        ],
+  void _showResult(String msg) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(msg),
+        backgroundColor: msg.contains('success') || msg.contains('sent') ? Colors.green : Colors.red,
       ),
     );
   }
 
-  void _showAddMoneyDialog() {
-    final amountController = TextEditingController();
-    String selectedCurrency = _selectedCurrency;
-    String selectedMethod = 'M-Pesa';
-    final formKey = GlobalKey<FormState>();
+  // ================== GOAL PICKER ==================
+  Future<int?> showGoalPicker() async {
+    if (userGoals.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('No active goals found. Create one first!')),
+      );
+      return null;
+    }
 
+    return showModalBottomSheet<int>(
+      context: context,
+      backgroundColor: const Color(0xFF1E293B),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) {
+        return Padding(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text(
+                'Save Toward a Goal',
+                style: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 16),
+              ...userGoals.map((goal) {
+                final progress = goal['progress'] ?? 0.0;
+                return Card(
+                  color: const Color(0xFF374151),
+                  margin: const EdgeInsets.symmetric(vertical: 6),
+                  child: ListTile(
+                    title: Text(goal['goal_name'] ?? 'Unnamed Goal', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600)),
+                    subtitle: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('Target: KES ${goal['goal_amount'] ?? 0}', style: const TextStyle(color: Colors.white70)),
+                        const SizedBox(height: 4),
+                        LinearProgressIndicator(
+                          value: progress / 100,
+                          backgroundColor: Colors.grey[700],
+                          valueColor: const AlwaysStoppedAnimation(Color(0xFFF5BB1B)),
+                        ),
+                        Text('$progress% complete', style: const TextStyle(color: Colors.white70, fontSize: 12)),
+                      ],
+                    ),
+                    trailing: const Icon(Icons.arrow_forward_ios, color: Colors.white54),
+                    onTap: () => Navigator.pop(context, goal['id']),
+                  ),
+                );
+              }).toList(),
+              const SizedBox(height: 10),
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('Cancel', style: TextStyle(color: Colors.white70)),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  // ================== DIALOGS WITH GOAL SUPPORT ==================
+  void _showDepositDialog() {
+    final ctrl = TextEditingController();
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        backgroundColor: const Color(0xFF374151),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        title: const Text('Add Money', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-        content: ConstrainedBox(
-          constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.8),
-          child: Form(
-            key: formKey,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                TextFormField(
-                  controller: amountController,
-                  style: const TextStyle(color: Colors.white),
-                  keyboardType: TextInputType.number,
-                  decoration: InputDecoration(
-                    labelText: 'Amount ($selectedCurrency)',
-                    labelStyle: const TextStyle(color: Colors.white70),
-                    enabledBorder: OutlineInputBorder(
-                      borderSide: const BorderSide(color: Colors.white54),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    focusedBorder: OutlineInputBorder(
-                      borderSide: const BorderSide(color: Color(0xFFF5BB1B)),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                  ),
-                  validator: (value) {
-                    if (value == null || value.isEmpty) return 'Enter amount';
-                    final amount = double.tryParse(value);
-                    if (amount == null || amount <= 0) return 'Enter a valid amount';
-                    return null;
-                  },
-                ),
-                const SizedBox(height: 16),
-                DropdownButtonFormField<String>(
-                  value: selectedCurrency,
-                  decoration: InputDecoration(
-                    labelText: 'Currency',
-                    labelStyle: const TextStyle(color: Colors.white70),
-                    enabledBorder: OutlineInputBorder(
-                      borderSide: const BorderSide(color: Colors.white54),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    focusedBorder: OutlineInputBorder(
-                      borderSide: const BorderSide(color: Color(0xFFF5BB1B)),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                  ),
-                  dropdownColor: const Color(0xFF374151),
-                  style: const TextStyle(color: Colors.white),
-                  items: ['KES', 'USD', 'EUR'].map((currency) {
-                    return DropdownMenuItem(value: currency, child: Text(currency));
-                  }).toList(),
-                  onChanged: (value) => setState(() => selectedCurrency = value!),
-                ),
-                const SizedBox(height: 16),
-                DropdownButtonFormField<String>(
-                  value: selectedMethod,
-                  decoration: InputDecoration(
-                    labelText: 'Payment Method',
-                    labelStyle: const TextStyle(color: Colors.white70),
-                    enabledBorder: OutlineInputBorder(
-                      borderSide: const BorderSide(color: Colors.white54),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    focusedBorder: OutlineInputBorder(
-                      borderSide: const BorderSide(color: Color(0xFFF5BB1B)),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                  ),
-                  dropdownColor: const Color(0xFF374151),
-                  style: const TextStyle(color: Colors.white),
-                  items: ['M-Pesa', 'PayPal', 'Bank Transfer'].map((method) {
-                    return DropdownMenuItem(value: method, child: Text(method));
-                  }).toList(),
-                  onChanged: (value) => setState(() => selectedMethod = value!),
-                ),
-              ],
+      builder: (_) => AlertDialog(
+        backgroundColor: const Color(0xFF1E293B),
+        title: const Text('Add Money', style: TextStyle(color: Colors.white)),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: ctrl,
+              keyboardType: TextInputType.number,
+              decoration: const InputDecoration(labelText: 'Amount (KES)', filled: true, fillColor: Color(0xFF374151)),
             ),
-          ),
+            const SizedBox(height: 16),
+            ElevatedButton.icon(
+              icon: const Icon(Icons.flag, size: 18),
+              label: const Text('Save to a Goal (Optional)'),
+              style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFF5BB1B)),
+              onPressed: () => showGoalPicker(),
+            ),
+          ],
         ),
         actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel', style: TextStyle(color: Colors.white70)),
-          ),
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
           ElevatedButton(
-            onPressed: () {
-              if (formKey.currentState!.validate()) {
+            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFF5BB1B)),
+            onPressed: () async {
+              final amt = double.tryParse(ctrl.text);
+              if (amt != null && amt > 0) {
                 Navigator.pop(context);
-                addMoney(double.parse(amountController.text), selectedCurrency, selectedMethod);
+                final goalId = await showGoalPicker();
+                deposit(amt, userDetails?['phone'] ?? '0712345678', goalId: goalId);
               }
             },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFFF5BB1B),
-              foregroundColor: Colors.black,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-            ),
-            child: const Text('Add'),
+            child: const Text('Send STK', style: TextStyle(color: Colors.black)),
           ),
         ],
       ),
@@ -943,1205 +300,694 @@ class _WalletPageState extends State<WalletPage> {
   }
 
   void _showWithdrawDialog() {
-    final amountController = TextEditingController();
-    String selectedCurrency = _selectedCurrency;
-    String selectedMethod = 'M-Pesa';
-    final formKey = GlobalKey<FormState>();
-
+    final ctrl = TextEditingController();
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        backgroundColor: const Color(0xFF374151),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        title: const Text('Withdraw Money', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-        content: ConstrainedBox(
-          constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.8),
-          child: Form(
-            key: formKey,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                TextFormField(
-                  controller: amountController,
-                  style: const TextStyle(color: Colors.white),
-                  keyboardType: TextInputType.number,
-                  decoration: InputDecoration(
-                    labelText: 'Amount ($selectedCurrency)',
-                    labelStyle: const TextStyle(color: Colors.white70),
-                    enabledBorder: OutlineInputBorder(
-                      borderSide: const BorderSide(color: Colors.white54),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    focusedBorder: OutlineInputBorder(
-                      borderSide: const BorderSide(color: Color(0xFFF5BB1B)),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                  ),
-                  validator: (value) {
-                    if (value == null || value.isEmpty) return 'Enter amount';
-                    final amount = double.tryParse(value);
-                    if (amount == null || amount <= 0) return 'Enter a valid amount';
-                    if (amount * _exchangeRates[_selectedCurrency]! > (walletData?['balance'] ?? 0.0)) {
-                      return 'Insufficient balance';
-                    }
-                    return null;
-                  },
-                ),
-                const SizedBox(height: 16),
-                DropdownButtonFormField<String>(
-                  value: selectedCurrency,
-                  decoration: InputDecoration(
-                    labelText: 'Currency',
-                    labelStyle: const TextStyle(color: Colors.white70),
-                    enabledBorder: OutlineInputBorder(
-                      borderSide: const BorderSide(color: Colors.white54),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    focusedBorder: OutlineInputBorder(
-                      borderSide: const BorderSide(color: Color(0xFFF5BB1B)),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                  ),
-                  dropdownColor: const Color(0xFF374151),
-                  style: const TextStyle(color: Colors.white),
-                  items: ['KES', 'USD', 'EUR'].map((currency) {
-                    return DropdownMenuItem(value: currency, child: Text(currency));
-                  }).toList(),
-                  onChanged: (value) => setState(() => selectedCurrency = value!),
-                ),
-                const SizedBox(height: 16),
-                DropdownButtonFormField<String>(
-                  value: selectedMethod,
-                  decoration: InputDecoration(
-                    labelText: 'Withdrawal Method',
-                    labelStyle: const TextStyle(color: Colors.white70),
-                    enabledBorder: OutlineInputBorder(
-                      borderSide: const BorderSide(color: Colors.white54),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    focusedBorder: OutlineInputBorder(
-                      borderSide: const BorderSide(color: Color(0xFFF5BB1B)),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                  ),
-                  dropdownColor: const Color(0xFF374151),
-                  style: const TextStyle(color: Colors.white),
-                  items: ['M-Pesa', 'Bank Transfer'].map((method) {
-                    return DropdownMenuItem(value: method, child: Text(method));
-                  }).toList(),
-                  onChanged: (value) => setState(() => selectedMethod = value!),
-                ),
-              ],
-            ),
-          ),
+      builder: (_) => AlertDialog(
+        backgroundColor: const Color(0xFF1E293B),
+        title: const Text('Withdraw', style: TextStyle(color: Colors.white)),
+        content: TextField(
+          controller: ctrl,
+          keyboardType: TextInputType.number,
+          decoration: const InputDecoration(labelText: 'Amount (KES)', filled: true, fillColor: Color(0xFF374151)),
         ),
         actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel', style: TextStyle(color: Colors.white70)),
-          ),
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
           ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFF5BB1B)),
             onPressed: () {
-              if (formKey.currentState!.validate()) {
+              final amt = double.tryParse(ctrl.text);
+              if (amt != null && amt > 0) {
                 Navigator.pop(context);
-                withdrawMoney(double.parse(amountController.text), selectedCurrency, selectedMethod);
+                withdraw(amt, userDetails?['phone'] ?? '0712345678');
               }
             },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFFF5BB1B),
-              foregroundColor: Colors.black,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-            ),
-            child: const Text('Withdraw'),
+            child: const Text('Withdraw', style: TextStyle(color: Colors.black)),
           ),
         ],
       ),
     );
   }
 
-  void _showExchangeDialog() {
-    final amountController = TextEditingController();
-    String fromCurrency = _selectedCurrency;
-    String toCurrency = 'USD';
-    final formKey = GlobalKey<FormState>();
+  void _showPayMerchantDialog() {
+    final tillCtrl = TextEditingController();
+    final paybillCtrl = TextEditingController();
+    final accountCtrl = TextEditingController();
+    final amountCtrl = TextEditingController();
+    final roundCtrl = TextEditingController();
 
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        backgroundColor: const Color(0xFF374151),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        title: const Text('Exchange Currency', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-        content: ConstrainedBox(
-          constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.8),
-          child: Form(
-            key: formKey,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                TextFormField(
-                  controller: amountController,
-                  style: const TextStyle(color: Colors.white),
-                  keyboardType: TextInputType.number,
-                  decoration: InputDecoration(
-                    labelText: 'Amount ($fromCurrency)',
-                    labelStyle: const TextStyle(color: Colors.white70),
-                    enabledBorder: OutlineInputBorder(
-                      borderSide: const BorderSide(color: Colors.white54),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    focusedBorder: OutlineInputBorder(
-                      borderSide: const BorderSide(color: Color(0xFFF5BB1B)),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                  ),
-                  validator: (value) {
-                    if (value == null || value.isEmpty) return 'Enter amount';
-                    final amount = double.tryParse(value);
-                    if (amount == null || amount <= 0) return 'Enter a valid amount';
-                    if (amount * _exchangeRates[fromCurrency]! > (walletData?['balance'] ?? 0.0)) {
-                      return 'Insufficient balance';
-                    }
-                    return null;
-                  },
-                ),
-                const SizedBox(height: 16),
-                DropdownButtonFormField<String>(
-                  value: fromCurrency,
-                  decoration: InputDecoration(
-                    labelText: 'From Currency',
-                    labelStyle: const TextStyle(color: Colors.white70),
-                    enabledBorder: OutlineInputBorder(
-                      borderSide: const BorderSide(color: Colors.white54),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    focusedBorder: OutlineInputBorder(
-                      borderSide: const BorderSide(color: Color(0xFFF5BB1B)),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                  ),
-                  dropdownColor: const Color(0xFF374151),
-                  style: const TextStyle(color: Colors.white),
-                  items: ['KES', 'USD', 'EUR'].map((currency) {
-                    return DropdownMenuItem(value: currency, child: Text(currency));
-                  }).toList(),
-                  onChanged: (value) => setState(() => fromCurrency = value!),
-                ),
-                const SizedBox(height: 16),
-                DropdownButtonFormField<String>(
-                  value: toCurrency,
-                  decoration: InputDecoration(
-                    labelText: 'To Currency',
-                    labelStyle: const TextStyle(color: Colors.white70),
-                    enabledBorder: OutlineInputBorder(
-                      borderSide: const BorderSide(color: Colors.white54),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    focusedBorder: OutlineInputBorder(
-                      borderSide: const BorderSide(color: Color(0xFFF5BB1B)),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                  ),
-                  dropdownColor: const Color(0xFF374151),
-                  style: const TextStyle(color: Colors.white),
-                  items: ['KES', 'USD', 'EUR'].map((currency) {
-                    return DropdownMenuItem(value: currency, child: Text(currency));
-                  }).toList(),
-                  onChanged: (value) => setState(() => toCurrency = value!),
-                ),
-              ],
-            ),
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel', style: TextStyle(color: Colors.white70)),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              if (formKey.currentState!.validate()) {
-                Navigator.pop(context);
-                exchangeCurrency(double.parse(amountController.text), fromCurrency, toCurrency);
-              }
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFFF5BB1B),
-              foregroundColor: Colors.black,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-            ),
-            child: const Text('Exchange'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _showPinSetupDialog() {
-    final pinController = TextEditingController();
-    final confirmPinController = TextEditingController();
-    final formKey = GlobalKey<FormState>();
-
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        backgroundColor: const Color(0xFF374151),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        title: const Text('Set PIN', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-        content: ConstrainedBox(
-          constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.8),
-          child: Form(
-            key: formKey,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                TextFormField(
-                  controller: pinController,
-                  style: const TextStyle(color: Colors.white),
-                  obscureText: true,
-                  keyboardType: TextInputType.number,
-                  decoration: InputDecoration(
-                    labelText: 'New PIN',
-                    labelStyle: const TextStyle(color: Colors.white70),
-                    enabledBorder: OutlineInputBorder(
-                      borderSide: const BorderSide(color: Colors.white54),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    focusedBorder: OutlineInputBorder(
-                      borderSide: const BorderSide(color: Color(0xFFF5BB1B)),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                  ),
-                  validator: (value) {
-                    if (value == null || value.length != 4) return 'Enter a 4-digit PIN';
-                    return null;
-                  },
-                ),
-                const SizedBox(height: 16),
-                TextFormField(
-                  controller: confirmPinController,
-                  style: const TextStyle(color: Colors.white),
-                  obscureText: true,
-                  keyboardType: TextInputType.number,
-                  decoration: InputDecoration(
-                    labelText: 'Confirm PIN',
-                    labelStyle: const TextStyle(color: Colors.white70),
-                    enabledBorder: OutlineInputBorder(
-                      borderSide: const BorderSide(color: Colors.white54),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    focusedBorder: OutlineInputBorder(
-                      borderSide: const BorderSide(color: Color(0xFFF5BB1B)),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                  ),
-                  validator: (value) {
-                    if (value != pinController.text) return 'PINs do not match';
-                    return null;
-                  },
-                ),
-              ],
-            ),
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel', style: TextStyle(color: Colors.white70)),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              if (formKey.currentState!.validate()) {
-                setState(() {
-                  _pin = pinController.text;
-                });
-                _savePreferences();
-                Navigator.pop(context);
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('PIN set successfully')),
-                );
-              }
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFFF5BB1B),
-              foregroundColor: Colors.black,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-            ),
-            child: const Text('Set'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _showTransactionFilterDialog() {
-    String tempFilterType = _filterType;
-    DateTimeRange? tempDateRange = _dateRange;
-
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        backgroundColor: const Color(0xFF374151),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        title: const Text('Filter Transactions', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-        content: ConstrainedBox(
-          constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.8),
-          child: StatefulBuilder(
-            builder: (context, setState) => Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                DropdownButtonFormField<String>(
-                  value: tempFilterType,
-                  decoration: InputDecoration(
-                    labelText: 'Transaction Type',
-                    labelStyle: const TextStyle(color: Colors.white70),
-                    enabledBorder: OutlineInputBorder(
-                      borderSide: const BorderSide(color: Colors.white54),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    focusedBorder: OutlineInputBorder(
-                      borderSide: const BorderSide(color: Color(0xFFF5BB1B)),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                  ),
-                  dropdownColor: const Color(0xFF374151),
-                  style: const TextStyle(color: Colors.white),
-                  items: ['All', 'Deposit', 'Withdrawal', 'Transfer', 'Exchange'].map((type) {
-                    return DropdownMenuItem(value: type, child: Text(type));
-                  }).toList(),
-                  onChanged: (value) => setState(() => tempFilterType = value!),
-                ),
-                const SizedBox(height: 16),
-                ElevatedButton(
-                  onPressed: () async {
-                    final picked = await showDateRangePicker(
-                      context: context,
-                      firstDate: DateTime(2020),
-                      lastDate: DateTime.now(),
-                      builder: (context, child) => Theme(
-                        data: ThemeData.dark().copyWith(
-                          colorScheme: const ColorScheme.dark(
-                            primary: Color(0xFFF5BB1B),
-                            surface: Color(0xFF374151),
-                          ),
-                        ),
-                        child: child!,
-                      ),
-                    );
-                    if (picked != null) {
-                      setState(() {
-                        tempDateRange = picked;
-                      });
-                    }
-                  },
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFFF5BB1B),
-                    foregroundColor: Colors.black,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                  ),
-                  child: Text(tempDateRange == null
-                      ? 'Select Date Range'
-                      : '${DateFormat('yyyy-MM-dd').format(tempDateRange!.start)} - ${DateFormat('yyyy-MM-dd').format(tempDateRange!.end)}'),
-                ),
-              ],
-            ),
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel', style: TextStyle(color: Colors.white70)),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              setState(() {
-                _filterType = tempFilterType;
-                _dateRange = tempDateRange;
-              });
-              Navigator.pop(context);
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFFF5BB1B),
-              foregroundColor: Colors.black,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-            ),
-            child: const Text('Apply'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Future<void> exportTransactions() async {
-    try {
-      final csvData = [
-        ['Type', 'Amount', 'Currency', 'Date'],
-        ...(transactions ?? []).map((tx) => [
-              tx['type'] ?? 'N/A',
-              tx['amount']?.toStringAsFixed(2) ?? '0.00',
-              tx['currency'] ?? _selectedCurrency,
-              tx['date'] ?? 'N/A',
-            ]),
-      ];
-      String csv = const ListToCsvConverter().convert(csvData);
-      if (Platform.isAndroid || Platform.isIOS) {
-        final dir = await getTemporaryDirectory();
-        final file = File('${dir.path}/wallet_transactions_${widget.userId}.csv');
-        await file.writeAsString(csv);
-        await OpenFilex.open(file.path);
-      } else {
-        final bytes = utf8.encode(csv);
-        final blob = html.Blob([bytes]);
-        final url = html.Url.createObjectUrlFromBlob(blob);
-        final anchor = html.AnchorElement(href: url)
-          ..setAttribute('download', 'wallet_transactions_${widget.userId}.csv')
-          ..click();
-        html.Url.revokeObjectUrl(url);
-      }
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Transactions exported as CSV')),
-      );
-    } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error exporting transactions: $e')),
-      );
-    }
-  }
-
-  Future<void> _logout() async {
-    SharedPreferences prefs = await SharedPreferences.getInstance();
-    await prefs.clear();
-    if (!mounted) return;
-    Navigator.pushReplacement(
-      context,
-      MaterialPageRoute(builder: (context) => const SignInScreen()),
-    );
-  }
-
-  void _onItemTapped(int index) {
-    if (!mounted) return;
-    setState(() {
-      _selectedIndex = index;
-    });
-
-    if (index == 0) {
-      // Stay on WalletPage
-    } else if (index == 1) {
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(builder: (context) => LoansCreditScore(userId: widget.userId)),
-      );
-    } else if (index == 2) {
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(builder: (context) => BuyGoodsSelect(userId: widget.userId)),
-      );
-    } else if (index == 3) {
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(builder: (context) => Profile(userId: widget.userId)),
-      );
-    }
-  }
-
-  Widget _buildActionButton({required IconData icon, required String label, required VoidCallback onTap}) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          CircleAvatar(
-            radius: 24,
-            backgroundColor: const Color(0xFFF5BB1B),
-            child: Icon(icon, color: Colors.black, size: 24),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            label,
-            style: const TextStyle(color: Colors.white70, fontSize: 12),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildCategoryBar(String category, double amount, double maxAmount) {
-    return Row(
-      children: [
-        SizedBox(
-          width: 80,
-          child: Text(
-            category,
-            style: const TextStyle(color: Colors.white70, fontSize: 14),
-          ),
-        ),
-        Expanded(
-          child: Container(
-            height: 10,
-            decoration: BoxDecoration(
-              color: const Color(0xFFF5BB1B),
-              borderRadius: BorderRadius.circular(5),
-            ),
-            width: MediaQuery.of(context).size.width * 0.6 * (amount / maxAmount),
-          ),
-        ),
-        const SizedBox(width: 8),
-        Text(
-          '$_selectedCurrency ${amount.toStringAsFixed(2)}',
-          style: const TextStyle(color: Colors.white70, fontSize: 14),
-        ),
-      ],
-    );
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final balance = walletData != null ? walletData!['balance']?.toDouble() ?? 0.0 : 0.0;
-    final convertedBalance = balance * _exchangeRates[_selectedCurrency]!;
-    final inflow = transactions?.fold<double>(0, (sum, tx) => sum + (tx['type'] == 'Deposit' ? (tx['amount']?.toDouble() ?? 0) * (_exchangeRates[tx['currency'] ?? _selectedCurrency] ?? 1.0) : 0)) ?? 0.0;
-    final outflow = transactions?.fold<double>(0, (sum, tx) => sum + ((tx['type'] == 'Withdrawal' || tx['type'] == 'Transfer') ? (tx['amount']?.toDouble() ?? 0) * (_exchangeRates[tx['currency'] ?? _selectedCurrency] ?? 1.0) : 0)) ?? 0.0;
-    final filteredTransactions = transactions?.where((tx) {
-      bool matchesType = _filterType == 'All' || tx['type'] == _filterType;
-      bool matchesDate = _dateRange == null ||
-          (DateTime.tryParse(tx['date'] ?? '')?.isAfter(_dateRange!.start) ?? true) &&
-              (DateTime.tryParse(tx['date'] ?? '')?.isBefore(_dateRange!.end.add(const Duration(days: 1))) ?? true);
-      return matchesType && matchesDate;
-    }).toList();
-
-    return Theme(
-      data: ThemeData.dark().copyWith(
-        scaffoldBackgroundColor: const Color(0xFF1F2937),
-        colorScheme: const ColorScheme.dark(
-          primary: Color(0xFFF5BB1B),
-          surface: Color(0xFF374151),
-        ),
-        cardTheme: CardTheme(
-          color: const Color(0xFF2D3748),
-          elevation: 8,
-          shadowColor: Colors.black45,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        ),
-        textTheme: const TextTheme(
-          bodyLarge: TextStyle(color: Colors.white),
-          bodyMedium: TextStyle(color: Colors.white70),
-          titleLarge: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
-        ),
-        elevatedButtonTheme: ElevatedButtonThemeData(
-          style: ElevatedButton.styleFrom(
-            backgroundColor: const Color(0xFFF5BB1B),
-            foregroundColor: Colors.black,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-          ),
-        ),
-      ),
-      child: Scaffold(
-        key: _scaffoldKey,
-        backgroundColor: const Color(0xFF1F2937),
-        body: isLoading
-            ? const Center(
-                child: SpinKitFadingCircle(
-                  color: Color(0xFFF5BB1B),
-                  size: 50.0,
-                ),
-              )
-            : CustomScrollView(
-                slivers: [
-                  SliverAppBar(
-                    expandedHeight: 180,
-                    floating: false,
-                    pinned: true,
-                    backgroundColor: const Color(0xFF374151),
-                    leading: IconButton(
-                      icon: const Icon(Icons.menu, color: Colors.white),
-                      onPressed: () => _scaffoldKey.currentState?.openDrawer(),
-                    ),
-                    actions: [
-                      DropdownButton<String>(
-                        value: _selectedCurrency,
-                        dropdownColor: const Color(0xFF374151),
-                        style: const TextStyle(color: Colors.white, fontSize: 16),
-                        underline: Container(),
-                        items: ['KES', 'USD', 'EUR'].map((currency) {
-                          return DropdownMenuItem(
-                            value: currency,
-                            child: Text(currency),
-                          );
-                        }).toList(),
-                        onChanged: (value) {
-                          if (value != null) {
-                            setState(() {
-                              _selectedCurrency = value;
-                            });
-                          }
-                        },
-                      ),
-                      const SizedBox(width: 16),
-                    ],
-                    flexibleSpace: FlexibleSpaceBar(
-                      titlePadding: const EdgeInsets.only(bottom: 16),
-                      title: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Text(
-                            userDetails != null ? userDetails!['full_name'] ?? 'User' : 'Loading...',
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 16,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                          Text(
-                            '$_selectedCurrency ${convertedBalance.toStringAsFixed(2)}',
-                            style: const TextStyle(
-                              color: Color(0xFFF5BB1B),
-                              fontSize: 24,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        ],
-                      ),
-                      background: Container(
-                        decoration: const BoxDecoration(
-                          gradient: LinearGradient(
-                            colors: [Color(0xFF374151), Color(0xFF1F2937)],
-                            begin: Alignment.topCenter,
-                            end: Alignment.bottomCenter,
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-                  SliverToBoxAdapter(
-                    child: Padding(
-                      padding: const EdgeInsets.all(16.0),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Text(
-                            'Quick Actions',
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontSize: 20,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                          const SizedBox(height: 16),
-                          Card(
-                            elevation: 8,
-                            shadowColor: Colors.black45,
-                            child: Padding(
-                              padding: const EdgeInsets.all(16.0),
-                              child: Row(
-                                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                                children: [
-                                  _buildActionButton(
-                                    icon: Icons.add_circle,
-                                    label: 'Add Money',
-                                    onTap: _showAddMoneyDialog,
-                                  ),
-                                  _buildActionButton(
-                                    icon: Icons.arrow_downward,
-                                    label: 'Withdraw',
-                                    onTap: _showWithdrawDialog,
-                                  ),
-                                  _buildActionButton(
-                                    icon: Icons.send,
-                                    label: 'Send Money',
-                                    onTap: _showP2PTransferDialog,
-                                  ),
-                                  _buildActionButton(
-                                    icon: Icons.swap_horiz,
-                                    label: 'Exchange',
-                                    onTap: _showExchangeDialog,
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                  SliverToBoxAdapter(
-                    child: Padding(
-                      padding: const EdgeInsets.all(16.0),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          const Text(
-                            'Recent Transactions',
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontSize: 20,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                          IconButton(
-                            icon: const Icon(Icons.filter_list, color: Color(0xFFF5BB1B)),
-                            onPressed: _showTransactionFilterDialog,
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                  filteredTransactions == null || filteredTransactions.isEmpty
-                      ? SliverToBoxAdapter(
-                          child: Padding(
-                            padding: const EdgeInsets.symmetric(horizontal: 16.0),
-                            child: Card(
-                              elevation: 8,
-                              shadowColor: Colors.black45,
-                              child: const Padding(
-                                padding: EdgeInsets.all(16.0),
-                                child: Center(
-                                  child: Text(
-                                    'No transactions found',
-                                    style: TextStyle(color: Colors.white70, fontSize: 16),
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ),
-                        )
-                      : SliverList(
-                          delegate: SliverChildBuilderDelegate(
-                            (context, index) {
-                              final tx = filteredTransactions[index];
-                              return Card(
-                                elevation: 8,
-                                shadowColor: Colors.black45,
-                                margin: const EdgeInsets.symmetric(vertical: 8.0, horizontal: 16.0),
-                                child: ListTile(
-                                  contentPadding: const EdgeInsets.all(16.0),
-                                  title: Text(
-                                    '${tx['type']}: ${tx['currency'] ?? _selectedCurrency} ${tx['amount']?.toStringAsFixed(2) ?? '0.00'}',
-                                    style: const TextStyle(
-                                      color: Colors.white,
-                                      fontWeight: FontWeight.bold,
-                                      fontSize: 16,
-                                    ),
-                                  ),
-                                  subtitle: Text(
-                                    'Date: ${tx['date'] ?? 'N/A'}',
-                                    style: const TextStyle(color: Colors.white70, fontSize: 14),
-                                  ),
-                                ),
-                              );
-                            },
-                            childCount: filteredTransactions.length,
-                          ),
-                        ),
-                  SliverToBoxAdapter(
-                    child: Padding(
-                      padding: const EdgeInsets.all(16.0),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Text(
-                            'Linked Accounts',
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontSize: 20,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                          const SizedBox(height: 16),
-                        ],
-                      ),
-                    ),
-                  ),
-                  SliverList(
-                    delegate: SliverChildBuilderDelegate(
-                      (context, index) {
-                        final account = walletData!['accounts'][index];
-                        final accountBalance = (account['balance']?.toDouble() ?? 0.0) * _exchangeRates[_selectedCurrency]!;
-                        return Card(
-                          elevation: 8,
-                          shadowColor: Colors.black45,
-                          margin: const EdgeInsets.symmetric(vertical: 8.0, horizontal: 16.0),
-                          child: ListTile(
-                            contentPadding: const EdgeInsets.all(16.0),
-                            title: Text(
-                              '${account['name']} (${account['last4']})',
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontWeight: FontWeight.bold,
-                                fontSize: 16,
-                              ),
-                            ),
-                            subtitle: Text(
-                              '${account['type']}: $_selectedCurrency ${accountBalance.toStringAsFixed(2)}',
-                              style: const TextStyle(color: Colors.white70, fontSize: 14),
-                            ),
-                            trailing: ElevatedButton(
-                              onPressed: () {
-                                showDialog(
-                                  context: context,
-                                  builder: (context) => AlertDialog(
-                                    backgroundColor: const Color(0xFF374151),
-                                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                                    title: Text('Manage ${account['name']}', style: const TextStyle(color: Colors.white)),
-                                    content: const Text('Account management not implemented yet.', style: TextStyle(color: Colors.white70)),
-                                    actions: [
-                                      TextButton(
-                                        onPressed: () => Navigator.pop(context),
-                                        child: const Text('Close', style: TextStyle(color: Colors.white70)),
-                                      ),
-                                    ],
-                                  ),
-                                );
-                              },
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: const Color(0xFFF5BB1B),
-                                foregroundColor: Colors.black,
-                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                              ),
-                              child: const Text('Manage'),
-                            ),
-                          ),
-                        );
-                      },
-                      childCount: walletData?['accounts']?.length ?? 0,
-                    ),
-                  ),
-                  SliverToBoxAdapter(
-                    child: Padding(
-                      padding: const EdgeInsets.all(16.0),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Text(
-                            'Insights',
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontSize: 20,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                          const SizedBox(height: 16),
-                          Card(
-                            elevation: 8,
-                            shadowColor: Colors.black45,
-                            child: Padding(
-                              padding: const EdgeInsets.all(16.0),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  const Text(
-                                    'Monthly Inflow vs Outflow',
-                                    style: TextStyle(
-                                      color: Colors.white,
-                                      fontSize: 16,
-                                      fontWeight: FontWeight.bold,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 16),
-                                  Row(
-                                    children: [
-                                      Expanded(
-                                        child: Column(
-                                          children: [
-                                            Text(
-                                              'Inflow: $_selectedCurrency ${inflow.toStringAsFixed(2)}',
-                                              style: const TextStyle(color: Colors.white70, fontSize: 14),
-                                            ),
-                                            const SizedBox(height: 8),
-                                            Container(
-                                              height: 10,
-                                              decoration: BoxDecoration(
-                                                color: const Color(0xFFF5BB1B),
-                                                borderRadius: BorderRadius.circular(5),
-                                              ),
-                                              width: MediaQuery.of(context).size.width * 0.4 * (inflow / (inflow + outflow + 1)),
-                                            ),
-                                          ],
-                                        ),
-                                      ),
-                                      const SizedBox(width: 16),
-                                      Expanded(
-                                        child: Column(
-                                          children: [
-                                            Text(
-                                              'Outflow: $_selectedCurrency ${outflow.toStringAsFixed(2)}',
-                                              style: const TextStyle(color: Colors.white70, fontSize: 14),
-                                            ),
-                                            const SizedBox(height: 8),
-                                            Container(
-                                              height: 10,
-                                              decoration: BoxDecoration(
-                                                color: Colors.redAccent,
-                                                borderRadius: BorderRadius.circular(5),
-                                              ),
-                                              width: MediaQuery.of(context).size.width * 0.4 * (outflow / (inflow + outflow + 1)),
-                                            ),
-                                          ],
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                  const SizedBox(height: 24),
-                                  const Text(
-                                    'Spending Categories',
-                                    style: TextStyle(
-                                      color: Colors.white,
-                                      fontSize: 16,
-                                      fontWeight: FontWeight.bold,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 16),
-                                  _buildCategoryBar('Bills', 3000.0 * _exchangeRates[_selectedCurrency]!, 5000.0),
-                                  const SizedBox(height: 8),
-                                  _buildCategoryBar('Shopping', 1500.0 * _exchangeRates[_selectedCurrency]!, 5000.0),
-                                  const SizedBox(height: 8),
-                                  _buildCategoryBar('Others', 1000.0 * _exchangeRates[_selectedCurrency]!, 5000.0),
-                                ],
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                  SliverToBoxAdapter(
-                    child: Padding(
-                      padding: const EdgeInsets.all(16.0),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Text(
-                            'Security',
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontSize: 20,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                          const SizedBox(height: 16),
-                          Card(
-                            elevation: 8,
-                            shadowColor: Colors.black45,
-                            child: Padding(
-                              padding: const EdgeInsets.all(16.0),
-                              child: Column(
-                                children: [
-                                  ListTile(
-                                    title: const Text('PIN Setup', style: TextStyle(color: Colors.white, fontSize: 16)),
-                                    trailing: ElevatedButton(
-                                      onPressed: _showPinSetupDialog,
-                                      child: const Text('Set PIN'),
-                                    ),
-                                  ),
-                                  ListTile(
-                                    title: const Text('Quick Transfer', style: TextStyle(color: Colors.white, fontSize: 16)),
-                                    trailing: Switch(
-                                      value: _isQuickTransferEnabled,
-                                      activeColor: const Color(0xFFF5BB1B),
-                                      onChanged: (value) {
-                                        setState(() {
-                                          _isQuickTransferEnabled = value;
-                                        });
-                                        _savePreferences();
-                                      },
-                                    ),
-                                  ),
-                                  ListTile(
-                                    title: const Text('Biometric Lock', style: TextStyle(color: Colors.white, fontSize: 16)),
-                                    trailing: Switch(
-                                      value: _isBiometricEnabled,
-                                      activeColor: const Color(0xFFF5BB1B),
-                                      onChanged: (value) async {
-                                        if (value) {
-                                          bool canAuthenticate = await _localAuth.canCheckBiometrics || await _localAuth.isDeviceSupported();
-                                          if (!canAuthenticate) {
-                                            if (!mounted) return;
-                                            ScaffoldMessenger.of(context).showSnackBar(
-                                              const SnackBar(content: Text('Biometric authentication not supported')),
-                                            );
-                                            return;
-                                          }
-                                        }
-                                        setState(() {
-                                          _isBiometricEnabled = value;
-                                        });
-                                        _savePreferences();
-                                      },
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                  SliverToBoxAdapter(
-                    child: Padding(
-                      padding: const EdgeInsets.all(16.0),
-                      child: Card(
-                        elevation: 8,
-                        shadowColor: Colors.black45,
-                        child: Padding(
-                          padding: const EdgeInsets.all(16.0),
-                          child: ElevatedButton(
-                            onPressed: exportTransactions,
-                            child: const Text('Export Transactions'),
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-        drawer: Drawer(
-          backgroundColor: const Color(0xFF374151),
-          width: 250,
-          child: ListView(
-            padding: EdgeInsets.zero,
+      builder: (_) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          backgroundColor: const Color(0xFF1E293B),
+          title: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              DrawerHeader(
-                decoration: const BoxDecoration(
-                  color: Color(0xFF1F2937),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    CircleAvatar(
-                      radius: 28,
-                      backgroundColor: Colors.grey[300],
-                      child: userDetails != null && userDetails!['selfie_path'] != null
-                          ? CachedNetworkImage(
-                              imageUrl: userDetails!['selfie_path'],
-                              fit: BoxFit.cover,
-                              width: 56,
-                              height: 56,
-                            )
-                          : const Icon(Icons.person, size: 28, color: Colors.white),
-                    ),
-                    const SizedBox(height: 12),
-                    Text(
-                      userDetails != null ? userDetails!['full_name'] ?? 'User' : 'Loading...',
-                      style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
-                    ),
-                    Text(
-                      userDetails != null ? userDetails!['email'] ?? 'No email' : 'Loading...',
-                      style: const TextStyle(color: Colors.white70, fontSize: 14),
-                    ),
-                  ],
-                ),
-              ),
-              ListTile(
-                leading: const Icon(Icons.account_balance_wallet, color: Colors.white70),
-                title: const Text('Wallet', style: TextStyle(color: Colors.white)),
-                onTap: () {
-                  Navigator.pop(context);
-                },
-              ),
-              ListTile(
-                leading: const Icon(Icons.work, color: Colors.white70),
-                title: const Text('Jobs', style: TextStyle(color: Colors.white)),
-                onTap: () {
-                  Navigator.pop(context);
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(builder: (context) => JobsPage(userId: widget.userId)),
-                  );
-                },
-              ),
-              ListTile(
-                leading: const Icon(Icons.school, color: Colors.white70),
-                title: const Text('Scholarships', style: TextStyle(color: Colors.white)),
-                onTap: () {
-                  Navigator.pop(context);
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(builder: (context) => ScholarshipsPage(userId: widget.userId)),
-                  );
-                },
-              ),
-              ListTile(
-                leading: const Icon(Icons.chat, color: Colors.white70),
-                title: const Text('Chat', style: TextStyle(color: Colors.white)),
-                onTap: () {
-                  Navigator.pop(context);
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(builder: (context) => ChatPage(userId: widget.userId)),
-                  );
-                },
-              ),
-              ListTile(
-                leading: const Icon(Icons.leaderboard, color: Colors.white70),
-                title: const Text('Leaderboard', style: TextStyle(color: Colors.white)),
-                onTap: () {
-                  Navigator.pop(context);
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(builder: (context) => LeaderboardPage(userId: widget.userId)),
-                  );
-                },
-              ),
-              ListTile(
-                leading: const Icon(Icons.class_, color: Colors.white70),
-                title: const Text('Classes', style: TextStyle(color: Colors.white)),
-                onTap: () {
-                  Navigator.pop(context);
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(builder: (context) => ClassesPage(userId: widget.userId)),
-                  );
-                },
-              ),
-              ListTile(
-                leading: const Icon(Icons.person, color: Colors.white70),
-                title: const Text('Profile', style: TextStyle(color: Colors.white)),
-                onTap: () {
-                  Navigator.pop(context);
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(builder: (context) => Profile(userId: widget.userId)),
-                  );
-                },
-              ),
-              ListTile(
-                leading: const Icon(Icons.logout, color: Colors.white70),
-                title: const Text('Logout', style: TextStyle(color: Colors.white)),
-                onTap: () {
-                  Navigator.pop(context);
-                  _logout();
+              const Text('Pay Merchant', style: TextStyle(color: Colors.white)),
+              Switch(
+                value: _isPayBillMode,
+                activeColor: const Color(0xFFF5BB1B),
+                onChanged: (val) {
+                  setDialogState(() => _isPayBillMode = val);
+                  setState(() => _isPayBillMode = val);
                 },
               ),
             ],
           ),
-        ),
-        bottomNavigationBar: BottomNavigationBar(
-          currentIndex: _selectedIndex,
-          onTap: _onItemTapped,
-          backgroundColor: const Color(0xFF374151),
-          selectedItemColor: const Color(0xFFF5BB1B),
-          unselectedItemColor: Colors.white70,
-          type: BottomNavigationBarType.fixed,
-          items: const [
-            BottomNavigationBarItem(
-              icon: Icon(Icons.account_balance_wallet),
-              label: 'Wallet',
-            ),
-            BottomNavigationBarItem(
-              icon: Icon(Icons.account_balance),
-              label: 'Loans',
-            ),
-            BottomNavigationBarItem(
-              icon: Icon(Icons.shopping_cart),
-              label: 'Buy Goods',
-            ),
-            BottomNavigationBarItem(
-              icon: Icon(Icons.person),
-              label: 'Profile',
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              AnimatedCrossFade(
+                firstChild: Column(children: [
+                  TextField(controller: tillCtrl, decoration: const InputDecoration(labelText: 'Till Number', filled: true, fillColor: Color(0xFF374151))),
+                  const SizedBox(height: 12),
+                  const Text('Buy Goods / Till', style: TextStyle(color: Colors.white70)),
+                ]),
+                secondChild: Column(children: [
+                  TextField(controller: paybillCtrl, decoration: const InputDecoration(labelText: 'PayBill Number', filled: true, fillColor: Color(0xFF374151))),
+                  const SizedBox(height: 12),
+                  TextField(controller: accountCtrl, decoration: const InputDecoration(labelText: 'Account Number', filled: true, fillColor: Color(0xFF374151))),
+                  const SizedBox(height: 12),
+                  const Text('PayBill', style: TextStyle(color: Colors.white70)),
+                ]),
+                crossFadeState: _isPayBillMode ? CrossFadeState.showSecond : CrossFadeState.showFirst,
+                duration: const Duration(milliseconds: 300),
+              ),
+              const SizedBox(height: 16),
+              TextField(
+                controller: amountCtrl,
+                keyboardType: TextInputType.number,
+                decoration: const InputDecoration(labelText: 'Amount (KES)', filled: true, fillColor: Color(0xFF374151)),
+              ),
+              const SizedBox(height: 12),
+              if (!_isPayBillMode)
+                TextField(
+                  controller: roundCtrl,
+                  keyboardType: TextInputType.number,
+                  decoration: const InputDecoration(labelText: 'Round-up Savings (Optional)', filled: true, fillColor: Color(0xFF374151)),
+                ),
+              if (!_isPayBillMode && (double.tryParse(roundCtrl.text) ?? 0) > 0)
+                Padding(
+                  padding: const EdgeInsets.only(top: 12),
+                  child: ElevatedButton.icon(
+                    icon: const Icon(Icons.flag, size: 18),
+                    label: const Text('Save Round-up to Goal'),
+                    style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFF5BB1B)),
+                    onPressed: () => showGoalPicker(),
+                  ),
+                ),
+            ],
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFF5BB1B)),
+              onPressed: () async {
+                final amt = double.tryParse(amountCtrl.text) ?? 0;
+                final round = double.tryParse(roundCtrl.text) ?? 0;
+                if (amt <= 0) return;
+
+                int? selectedGoalId;
+                if (!_isPayBillMode && round > 0) {
+                  selectedGoalId = await showGoalPicker();
+                }
+
+                Navigator.pop(context);
+
+                if (_isPayBillMode) {
+                  if (paybillCtrl.text.isNotEmpty && accountCtrl.text.isNotEmpty) {
+                    payBill(
+                      amount: amt,
+                      paybill: paybillCtrl.text,
+                      account: accountCtrl.text,
+                      phone: userDetails?['phone'] ?? '0712345678',
+                    );
+                  }
+                } else {
+                  if (tillCtrl.text.isNotEmpty) {
+                    buyGoods(
+                      till: tillCtrl.text,
+                      amount: amt,
+                      roundUp: round,
+                      goalId: selectedGoalId,
+                    );
+                  }
+                }
+              },
+              child: Text(_isPayBillMode ? 'Send STK' : 'Pay', style: const TextStyle(color: Colors.black)),
             ),
           ],
         ),
       ),
     );
   }
+
+  void _startGlobalSendFlow() {
+    Navigator.of(context).push(MaterialPageRoute(
+      builder: (_) => GlobalSendFlow(
+        userId: widget.userId,
+        onSuccess: () => _loadData(),
+      ),
+    ));
+  }
+
+  // ================== UNIFORM QUICK LINK CARD ==================
+  Widget _buildQuickLinkCard({
+    required IconData icon,
+    required String title,
+    required VoidCallback onTap,
+    required Color color,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        width: (MediaQuery.of(context).size.width - 64) / 3,
+        height: 140,
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(24),
+          color: Colors.white.withOpacity(0.1),
+          border: Border.all(color: Colors.white.withOpacity(0.2)),
+          boxShadow: [
+            BoxShadow(color: Colors.black.withOpacity(0.5), blurRadius: 20, offset: const Offset(6, 10)),
+            BoxShadow(color: Colors.white.withOpacity(0.08), blurRadius: 10, offset: const Offset(-4, -4)),
+          ],
+        ),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(24),
+          child: BackdropFilter(
+            filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: color.withOpacity(0.2),
+                    ),
+                    child: Icon(icon, size: 36, color: color),
+                  ),
+                  const SizedBox(height: 12),
+                  Text(
+                    title,
+                    textAlign: TextAlign.center,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w600),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildActionButton({required IconData icon, required String label, required VoidCallback onTap}) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Column(children: [
+        Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            color: Colors.white.withOpacity(0.15),
+            border: Border.all(color: Colors.white.withOpacity(0.2)),
+          ),
+          child: Icon(icon, color: Colors.white, size: 28),
+        ),
+        const SizedBox(height: 8),
+        Text(label, style: const TextStyle(color: Colors.white70, fontSize: 12)),
+      ]),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final balance = walletData?['balance']?.toDouble() ?? 0.0;
+    final savings = savingsData?['total_savings']?.toDouble() ?? 0.0;
+    final fullName = userDetails?['full_name'] ?? 'User';
+    final firstName = fullName.split(' ').first;
+    final profilePic = userDetails?['selfie_path'];
+
+    return Scaffold(
+      extendBodyBehindAppBar: true,
+      appBar: AppBar(
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back, color: Colors.white),
+          onPressed: () => Navigator.pop(context),
+        ),
+      ),
+      body: isLoading
+          ? const Center(child: SpinKitFadingCircle(color: Color(0xFFF5BB1B), size: 60))
+          : Container(
+              decoration: const BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [Color(0xFF1E293B), Color(0xFF0F172A)],
+                ),
+              ),
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.only(top: 100),
+                child: Column(
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      child: GlassCard(
+                        child: Padding(
+                          padding: const EdgeInsets.all(28),
+                          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                            Row(children: [
+                              CircleAvatar(
+                                radius: 32,
+                                backgroundColor: Colors.white.withOpacity(0.2),
+                                child: profilePic != null && profilePic.isNotEmpty
+                                    ? ClipOval(child: CachedNetworkImage(imageUrl: profilePic, fit: BoxFit.cover))
+                                    : const Icon(Icons.person, size: 40, color: Colors.white),
+                              ),
+                              const SizedBox(width: 16),
+                              Expanded(
+                                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                                  Text("Hello, $firstName", style: const TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.bold)),
+                                  const Text("Your money is growing", style: TextStyle(color: Colors.white70)),
+                                ]),
+                              ),
+                            ]),
+                            const SizedBox(height: 32),
+                            const Text("Wallet Balance", style: TextStyle(color: Colors.white70)),
+                            Text("KES ${balance.toStringAsFixed(2)}", style: const TextStyle(color: Colors.greenAccent, fontSize: 44, fontWeight: FontWeight.bold)),
+                            const SizedBox(height: 8),
+                            Text("Savings: KES ${savings.toStringAsFixed(2)}", style: const TextStyle(color: Color(0xFFF5BB1B), fontSize: 18)),
+                          ]),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 30),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      child: GlassCard(
+                        child: Padding(
+                          padding: const EdgeInsets.all(24),
+                          child: Row(mainAxisAlignment: MainAxisAlignment.spaceEvenly, children: [
+                            _buildActionButton(icon: Icons.add_circle_outline, label: 'Add Money', onTap: _showDepositDialog),
+                            _buildActionButton(icon: Icons.arrow_downward, label: 'Withdraw', onTap: _showWithdrawDialog),
+                            _buildActionButton(icon: Icons.send, label: 'Send Money', onTap: _startGlobalSendFlow),
+                            _buildActionButton(icon: Icons.payment, label: 'Pay Merchant', onTap: _showPayMerchantDialog),
+                          ]),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 30),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text("Quick Links", style: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold)),
+                          const SizedBox(height: 16),
+                          Wrap(
+                            spacing: 12,
+                            runSpacing: 16,
+                            children: [
+                              _buildQuickLinkCard(
+                                icon: Icons.work,
+                                title: "Jobs",
+                                color: Colors.green,
+                                onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => JobsPage(userId: widget.userId))),
+                              ),
+                              _buildQuickLinkCard(
+                                icon: Icons.account_balance,
+                                title: "Loans",
+                                color: Colors.cyan,
+                                onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => LoanProducts(userId: widget.userId))),
+                              ),
+                              _buildQuickLinkCard(
+                                icon: Icons.flag,
+                                title: "Goals",
+                                color: Colors.purpleAccent,
+                                onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => GoalsDashboard(userId: widget.userId))),
+                              ),
+                              _buildQuickLinkCard(
+                                icon: Icons.leaderboard,
+                                title: "Leaderboard",
+                                color: Colors.orangeAccent,
+                                onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => LeaderboardPage(userId: widget.userId))),
+                              ),
+                              _buildQuickLinkCard(
+                                icon: Icons.health_and_safety,
+                                title: "Credit Health",
+                                color: Colors.redAccent,
+                                onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => LoansCreditScore(userId: widget.userId))),
+                              ),
+                              _buildQuickLinkCard(
+                                icon: Icons.bar_chart,
+                                title: "Analytics",
+                                color: Colors.blueAccent,
+                                onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => SavingsDashboard(userId: widget.userId))),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 100),
+                  ],
+                ),
+              ),
+            ),
+      bottomNavigationBar: BottomNavigationBar(
+        backgroundColor: const Color(0xFF1E293B).withOpacity(0.9),
+        selectedItemColor: const Color(0xFFF5BB1B),
+        unselectedItemColor: Colors.white70,
+        type: BottomNavigationBarType.fixed,
+        items: const [
+          BottomNavigationBarItem(icon: Icon(Icons.account_balance_wallet), label: 'Wallet'),
+          BottomNavigationBarItem(icon: Icon(Icons.account_balance), label: 'Loans'),
+          BottomNavigationBarItem(icon: Icon(Icons.shopping_cart), label: 'Buy Goods'),
+          BottomNavigationBarItem(icon: Icon(Icons.person), label: 'Profile'),
+        ],
+      ),
+    );
+  }
+}
+
+// ================== GLASS CARD ==================
+class GlassCard extends StatelessWidget {
+  final Widget child;
+  const GlassCard({required this.child, super.key});
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(32),
+        color: Colors.white.withOpacity(0.1),
+        border: Border.all(color: Colors.white.withOpacity(0.2)),
+        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.3), blurRadius: 30, offset: const Offset(0, 10))],
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(32),
+        child: BackdropFilter(filter: ImageFilter.blur(sigmaX: 15, sigmaY: 15), child: child),
+      ),
+    );
+  }
+}
+
+// ================== GLOBAL SEND FLOW ==================
+class GlobalSendFlow extends StatefulWidget {
+  final String userId;
+  final VoidCallback? onSuccess;
+  const GlobalSendFlow({super.key, required this.userId, this.onSuccess});
+
+  @override
+  State<GlobalSendFlow> createState() => _GlobalSendFlowState();
+}
+
+class _GlobalSendFlowState extends State<GlobalSendFlow> {
+  final PageController _pageController = PageController();
+  int _currentStep = 0;
+
+  String selectedCountry = 'Kenya';
+  String selectedChannel = 'M-Pesa';
+  String recipientPhone = '';
+  String recipientName = '';
+  String amount = '';
+  String reason = '';
+  String description = '';
+  bool _isLoading = false;
+
+  void _next() {
+    _pageController.nextPage(duration: const Duration(milliseconds: 300), curve: Curves.easeInOut);
+  }
+
+  void _prev() {
+    _pageController.previousPage(duration: const Duration(milliseconds: 300), curve: Curves.easeInOut);
+  }
+
+  bool _canProceedStep1() => true;
+
+  bool _canProceedStep2() => recipientPhone.trim().length >= 9 && recipientName.trim().isNotEmpty;
+
+  bool _canProceedStep3() => double.tryParse(amount) != null && double.tryParse(amount)! > 0;
+
+  Future<void> _sendMoney() async {
+    setState(() => _isLoading = true);
+    final amt = double.tryParse(amount) ?? 0;
+    if (amt <= 0) {
+      setState(() => _isLoading = false);
+      return;
+    }
+
+    final provider = selectedChannel == 'M-Pesa'
+        ? 'm-pesa'
+        : selectedChannel == 'Airtel Money'
+            ? 'airtel-money'
+            : selectedChannel == 'Bitcoin'
+                ? 'bitlipa'
+                : 'bank-ke';
+
+    String phone = recipientPhone.trim();
+    if (phone.startsWith('0')) phone = '254${phone.substring(1)}';
+    if (!phone.startsWith('254')) phone = '254$phone';
+
+    final nameParts = recipientName.trim().split(' ');
+    final firstName = nameParts.isNotEmpty ? nameParts.first : '';
+    final lastName = nameParts.length > 1 ? nameParts.sublist(1).join(' ') : '';
+
+    try {
+      final res = await http.post(
+        Uri.parse('https://apis.nebo.co.ke/apis/remittance'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({
+          "user_id": int.parse(widget.userId),
+          "amount": amt.toInt(),
+          "currency": "KES",
+          "provider": provider,
+          "phone": phone,
+          "first_name": firstName,
+          "last_name": lastName,
+          if (description.isNotEmpty) "description": description,
+        }),
+      );
+
+      final json = jsonDecode(res.body);
+      if (json['status'] == 'success') {
+        widget.onSuccess?.call();
+        if (mounted) Navigator.of(context).popUntil((r) => r.isFirst);
+      }
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(json['message'] ?? 'Transaction completed')),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e')));
+      }
+    }
+    setState(() => _isLoading = false);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Theme(
+      data: ThemeData.dark().copyWith(scaffoldBackgroundColor: const Color(0xFF0F172A)),
+      child: Scaffold(
+        appBar: AppBar(
+          backgroundColor: const Color(0xFF1E293B),
+          title: const Text('Send Money Globally'),
+          leading: IconButton(icon: const Icon(Icons.close), onPressed: () => Navigator.pop(context)),
+        ),
+        body: Column(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(16),
+              color: const Color(0xFF1E293B),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: List.generate(4, (i) => Container(
+                  width: 40,
+                  height: 8,
+                  margin: const EdgeInsets.symmetric(horizontal: 4),
+                  decoration: BoxDecoration(
+                    color: i <= _currentStep ? const Color(0xFFF5BB1B) : Colors.white24,
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                )),
+              ),
+            ),
+            Expanded(
+              child: PageView(
+                controller: _pageController,
+                physics: const NeverScrollableScrollPhysics(),
+                onPageChanged: (index) => setState(() => _currentStep = index),
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.all(24),
+                    child: Column(
+                      children: [
+                        const Text('Where are you sending?', style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Colors.white)),
+                        const SizedBox(height: 32),
+                        DropdownButtonFormField<String>(
+                          value: selectedCountry,
+                          decoration: const InputDecoration(labelText: 'Country', filled: true, fillColor: Color(0xFF374151)),
+                          dropdownColor: const Color(0xFF374151),
+                          style: const TextStyle(color: Colors.white),
+                          items: ['Kenya', 'Uganda', 'Tanzania', 'Rwanda', 'USA'].map((e) => DropdownMenuItem(value: e, child: Text(e))).toList(),
+                          onChanged: (v) => setState(() => selectedCountry = v!),
+                        ),
+                        const SizedBox(height: 24),
+                        DropdownButtonFormField<String>(
+                          value: selectedChannel,
+                          decoration: const InputDecoration(labelText: 'Send via', filled: true, fillColor: Color(0xFF374151)),
+                          dropdownColor: const Color(0xFF374151),
+                          style: const TextStyle(color: Colors.white),
+                          items: ['M-Pesa', 'Airtel Money', 'Bank Transfer', 'Bitcoin'].map((e) => DropdownMenuItem(value: e, child: Text(e))).toList(),
+                          onChanged: (v) => setState(() => selectedChannel = v!),
+                        ),
+                        const Spacer(),
+                        ElevatedButton(
+                          onPressed: _canProceedStep1() ? _next : null,
+                          style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFF5BB1B), minimumSize: const Size(double.infinity, 56)),
+                          child: const Text('Continue', style: TextStyle(color: Colors.black)),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.all(24),
+                    child: Column(
+                      children: [
+                        const Text('Recipient Details', style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Colors.white)),
+                        const SizedBox(height: 32),
+                        TextField(
+                          onChanged: (v) => setState(() => recipientPhone = v),
+                          keyboardType: TextInputType.phone,
+                          decoration: const InputDecoration(labelText: 'Phone', prefixText: '+254 ', filled: true, fillColor: Color(0xFF374151)),
+                        ),
+                        const SizedBox(height: 16),
+                        TextField(
+                          onChanged: (v) => setState(() => recipientName = v),
+                          decoration: const InputDecoration(labelText: 'Full Name', filled: true, fillColor: Color(0xFF374151)),
+                        ),
+                        const Spacer(),
+                        Row(
+                          children: [
+                            Expanded(child: OutlinedButton(onPressed: _prev, child: const Text('Back'))),
+                            const SizedBox(width: 16),
+                            Expanded(
+                              child: ElevatedButton(
+                                onPressed: _canProceedStep2() ? _next : null,
+                                style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFF5BB1B)),
+                                child: const Text('Continue', style: TextStyle(color: Colors.black)),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.all(24),
+                    child: Column(
+                      children: [
+                        const Text('Amount & Reason', style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Colors.white)),
+                        const SizedBox(height: 32),
+                        TextField(
+                          onChanged: (v) => setState(() => amount = v),
+                          keyboardType: TextInputType.number,
+                          decoration: const InputDecoration(labelText: 'Amount (KES)', filled: true, fillColor: Color(0xFF374151)),
+                        ),
+                        const SizedBox(height: 16),
+                        TextField(
+                          onChanged: (v) => reason = v,
+                          decoration: const InputDecoration(labelText: 'Reason', filled: true, fillColor: Color(0xFF374151)),
+                        ),
+                        const SizedBox(height: 16),
+                        TextField(
+                          onChanged: (v) => description = v,
+                          decoration: const InputDecoration(labelText: 'Note (Optional)', filled: true, fillColor: Color(0xFF374151)),
+                        ),
+                        const Spacer(),
+                        Row(
+                          children: [
+                            Expanded(child: OutlinedButton(onPressed: _prev, child: const Text('Back'))),
+                            const SizedBox(width: 16),
+                            Expanded(
+                              child: ElevatedButton(
+                                onPressed: _canProceedStep3() ? _next : null,
+                                style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFF5BB1B)),
+                                child: const Text('Review', style: TextStyle(color: Colors.black)),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.all(24),
+                    child: Column(
+                      children: [
+                        const Text('Review & Send', style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: Colors.white)),
+                        const SizedBox(height: 32),
+                        Card(
+                          color: const Color(0xFF1E293B),
+                          child: Padding(
+                            padding: const EdgeInsets.all(20),
+                            child: Column(
+                              children: [
+                                _reviewRow('To', recipientName),
+                                _reviewRow('Phone', '+254$recipientPhone'),
+                                _reviewRow('Via', selectedChannel),
+                                _reviewRow('Amount', 'KES ${double.tryParse(amount)?.toStringAsFixed(2) ?? amount}'),
+                                _reviewRow('Reason', reason.isEmpty ? 'None' : reason),
+                              ],
+                            ),
+                          ),
+                        ),
+                        const Spacer(),
+                        _isLoading
+                            ? const CircularProgressIndicator(color: Color(0xFFF5BB1B))
+                            : Row(
+                                children: [
+                                  Expanded(child: OutlinedButton(onPressed: _prev, child: const Text('Back'))),
+                                  const SizedBox(width: 16),
+                                  Expanded(
+                                    child: ElevatedButton(
+                                      onPressed: _sendMoney,
+                                      style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFF5BB1B)),
+                                      child: const Text('Confirm & Send', style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold)),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _reviewRow(String label, String value) => Padding(
+        padding: const EdgeInsets.symmetric(vertical: 8),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(label, style: const TextStyle(color: Colors.white70)),
+            Text(value, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+          ],
+        ),
+      );
 }

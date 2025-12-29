@@ -1,13 +1,14 @@
 import 'package:flutter/material.dart';
 import 'landingpage.dart';
 import 'sign_in_screen.dart' as signIn;
-import 'roundup.dart';
-import 'confirmpayment.dart';
-import 'addtofavourites.dart';
-import 'buygoodselect.dart';
-import 'favourites.dart';
+
+// === YOUR REAL PAGES ===
+import 'wallet_page.dart';
+import 'jobs_page.dart';
+import 'profile.dart';
+import 'loans_credit_score.dart';
 import 'till.dart';
-import 'insufficient.dart';
+import 'buygoodselect.dart';
 
 void main() {
   runApp(const MyApp());
@@ -30,82 +31,44 @@ class HomePage extends StatefulWidget {
   const HomePage({super.key, this.userId});
 
   @override
-  _HomePageState createState() => _HomePageState();
+  State<HomePage> createState() => _HomePageState();
 }
 
 class _HomePageState extends State<HomePage> {
-  void _navigateToPage(String routeName) {
-    Widget page;
-    switch (routeName) {
-      case 'RoundUpSettings':
-        page = const RoundUpSettings();
-        break;
-      case 'ConfirmPayment':
-        page = const ConfirmPayment();
-        break;
-      case 'AddToFavourites':
-        if (widget.userId == null) {
-          Navigator.push(
-            context,
-            MaterialPageRoute(builder: (context) => const signIn.SignInScreen()),
-          ).then((result) {
-            if (result != null && result is String) {
-              Navigator.push(
-                context,
-                MaterialPageRoute(builder: (context) => AddToFavourites(userId: result)),
-              );
-            }
-          });
-          return;
-        }
-        page = AddToFavourites(userId: widget.userId!);
-        break;
-      case 'BuyGoodsSelect':
-        if (widget.userId == null) {
-          Navigator.push(
-            context,
-            MaterialPageRoute(builder: (context) => const signIn.SignInScreen()),
-          ).then((result) {
-            if (result != null && result is String) {
-              Navigator.push(
-                context,
-                MaterialPageRoute(builder: (context) => BuyGoodsSelect(userId: result)),
-              );
-            }
-          });
-          return;
-        }
-        page = BuyGoodsSelect(userId: widget.userId!);
-        break;
-      case 'Favourites':
-        if (widget.userId == null) {
-          Navigator.push(
-            context,
-            MaterialPageRoute(builder: (context) => const signIn.SignInScreen()),
-          ).then((result) {
-            if (result != null && result is String) {
-              Navigator.push(
-                context,
-                MaterialPageRoute(builder: (context) => Favourites(userId: result)),
-              );
-            }
-          });
-          return;
-        }
-        page = Favourites(userId: widget.userId!);
-        break;
-      case 'TillFavourites':
-        page = const TillFavourites();
-        break;
-      case 'InsufficientFunds':
-        page = const InsufficientFunds();
-        break;
-      default:
-        return;
-    }
-    Navigator.push(
+  late String? currentUserId;
+
+  @override
+  void initState() {
+    super.initState();
+    currentUserId = widget.userId;
+  }
+
+  void _handleSuccessfulLogin(String userId) {
+    Navigator.pushReplacement(
       context,
-      MaterialPageRoute(builder: (context) => page),
+      MaterialPageRoute(builder: (_) => HomePage(userId: userId)),
+    );
+  }
+
+  void _openPage(Widget page) {
+    Navigator.push(context, MaterialPageRoute(builder: (_) => page));
+  }
+
+  Widget _comingSoonPage(String title) {
+    return Scaffold(
+      backgroundColor: const Color(0xFF0F172A),
+      appBar: AppBar(backgroundColor: const Color(0xFF1E293B), title: Text(title, style: const TextStyle(color: Colors.white))),
+      body: const Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.construction, size: 80, color: Color(0xFFF59E0B)),
+            SizedBox(height: 20),
+            Text('Coming Soon', style: TextStyle(color: Colors.white, fontSize: 28, fontWeight: FontWeight.bold)),
+            Text('This feature is under development', style: TextStyle(color: Colors.white70, fontSize: 16)),
+          ],
+        ),
+      ),
     );
   }
 
@@ -115,9 +78,8 @@ class _HomePageState extends State<HomePage> {
       backgroundColor: const Color(0xFF0F172A),
       body: SingleChildScrollView(
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Removed logo here
+            // === Hero Section ===
             Container(
               width: double.infinity,
               height: 460,
@@ -125,18 +87,12 @@ class _HomePageState extends State<HomePage> {
                 image: DecorationImage(
                   image: const AssetImage('assets/landing.png'),
                   fit: BoxFit.cover,
-                  colorFilter: ColorFilter.mode(
-                    Colors.black.withOpacity(0.5),
-                    BlendMode.dstATop,
-                  ),
+                  colorFilter: ColorFilter.mode(Colors.black.withOpacity(0.5), BlendMode.dstATop), // Fixed: Colors.black
                 ),
                 gradient: const LinearGradient(
                   begin: Alignment.topCenter,
                   end: Alignment.bottomCenter,
-                  colors: [
-                    Color(0xFF000000),
-                    Colors.transparent,
-                  ],
+                  colors: [Color(0xFF000000), Colors.transparent],
                 ),
               ),
               child: Padding(
@@ -144,76 +100,43 @@ class _HomePageState extends State<HomePage> {
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    const Text(
-                      'Haba na Haba\nSmart Savings Made Simple',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                        color: Color(0xFFFFFFFF),
-                        fontSize: 36,
-                        fontWeight: FontWeight.bold,
-                        height: 1.1,
-                      ),
-                    ),
+                    const Text('Haba na Haba\nSmart Savings Made Simple',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(color: Colors.white, fontSize: 36, fontWeight: FontWeight.bold, height: 1.1)),
                     const SizedBox(height: 16),
-                    const Text(
-                      'Join millions of users who save smarter\nwith automated tools and intelligent insights',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                        color: Color(0xFFD1D5DB),
-                        fontSize: 16,
-                        height: 1.5,
-                      ),
-                    ),
+                    const Text('Join millions of users who save smarter\nwith automated tools and intelligent insights',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(color: Color(0xFFD1D5DB), fontSize: 16, height: 1.5)),
                     const SizedBox(height: 32),
                     Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
                         ElevatedButton(
-                          onPressed: () {
-                            Navigator.push(
+                          onPressed: () async {
+                            final result = await Navigator.push(
                               context,
-                              MaterialPageRoute(builder: (context) => const signIn.SignInScreen()),
+                              MaterialPageRoute(builder: (_) => const signIn.SignInScreen()),
                             );
+                            if (result is String) {
+                              _handleSuccessfulLogin(result);
+                            }
                           },
                           style: ElevatedButton.styleFrom(
                             backgroundColor: const Color(0xFFF59E0B),
                             padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 15),
-                            shape: const RoundedRectangleBorder(
-                              borderRadius: BorderRadius.zero, // Sharp edges
-                            ),
+                            shape: const RoundedRectangleBorder(borderRadius: BorderRadius.zero),
                           ),
-                          child: const Text(
-                            'Get Started',
-                            style: TextStyle(
-                              color: Color(0xFF000000),
-                              fontSize: 16,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
+                          child: const Text('Get Started', style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold)),
                         ),
                         const SizedBox(width: 16),
                         OutlinedButton(
-                          onPressed: () {
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(builder: (context) => const LandingPage()),
-                            );
-                          },
+                          onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const LandingPage())),
                           style: OutlinedButton.styleFrom(
-                            side: const BorderSide(color: Color(0xFFFFFFFF), width: 2),
+                            side: const BorderSide(color: Colors.white, width: 2),
                             padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 15),
-                            shape: const RoundedRectangleBorder(
-                              borderRadius: BorderRadius.zero, // Sharp edges
-                            ),
+                            shape: const RoundedRectangleBorder(borderRadius: BorderRadius.zero),
                           ),
-                          child: const Text(
-                            'Learn More',
-                            style: TextStyle(
-                              color: Color(0xFFFFFFFF),
-                              fontSize: 16,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
+                          child: const Text('Learn More', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
                         ),
                       ],
                     ),
@@ -221,54 +144,122 @@ class _HomePageState extends State<HomePage> {
                 ),
               ),
             ),
-            buildFeatureCard(), // Removed the SizedBox above
-            const SizedBox(height: 40), // Kept padding at the bottom
+
+            // === KEY FEATURES: ROUND UPS, P2P LENDING, SMART INVESTMENTS ===
+            Container(
+              width: double.infinity,
+              color: const Color(0xFF1E293B),
+              padding: const EdgeInsets.symmetric(vertical: 40, horizontal: 20),
+              child: Column(
+                children: [
+                  const Text('Key Features', style: TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.bold)),
+                  const SizedBox(height: 32),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                    children: [
+                      Expanded(
+                        child: FeatureIcon(
+                          icon: Icons.autorenew_rounded,
+                          title: 'Round Ups',
+                          description: 'Save spare change automatically',
+                          onTap: () => _openPage(_comingSoonPage('Round Ups')),
+                        ),
+                      ),
+                      Expanded(
+                        child: FeatureIcon(
+                          icon: Icons.swap_horiz,
+                          title: 'P2P Lending',
+                          description: 'Lend & borrow from peers',
+                          onTap: () => _openPage(currentUserId != null ? LoansCreditScore(userId: currentUserId!) : const signIn.SignInScreen()),
+                        ),
+                      ),
+                      Expanded(
+                        child: FeatureIcon(
+                          icon: Icons.trending_up,
+                          title: 'Smart Investments',
+                          description: 'Grow your money intelligently',
+                          onTap: () => _openPage(_comingSoonPage('Smart Investments')),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+
+            buildQuickAccessSection(),
+            const SizedBox(height: 80),
           ],
         ),
       ),
     );
   }
 
-  Widget buildFeatureCard() {
+  // === QUICK ACCESS (same clean design) ===
+  Widget buildQuickAccessSection() {
     return Container(
-      width: double.infinity, // Extend to full width
-      decoration: const BoxDecoration(
-        color: Color(0xFF1E293B),
-      ),
-      padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 20),
+      width: double.infinity,
+      color: const Color(0xFF1E293B),
+      padding: const EdgeInsets.symmetric(vertical: 40, horizontal: 20),
       child: Column(
         children: [
-          const Text(
-            'Key Features',
-            style: TextStyle(
-              color: Color(0xFFFFFFFF),
-              fontSize: 24,
-              fontWeight: FontWeight.bold,
-            ),
+          const Text('Quick Access', style: TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.bold)),
+          const SizedBox(height: 32),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+            children: [
+              Expanded(
+                child: FeatureIcon(
+                  icon: Icons.account_balance,
+                  title: 'Loans',
+                  description: 'Quick credit access',
+                  onTap: () => _openPage(currentUserId != null ? LoansCreditScore(userId: currentUserId!) : const signIn.SignInScreen()),
+                ),
+              ),
+              Expanded(
+                child: FeatureIcon(
+                  icon: Icons.storefront,
+                  title: 'Till',
+                  description: 'Business payments',
+                  onTap: () => _openPage(const TillFavourites()),
+                ),
+              ),
+              Expanded(
+                child: FeatureIcon(
+                  icon: Icons.account_balance_wallet,
+                  title: 'Wallet',
+                  description: 'Your balance',
+                  onTap: () => _openPage(currentUserId != null ? WalletPage(userId: currentUserId!) : const signIn.SignInScreen()),
+                ),
+              ),
+            ],
           ),
           const SizedBox(height: 32),
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-            children: const [
+            children: [
               Expanded(
                 child: FeatureIcon(
-                  icon: Icons.savings,
-                  title: 'Round Up',
-                  description: 'Automatic spare change savings',
+                  icon: Icons.work,
+                  title: 'Jobs',
+                  description: 'Find opportunities',
+                  onTap: () => _openPage(currentUserId != null ? JobsPage(userId: currentUserId!) : const signIn.SignInScreen()),
                 ),
               ),
               Expanded(
                 child: FeatureIcon(
-                  icon: Icons.payment,
-                  title: 'Pay Bills',
-                  description: 'Easy utility payments',
+                  icon: Icons.school,
+                  title: 'Scholarships',
+                  description: 'Education funding',
+                  onTap: () => _openPage(_comingSoonPage('Scholarships')),
                 ),
               ),
               Expanded(
                 child: FeatureIcon(
-                  icon: Icons.shopping_cart,
-                  title: 'Buy Goods',
-                  description: 'Seamless purchases',
+                  icon: Icons.person,
+                  title: 'Profile',
+                  description: 'Manage account',
+                  onTap: () => _openPage(currentUserId != null ? Profile(userId: currentUserId!) : const signIn.SignInScreen()),
                 ),
               ),
             ],
@@ -279,52 +270,40 @@ class _HomePageState extends State<HomePage> {
   }
 }
 
+// === REUSABLE ICON WITH TAP ===
 class FeatureIcon extends StatelessWidget {
   final IconData icon;
   final String title;
   final String description;
+  final VoidCallback onTap;
 
   const FeatureIcon({
     required this.icon,
     required this.title,
     required this.description,
+    required this.onTap,
     super.key,
   });
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 8.0),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          CircleAvatar(
-            backgroundColor: const Color(0xFF4B5563),
-            radius: 30,
-            child: Icon(icon, color: const Color(0xFFF59E0B), size: 30),
-          ),
-          const SizedBox(height: 16),
-          Text(
-            title,
-            style: const TextStyle(
-              color: Color(0xFFFFFFFF),
-              fontWeight: FontWeight.bold,
-              fontSize: 16,
+    return GestureDetector(
+      onTap: onTap,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 8.0),
+        child: Column(
+          children: [
+            CircleAvatar(
+              backgroundColor: const Color(0xFF4B5563),
+              radius: 30,
+              child: Icon(icon, color: const Color(0xFFF59E0B), size: 30),
             ),
-            textAlign: TextAlign.center,
-          ),
-          const SizedBox(height: 8),
-          Text(
-            description,
-            textAlign: TextAlign.center,
-            style: const TextStyle(
-              color: Color(0xFFD1D5DB),
-              fontSize: 12,
-            ),
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
-          ),
-        ],
+            const SizedBox(height: 16),
+            Text(title, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16), textAlign: TextAlign.center),
+            const SizedBox(height: 8),
+            Text(description, textAlign: TextAlign.center, style: const TextStyle(color: Color(0xFFD1D5DB), fontSize: 12), maxLines: 2, overflow: TextOverflow.ellipsis),
+          ],
+        ),
       ),
     );
   }

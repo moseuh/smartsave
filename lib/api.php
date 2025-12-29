@@ -17,9 +17,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
 
 // Database configuration
 const DB_HOST = 'localhost';
-const DB_USER = 'gnmprime_root';
+const DB_USER = 'nebocoke_root';
 const DB_PASS = 'Moses@4602';
-const DB_NAME = 'gnmprime_saveapp';
+const DB_NAME = 'nebocoke_saveapp';
 const DEBUG = true;
 
 // Informa API configuration
@@ -555,21 +555,37 @@ function forwardToMerchant($transactionId, $merchantPaybill, $merchantAccount, $
 // Create required tables on script load
 createRequiredTables();
 
-// Routing logic
-if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
-    http_response_code(200);
-    exit;
+// Routing extraction (replace existing $requestUri / $endpoint block with this)
+$method = $_SERVER['REQUEST_METHOD'];
+$rawPath = parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH);
+$requestPath = trim($rawPath, '/');
+$requestSegments = array_values(array_filter(explode('/', $requestPath)));
+
+// Try to find the segment that contains the api script name (api.php) so we can read segments after it
+$apiIndex = null;
+foreach ($requestSegments as $i => $seg) {
+    if (stripos($seg, 'api.php') !== false) {
+        $apiIndex = $i;
+        break;
+    }
 }
 
-$method = $_SERVER['REQUEST_METHOD'];
-$requestUri = explode('/', trim($_SERVER['REQUEST_URI'], '/'));
-$endpoint = isset($requestUri[1]) ? $requestUri[1] : '';
+// endpoint = first segment after api.php, resource = second segment after [api.php](http://_vscodecontentref_/1)
+if ($apiIndex !== null) {
+    $endpoint = $requestSegments[$apiIndex + 1] ?? '';
+    $resource = $requestSegments[$apiIndex + 2] ?? '';
+} else {
+    // fallback: common hosting setups (endpoint might be at index 1)
+    $endpoint = $requestSegments[1] ?? $requestSegments[0] ?? '';
+    $resource = $requestSegments[2] ?? '';
+}
 
-if (DEBUG) {
-    error_log("Method: $method, URI: {$_SERVER['REQUEST_URI']}, Endpoint: $endpoint");
-    if (isset($_FILES) && !empty($_FILES)) {
-        error_log("Files received: " . json_encode(array_keys($_FILES)));
-    }
+// Normalize endpoint (remove query-like parts)
+$endpoint = trim($endpoint);
+$resource = trim($resource);
+
+if (defined('DEBUG') && DEBUG) {
+    error_log("Routing -> method=$method, rawPath=$rawPath, segments=" . json_encode($requestSegments) . ", endpoint=$endpoint, resource=$resource");
 }
 
 // Basic routing
@@ -996,8 +1012,7 @@ switch ($method . ' ' . $endpoint) {
         }
         break;
 
-    
-        case 'GET user-savings':
+    case 'GET user-savings':
         $userId = $requestUri[2] ?? $_GET['user_id'] ?? '';
         if (empty($userId) || !is_numeric($userId)) {
             http_response_code(400);
@@ -1046,8 +1061,7 @@ switch ($method . ' ' . $endpoint) {
         ]);
         break;
 
-    
-        case 'POST verify-face':
+    case 'POST verify-face':
         $userId = $requestUri[2] ?? '';
         if (empty($userId) || !is_numeric($userId)) {
             http_response_code(400);
@@ -1114,11 +1128,7 @@ switch ($method . ' ' . $endpoint) {
         $conn->close();
         break;
 
-    
-    
-    
-    
-        case 'GET transactions':
+    case 'GET transactions':
         $userId = $requestUri[2] ?? '';
         if (empty($userId)) {
             http_response_code(400);
@@ -1153,6 +1163,251 @@ switch ($method . ' ' . $endpoint) {
         }
         $stmt->close();
         $conn->close();
+        break;
+case 'POST loan/request':
+        $data = json_decode(file_get_contents('php://input'), true) ?: $_POST;
+        $user_id = $data['user_id'] ?? '';
+        $amount = (float)($data['amount'] ?? 0);
+        $tenure = (int)($data['tenure_months'] ?? 0);
+
+        if (empty($user_id) || $amount <= 0 || $tenure <= 0) {
+            http_response_code(400);
+            echo json_encode(['status' => 'error', 'message' => 'user_id, amount, and tenure_months are required']);
+            break;
+        }
+
+        $conn = getDbConnection();
+
+        // Verify user exists
+        $stmt = $conn->prepare("SELECT id FROM users WHERE id = ?");
+        $stmt->bind_param("i", $user_id);
+        $stmt->execute();
+        if ($stmt->get_result()->num_rows === 0) {
+            http_response_code(400);
+            echo json_encode(['status' => 'error', 'message' => 'User not found']);
+            $stmt->close();
+            $conn->close();
+            break;
+        }
+        $stmt->close();
+
+        // Get total completed savings for eligibility
+        $stmt = $conn->prepare("SELECT COALESCE(SUM(savings_amount), 0) AS total_savings FROM transactions WHERE user_id = ? AND status = 'completed'");
+        $stmt->bind_param("i", $user_id);
+        $stmt->execute();
+        $totalSavings = (float)$stmt->get_result()->fetch_assoc()['total_savings'];
+        $stmt->close();
+
+        // Max loan = 2× savings
+        if ($amount > $totalSavings * 2) {
+            http_response_code(400);
+            echo json_encode([
+                'status' => 'error',
+                'message' => 'Loan amount exceeds limit',
+                'max_allowed' => $totalSavings * 2,
+                'your_savings' => $totalSavings
+            ]);
+            $conn->close();
+            break;
+        }
+
+        // Default interest rate
+        $interest_rate = 12.00; // percent per year
+
+        $stmt = $conn->prepare("
+            INSERT INTO loans (user_id, amount_requested, interest_rate, tenure_months, status) 
+            VALUES (?, ?, ?, ?, 'pending')
+        ");
+        // types: i (user_id), d (amount), d (interest_rate), i (tenure)
+        $stmt->bind_param("iddi", $user_id, $amount, $interest_rate, $tenure);
+
+        if ($stmt->execute()) {
+            $loan_id = $conn->insert_id;
+            echo json_encode([
+                'status' => 'success',
+                'message' => 'Loan application submitted',
+                'loan_id' => $loan_id,
+                'max_loan_limit' => $totalSavings * 2
+            ]);
+        } else {
+            http_response_code(500);
+            echo json_encode(['status' => 'error', 'message' => 'Failed to save loan request: ' . $conn->error]);
+        }
+        $stmt->close();
+        $conn->close();
+        break;
+
+    case 'GET user-loans':
+        // $resource holds the user id (third segment)
+        $userId = $resource;
+        if (empty($userId) || !is_numeric($userId)) {
+            http_response_code(400);
+            echo json_encode(['status' => 'error', 'message' => 'Valid userId required']);
+            break;
+        }
+
+        $conn = getDbConnection();
+        $stmt = $conn->prepare("SELECT id, user_id, amount_requested, amount_approved, interest_rate, tenure_months, status, applied_at FROM loans WHERE user_id = ? ORDER BY applied_at DESC");
+        $stmt->bind_param("i", $userId);
+        $stmt->execute();
+        $res = $stmt->get_result();
+        $loans = [];
+        while ($r = $res->fetch_assoc()) {
+            $r['amount_requested'] = (float)$r['amount_requested'];
+            $r['amount_approved'] = isset($r['amount_approved']) ? (float)$r['amount_approved'] : null;
+            $loans[] = $r;
+        }
+        echo json_encode(['status' => 'success', 'data' => $loans]);
+        $stmt->close();
+        $conn->close();
+        break;
+
+    case 'GET loan-details':
+        $loanId = $resource;
+        if (empty($loanId) || !is_numeric($loanId)) {
+            http_response_code(400);
+            echo json_encode(['status' => 'error', 'message' => 'Valid loanId required']);
+            break;
+        }
+        $conn = getDbConnection();
+        $stmt = $conn->prepare("SELECT l.*, u.full_name, u.phone_number FROM loans l JOIN users u ON u.id = l.user_id WHERE l.id = ?");
+        $stmt->bind_param("i", $loanId);
+        $stmt->execute();
+        $loan = $stmt->get_result()->fetch_assoc();
+        if (!$loan) {
+            http_response_code(404);
+            echo json_encode(['status' => 'error', 'message' => 'Loan not found']);
+        } else {
+            $loan['amount_requested'] = (float)$loan['amount_requested'];
+            $loan['amount_approved'] = isset($loan['amount_approved']) ? (float)$loan['amount_approved'] : null;
+            echo json_encode(['status' => 'success', 'data' => $loan]);
+        }
+        $stmt->close();
+        $conn->close();
+        break;
+
+    case 'POST loan-repayment':
+        $data = json_decode(file_get_contents('php://input'), true) ?: $_POST;
+        $loan_id = $data['loan_id'] ?? '';
+        $amount = (float)($data['amount'] ?? 0);
+        $phone = formatPhoneNumber($data['phone_number'] ?? '');
+
+        if (empty($loan_id) || $amount <= 0 || empty($phone)) {
+            http_response_code(400);
+            echo json_encode(['status' => 'error', 'message' => 'Invalid input']);
+            break;
+        }
+
+        $conn = getDbConnection();
+        $stmt = $conn->prepare("SELECT status, amount_approved FROM loans WHERE id = ?");
+        $stmt->bind_param("i", $loan_id);
+        $stmt->execute();
+        $loan = $stmt->get_result()->fetch_assoc();
+        $stmt->close();
+        if (!$loan || $loan['status'] !== 'disbursed') {
+            http_response_code(400);
+            echo json_encode(['status' => 'error', 'message' => 'Loan not disbursed or not found']);
+            $conn->close();
+            break;
+        }
+
+        $stmt = $conn->prepare("INSERT INTO loan_repayments (loan_id, amount) VALUES (?, ?)");
+        $stmt->bind_param("id", $loan_id, $amount);
+        $stmt->execute();
+        $repayId = $conn->insert_id;
+        $stmt->close();
+
+        $stk = initiateSTKPush($phone, $amount, "REPAY-$repayId");
+        if (($stk['ResponseCode'] ?? '') === '0') {
+            $chk = $stk['CheckoutRequestID'];
+            $stmt = $conn->prepare("UPDATE loan_repayments SET checkout_request_id = ? WHERE id = ?");
+            $stmt->bind_param("si", $chk, $repayId);
+            $stmt->execute();
+            $stmt->close();
+            echo json_encode(['status' => 'success', 'repayment_id' => $repayId, 'checkout' => $chk]);
+        } else {
+            http_response_code(400);
+            echo json_encode(['status' => 'error', 'message' => $stk['ResponseDescription'] ?? 'STK failed']);
+        }
+        $conn->close();
+        break;
+
+    case 'POST loan-callback':
+        $payload = json_decode(file_get_contents('php://input'), true);
+        $code = $payload['Body']['stkCallback']['ResultCode'] ?? null;
+        $chk = $payload['Body']['stkCallback']['CheckoutRequestID'] ?? '';
+        $receipt = '';
+        foreach (($payload['Body']['stkCallback']['CallbackMetadata']['Item'] ?? []) as $i) {
+            if ($i['Name'] === 'MpesaReceiptNumber') $receipt = $i['Value'];
+        }
+
+        $conn = getDbConnection();
+        $stmt = $conn->prepare("SELECT id, loan_id, amount FROM loan_repayments WHERE checkout_request_id = ?");
+        $stmt->bind_param("s", $chk);
+        $stmt->execute();
+        $repay = $stmt->get_result()->fetch_assoc();
+        $stmt->close();
+
+        if (!$repay) {
+            http_response_code(404);
+            echo json_encode(['status' => 'error', 'message' => 'Repayment record not found']);
+            $conn->close();
+            break;
+        }
+
+        if ($code == 0) {
+            $stmt = $conn->prepare("UPDATE loan_repayments SET mpesa_receipt = ?, paid_at = NOW() WHERE id = ?");
+            $stmt->bind_param("si", $receipt, $repay['id']);
+            $stmt->execute();
+            $stmt->close();
+
+            $stmt = $conn->prepare("UPDATE loans SET amount_approved = amount_approved - ? WHERE id = ? AND amount_approved >= ?");
+            $stmt->bind_param("ddi", $repay['amount'], $repay['loan_id'], $repay['amount']);
+            $stmt->execute();
+            $stmt->close();
+
+            // mark loan repaid if amount_approved <= 0
+            $stmt = $conn->prepare("SELECT amount_approved FROM loans WHERE id = ?");
+            $stmt->bind_param("i", $repay['loan_id']);
+            $stmt->execute();
+            $rem = (float)$stmt->get_result()->fetch_assoc()['amount_approved'] ?? 0;
+            $stmt->close();
+
+            if ($rem <= 0) {
+                $stmt = $conn->prepare("UPDATE loans SET status = 'repaid', amount_approved = 0 WHERE id = ?");
+                $stmt->bind_param("i", $repay['loan_id']);
+                $stmt->execute();
+                $stmt->close();
+            }
+
+            echo json_encode(['status' => 'success', 'message' => 'Repayment recorded']);
+        } else {
+            echo json_encode(['status' => 'error', 'message' => 'Payment failed']);
+        }
+        $conn->close();
+        break;
+
+    case 'GET loan-status':
+        $loanId = $resource;
+        if (!is_numeric($loanId)) {
+            http_response_code(400);
+            echo json_encode(['status' => 'error', 'message' => 'Valid loanId']);
+            break;
+        }
+        $conn = getDbConnection();
+        $stmt = $conn->prepare("SELECT status, amount_requested, amount_approved FROM loans WHERE id = ?");
+        $stmt->bind_param("i", $loanId);
+        $stmt->execute();
+        $loan = $stmt->get_result()->fetch_assoc();
+        $stmt->close();
+        $conn->close();
+        if (!$loan) {
+            http_response_code(404);
+            echo json_encode(['status' => 'error', 'message' => 'Loan not found']);
+            break;
+        }
+        $loan['amount_approved'] = isset($loan['amount_approved']) ? (float)$loan['amount_approved'] : null;
+        echo json_encode(['status' => 'success', 'data' => $loan]);
         break;
 
     case 'POST mpesa-usage':
@@ -1796,7 +2051,7 @@ case 'GET last-payment':
             $conn->close();
             exit;
         }
-        if (($type === 'pay_bill' || $favorite['type'] === 'pay_bill') && $account_number === '') {
+        if ($account_number === '' && ($type === 'pay_bill' || $favorite['type'] === 'pay_bill')) {
             http_response_code(400);
             echo json_encode(['status' => 'error', 'message' => 'account_number required for Pay Bill']);
             $conn->close();
@@ -2027,7 +2282,212 @@ case 'GET last-payment':
         }
         echo json_encode(['status' => 'success', 'message' => 'B2B timeout processed']);
         break;
-c:\Users\mm\Downloads\gnmprime_saveapp.sql
+/* ==================== LOANS ==================== */
+    case 'POST apply-loan':
+        $data = json_decode(file_get_contents('php://input'), true) ?: $_POST;
+        $user_id = $data['user_id'] ?? '';
+        $amount = (float)($data['amount_requested'] ?? 0);
+        $tenure = (int)($data['tenure_months'] ?? 0);
+
+        if (empty($user_id)||$amount<=0||$tenure<=0) {
+            http_response_code(400);
+            echo json_encode(['status'=>'error','message'=>'Invalid input']);
+            break;
+        }
+
+        $conn = getDbConnection();
+        $stmt = $conn->prepare("SELECT COALESCE(SUM(savings_amount),0) AS total FROM transactions WHERE user_id=? AND status='completed'");
+        $stmt->bind_param("i",$user_id);
+        $stmt->execute();
+        $totalSavings = (float)$stmt->get_result()->fetch_assoc()['total'];
+        $stmt->close();
+
+        if ($amount > $totalSavings*2) {
+            http_response_code(400);
+            echo json_encode(['status'=>'error','message'=>'Max 2× savings']);
+            $conn->close();
+            break;
+        }
+
+        $interest = 12.00;
+        $stmt = $conn->prepare("INSERT INTO loans (user_id,amount_requested,interest_rate,tenure_months) VALUES (?,?,?,?)");
+        $stmt->bind_param("iddi",$user_id,$amount,$interest,$tenure);
+        if ($stmt->execute()) {
+            echo json_encode(['status'=>'success','loan_id'=>$conn->insert_id]);
+        } else {
+            http_response_code(500);
+            echo json_encode(['status'=>'error','message'=>'DB error']);
+        }
+        $stmt->close(); $conn->close();
+        break;
+
+    case 'GET user-loans':
+        $userId = $resource;
+        if (!is_numeric($userId)) {
+            http_response_code(400);
+            echo json_encode(['status'=>'error','message'=>'Valid userId']);
+            break;
+        }
+        $conn = getDbConnection();
+        $stmt = $conn->prepare("SELECT * FROM loans WHERE user_id=? ORDER BY applied_at DESC");
+        $stmt->bind_param("i",$userId);
+        $stmt->execute();
+        $res = $stmt->get_result();
+        $loans = [];
+        while ($r = $res->fetch_assoc()) {
+            $r['amount_requested'] = (float)$r['amount_requested'];
+            $r['amount_approved'] = $r['amount_approved'] ? (float)$r['amount_approved'] : null;
+            $loans[] = $r;
+        }
+        echo json_encode(['status'=>'success','data'=>$loans]);
+        $stmt->close(); $conn->close();
+        break;
+
+    case 'GET loan-details':
+        $loanId = $resource;
+        if (!is_numeric($loanId)) {
+            http_response_code(400);
+            echo json_encode(['status'=>'error','message'=>'Valid loanId']);
+            break;
+        }
+        $conn = getDbConnection();
+        $stmt = $conn->prepare("SELECT l.*, u.full_name, u.phone_number FROM loans l JOIN users u ON u.id=l.user_id WHERE l.id=?");
+        $stmt->bind_param("i",$loanId);
+        $stmt->execute();
+        $loan = $stmt->get_result()->fetch_assoc();
+        if (!$loan) {
+            http_response_code(404);
+            echo json_encode(['status'=>'error','message'=>'Not found']);
+        } else {
+            $loan['amount_requested'] = (float)$loan['amount_requested'];
+            $loan['amount_approved'] = $loan['amount_approved'] ? (float)$loan['amount_approved'] : null;
+            echo json_encode(['status'=>'success','data'=>$loan]);
+        }
+        $stmt->close(); $conn->close();
+        break;
+
+    case 'POST loan-repayment':
+        $data = json_decode(file_get_contents('php://input'), true) ?: $_POST;
+        $loan_id = $data['loan_id'] ?? '';
+        $amount = (float)($data['amount'] ?? 0);
+        $phone = formatPhoneNumber($data['phone_number'] ?? '');
+
+        if (empty($loan_id)||$amount<=0||empty($phone)) {
+            http_response_code(400);
+            echo json_encode(['status'=>'error','message'=>'Invalid input']);
+            break;
+        }
+
+        $conn = getDbConnection();
+        $stmt = $conn->prepare("SELECT status,amount_approved FROM loans WHERE id=?");
+        $stmt->bind_param("i",$loan_id);
+        $stmt->execute();
+        $loan = $stmt->get_result()->fetch_assoc();
+        $stmt->close();
+        if (!$loan || $loan['status']!=='disbursed') {
+            http_response_code(400);
+            echo json_encode(['status'=>'error','message'=>'Loan not disbursed']);
+            $conn->close();
+            break;
+        }
+
+        $stmt = $conn->prepare("INSERT INTO loan_repayments (loan_id,amount) VALUES (?,?)");
+        $stmt->bind_param("id",$loan_id,$amount);
+        $stmt->execute();
+        $repayId = $conn->insert_id;
+        $stmt->close();
+
+        $stk = initiateSTKPush($phone,$amount,"REPAY-$repayId");
+        if ($stk['ResponseCode']??'' === '0') {
+            $chk = $stk['CheckoutRequestID'];
+            $stmt = $conn->prepare("UPDATE loan_repayments SET checkout_request_id=? WHERE id=?");
+            $stmt->bind_param("si",$chk,$repayId);
+            $stmt->execute();
+            $stmt->close();
+            echo json_encode(['status'=>'success','repayment_id'=>$repayId,'checkout'=>$chk]);
+        } else {
+            http_response_code(400);
+            echo json_encode(['status'=>'error','message'=>$stk['ResponseDescription']??'STK failed']);
+        }
+        $conn->close();
+        break;
+
+    case 'POST loan-callback':
+        $payload = json_decode(file_get_contents('php://input'), true);
+        $code = $payload['Body']['stkCallback']['ResultCode'] ?? null;
+        $chk = $payload['Body']['stkCallback']['CheckoutRequestID'] ?? '';
+        $receipt = '';
+        foreach (($payload['Body']['stkCallback']['CallbackMetadata']['Item'] ?? []) as $i) {
+            if ($i['Name'] === 'MpesaReceiptNumber') $receipt = $i['Value'];
+        }
+
+        $conn = getDbConnection();
+        $stmt = $conn->prepare("SELECT id,loan_id,amount FROM loan_repayments WHERE checkout_request_id=?");
+        $stmt->bind_param("s",$chk);
+        $stmt->execute();
+        $repay = $stmt->get_result()->fetch_assoc();
+        $stmt->close();
+
+        if (!$repay) {
+            http_response_code(404);
+            echo json_encode(['status'=>'error','message'=>'Not found']);
+            $conn->close();
+            break;
+        }
+
+        if ($code==0) {
+            $stmt = $conn->prepare("UPDATE loan_repayments SET mpesa_receipt=?,paid_at=NOW() WHERE id=?");
+            $stmt->bind_param("si",$receipt,$repay['id']);
+            $stmt->execute();
+            $stmt->close();
+
+            $stmt = $conn->prepare("UPDATE loans SET amount_approved=amount_approved-? WHERE id=? AND amount_approved>=?");
+            $stmt->bind_param("ddi",$repay['amount'],$repay['loan_id'],$repay['amount']);
+            $stmt->execute();
+            $stmt->close();
+
+            $stmt = $conn->prepare("SELECT amount_approved FROM loans WHERE id=?");
+            $stmt->bind_param("i",$repay['loan_id']);
+            $stmt->execute();
+            $rem = (float)($stmt->get_result()->fetch_assoc()['amount_approved'] ?? 0);
+            $stmt->close();
+
+            if ($rem<=0) {
+                $stmt = $conn->prepare("UPDATE loans SET status='repaid',amount_approved=0 WHERE id=?");
+                $stmt->bind_param("i",$repay['loan_id']);
+                $stmt->execute();
+                $stmt->close();
+            }
+
+            echo json_encode(['status'=>'success','message'=>'Repayment recorded']);
+        } else {
+            echo json_encode(['status'=>'error','message'=>'Payment failed']);
+        }
+        $conn->close();
+        break;
+
+    case 'GET loan-status':
+        $loanId = $resource;
+        if (!is_numeric($loanId)) {
+            http_response_code(400);
+            echo json_encode(['status'=>'error','message'=>'Valid loanId']);
+            break;
+        }
+        $conn = getDbConnection();
+        $stmt = $conn->prepare("SELECT status,amount_ status,amount_approved FROM loans WHERE id=?");
+        $stmt->bind_param("i",$loanId);
+        $stmt->execute();
+        $loan = $stmt->get_result()->fetch_assoc();
+        $stmt->close(); $conn->close();
+        if (!$loan) {
+            http_response_code(404);
+            echo json_encode(['status'=>'error','message'=>'Not found']);
+            break;
+        }
+        $loan['amount_approved'] = $loan['amount_approved'] ? (float)$loan['amount_approved'] : null;
+        echo json_encode(['status'=>'success','data'=>$loan]);
+        break;
+
     default:
         http_response_code(404);
         echo json_encode(['status' => 'error', 'message' => 'Endpoint not found']);

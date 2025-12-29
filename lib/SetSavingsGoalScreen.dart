@@ -115,7 +115,7 @@ class _GoalCreationScreenState extends State<GoalCreationScreen> {
   Future<void> fetchLeaderboard() async {
     try {
       final response = await http.get(
-        Uri.parse('https://apis.gnmprimesource.co.ke/leaderboard/top-10-weekly'),
+        Uri.parse('http://apis.nebo.co.ke/apis/leaderboard/top-10-weekly'),
         headers: {
           "Content-Type": "application/json",
           // "Authorization": "Bearer your_api_token",
@@ -174,7 +174,7 @@ class _GoalCreationScreenState extends State<GoalCreationScreen> {
   Future<void> fetchRecentSavings() async {
     try {
       final response = await http.get(
-        Uri.parse('https://apis.gnmprimesource.co.ke/savings-recent/${widget.userId}'),
+        Uri.parse('http://apis.nebo.co.ke/apis/savings-recent/${widget.userId}'),
         headers: {
           "Content-Type": "application/json",
           // "Authorization": "Bearer your_api_token",
@@ -397,93 +397,64 @@ class _GoalCreationScreenState extends State<GoalCreationScreen> {
     }
   }
 
-  Future<void> createGoal() async {
-    if (!_formKey.currentState!.validate()) return;
+Future<void> createGoal() async {
+  if (!_formKey.currentState!.validate()) return;
+  _formKey.currentState!.save();
 
-    _formKey.currentState!.save();
-    if (mounted) {
-      setState(() => isLoading = true);
-    }
-
-    final requiredDailySavings = goalAmount! / durationDays!;
-    final daysElapsed = 2;
-    final expectedSavings = requiredDailySavings * daysElapsed;
-    probability = currentSavings >= goalAmount!
-        ? 100.0
-        : (savingsRate / requiredDailySavings * 100).clamp(0.0, 100.0);
-
-    if (probability > 80 && !badges.contains('Super Saver')) {
-      final prefs = await SharedPreferences.getInstance();
-      badges.add('Super Saver');
-      await prefs.setStringList('badges_${widget.userId}', badges);
-    }
-
-    if (probability < 50 || currentSavings < expectedSavings) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            probability < 50
-                ? 'Low probability (${probability.toStringAsFixed(1)}%) of reaching your goal!'
-                : 'You are behind schedule! Save more to reach your goal.',
-          ),
-          backgroundColor: Colors.red,
-        ),
-      );
-    }
-
-    try {
-      final response = await http.post(
-        Uri.parse('https://apis.gnmprimesource.co.ke/goals/create'),
-        headers: {
-          "Content-Type": "application/json",
-          // "Authorization": "Bearer your_api_token",
-        },
-        body: jsonEncode({
-          'user_id': widget.userId,
-          'goal_type': selectedGoalType,
-          'goal_name': goalName,
-          'goal_amount': goalAmount,
-          'duration_days': durationDays,
-          'selected_option': selectedOption,
-        }),
-      ).timeout(const Duration(seconds: 15), onTimeout: () {
-        throw TimeoutException('Create goal request timed out');
-      });
-
-      debugPrint('Create Goal API Response Status: ${response.statusCode}');
-      debugPrint('Create Goal API Response Body: ${response.body}');
-
-      if (response.statusCode == 201) {
-        if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Goal created successfully')),
-        );
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(
-            builder: (context) => SavingsDashboard(userId: widget.userId),
-          ),
-        );
-      } else {
-        if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to create goal: ${response.statusCode}')),
-        );
-      }
-    } catch (e) {
-      debugPrint('Error creating goal: $e');
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error creating goal: $e')),
-      );
-    } finally {
-      if (mounted) {
-        setState(() => isLoading = false);
-      }
-    }
+  if (goalAmount == null || goalAmount! < 100) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Target amount must be at least KSh 100')),
+    );
+    return;
   }
 
+  setState(() => isLoading = true);
+
+  try {
+    final response = await http.post(
+      Uri.parse('http://apis.nebo.co.ke/apis/goalscreate'), // ← FIXED URL
+      headers: {"Content-Type": "application/json"},
+      body: jsonEncode({
+        "user_id": widget.userId,
+        "title": goalName?.trim() ?? "Untitled Goal",
+        "target_amount": goalAmount,
+        "duration_days": durationDays ?? 30,
+        "goal_type": selectedGoalType ?? "Save",
+        "selected_option": selectedOption,
+        // "description": "Created from app", // optional
+      }),
+    ).timeout(const Duration(seconds: 15));
+
+    debugPrint('Create Goal Response: ${response.statusCode}');
+    debugPrint('Response Body: ${response.body}');
+
+    if (response.statusCode == 200 || response.statusCode == 201) {
+      final data = jsonDecode(response.body);
+      if (data['status'] == 'success') {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Goal created successfully!')),
+        );
+
+        // Go back to goals list (refresh will happen there)
+        Navigator.pop(context);
+      } else {
+        throw Exception(data['message'] ?? 'Failed to create goal');
+      }
+    } else {
+      final error = jsonDecode(response.body);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(error['message'] ?? 'Server error')),
+      );
+    }
+  } catch (e) {
+    debugPrint('Create goal error: $e');
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('Error: $e')),
+    );
+  } finally {
+    if (mounted) setState(() => isLoading = false);
+  }
+}
   @override
   Widget build(BuildContext context) {
     final requiredDailySavings = goalAmount != null && durationDays != null
@@ -503,9 +474,9 @@ class _GoalCreationScreenState extends State<GoalCreationScreen> {
           dropdownMenuTheme: DropdownMenuThemeData(
             textStyle: const TextStyle(color: Colors.white),
             menuStyle: MenuStyle(
-              backgroundColor: WidgetStateProperty.all(const Color(0xFF374151)),
-              elevation: WidgetStateProperty.all(4),
-              shape: WidgetStateProperty.all(
+              backgroundColor: MaterialStatePropertyAll(const Color(0xFF374151)),
+              elevation: MaterialStatePropertyAll(4),
+              shape: MaterialStatePropertyAll(
                 RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
               ),
             ),
@@ -560,50 +531,46 @@ class _GoalCreationScreenState extends State<GoalCreationScreen> {
                                     ),
                                   ),
                                   const SizedBox(height: 8),
-                                  DropdownButtonFormField<String>(
-                                    decoration: InputDecoration(
-                                      filled: true,
-                                      fillColor: const Color(0xFF1F2937),
-                                      border: OutlineInputBorder(
-                                        borderRadius: BorderRadius.circular(8),
-                                        borderSide: BorderSide.none,
-                                      ),
-                                    ),
-                                    value: selectedGoalType,
-                                    hint: const Text(
-                                      'Select Goal Type',
-                                      style: TextStyle(color: Colors.white70),
-                                    ),
-                                    items: goalTypes.map((type) {
-                                      return DropdownMenuItem(
-                                        value: type,
-                                        child: Text(
-                                          type,
-                                          style: const TextStyle(color: Colors.white),
-                                        ),
-                                      );
-                                    }).toList(),
-                                    onChanged: (value) {
-                                      if (mounted) {
-                                        setState(() {
-                                          selectedGoalType = value;
-                                          selectedOption = null;
-                                          goalName = null;
-                                          goalAmount = null;
-                                          durationDays = null;
-                                        });
-                                      }
-                                      if (value == 'Pay Loan' || value == 'Pay for Event' || value == 'Save to Invest') {
-                                        showCatalogueDialog(value!);
-                                      }
-                                    },
-                                    validator: (value) {
-                                      if (value == null) {
-                                        return 'Please select a goal type';
-                                      }
-                                      return null;
-                                    },
-                                  ),
+                                 DropdownButtonFormField<String>(
+  decoration: InputDecoration(
+    filled: true,
+    fillColor: const Color(0xFF1F2937),
+    border: OutlineInputBorder(
+      borderRadius: BorderRadius.circular(8),
+      borderSide: BorderSide.none,
+    ),
+  ),
+  value: selectedGoalType,
+  hint: const Text('Select Goal Type', style: TextStyle(color: Colors.white70)),
+  dropdownColor: const Color(0xFF374151),
+  iconEnabledColor: const Color(0xFFF5BB1B),
+  style: const TextStyle(color: Color(0xFFF5BB1B), fontSize: 16),
+  selectedItemBuilder: (context) => goalTypes.map<Widget>((item) {
+    return Text(item, style: const TextStyle(color: Color(0xFFF5BB1B)));
+  }).toList(),
+  items: goalTypes.map((type) {
+    return DropdownMenuItem(
+      value: type,
+      child: Text(type, style: const TextStyle(color: Colors.white)),
+    );
+  }).toList(),
+  onChanged: (value) {
+    setState(() {
+      selectedGoalType = value;
+      selectedOption = null;
+      goalName = null;
+      goalAmount = null;
+      durationDays = null;
+    });
+    if (value == 'Pay Loan' || value == 'Pay for Event' || value == 'Save to Invest') {
+      showCatalogueDialog(value!);
+    }
+  },
+  onSaved: (value) {
+    selectedGoalType = value; // THIS LINE WAS MISSING!
+  },
+  validator: (value) => value == null ? 'Please select a goal type' : null,
+),
                                   if (selectedGoalType == 'Pay Loan' ||
                                       selectedGoalType == 'Pay for Event' ||
                                       selectedGoalType == 'Save to Invest') ...[

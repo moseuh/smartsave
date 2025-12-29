@@ -7,7 +7,8 @@ import 'package:flutter_spinkit/flutter_spinkit.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:path_provider/path_provider.dart';
-import 'package:open_filex/open_filex.dart';
+// Changed to open_file
+import 'package:open_file/open_file.dart';
 import 'dart:io';
 import 'graph.dart' as graph;
 import 'buygoodselect.dart';
@@ -84,7 +85,7 @@ class _LoansPageState extends State<LoansPage> {
 
     try {
       final response = await http.get(
-        Uri.parse('https://apis.gnmprimesource.co.ke/apis/user-details/${widget.userId}'),
+        Uri.parse('http://apis.nebo.co.ke/apis/user-details/${widget.userId}'),
         headers: {'Content-Type': 'application/json'},
       );
 
@@ -123,7 +124,7 @@ class _LoansPageState extends State<LoansPage> {
   Future<void> fetchLoanDetails() async {
     try {
       final response = await http.get(
-        Uri.parse('https://apis.gnmprimesource.co.ke/apis/loans/${widget.userId}'),
+        Uri.parse('http://apis.nebo.co.ke/apis/loans/${widget.userId}'),
         headers: {'Content-Type': 'application/json'},
       );
 
@@ -161,7 +162,7 @@ class _LoansPageState extends State<LoansPage> {
   Future<void> fetchLoanEligibility() async {
     try {
       final response = await http.get(
-        Uri.parse('https://apis.gnmprimesource.co.ke/apis/loan-eligibility/${widget.userId}'),
+        Uri.parse('http://apis.nebo.co.ke/apis/loan-eligibility/${widget.userId}'),
         headers: {'Content-Type': 'application/json'},
       );
 
@@ -201,7 +202,7 @@ class _LoansPageState extends State<LoansPage> {
 
     try {
       final response = await http.post(
-        Uri.parse('https://apis.gnmprimesource.co.ke/apis/apply-loan'),
+        Uri.parse('http://apis.nebo.co.ke/apis/apply-loan'),
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({
           'user_id': widget.userId,
@@ -253,7 +254,7 @@ class _LoansPageState extends State<LoansPage> {
 
     try {
       final response = await http.post(
-        Uri.parse('https://apis.gnmprimesource.co.ke/apis/repay-loan'),
+        Uri.parse('http://apis.nebo.co.ke/apis/repay-loan'),
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({
           'user_id': widget.userId,
@@ -508,7 +509,8 @@ class _LoansPageState extends State<LoansPage> {
       final file = File('${dir.path}/loan_report_${widget.userId}.pdf');
       await file.writeAsBytes(await pdf.save());
       if (mounted) {
-        await OpenFilex.open(file.path);
+        // Using OpenFile.open instead of OpenFilex.open
+        await OpenFile.open(file.path);
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Loan report downloaded successfully')),
         );

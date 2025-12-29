@@ -2,9 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
+import 'goals_dashboard.dart'; // <-- ADD THIS LINE
 import 'dart:io';
 import 'dart:async';
 import 'sign_in_screen.dart';
+import 'SetSavingsGoalScreen.dart';
 import 'roundup.dart';
 import 'buygoodselect.dart';
 import 'profile.dart';
@@ -100,7 +102,7 @@ class SavingsDashboardState extends State<SavingsDashboard> {
 
       final response = await http
           .get(
-            Uri.parse('https://apis.gnmprimesource.co.ke/user/$userId'),
+            Uri.parse('http://apis.nebo.co.ke/apis/user/$userId'),
             headers: {
               "Content-Type": "application/json",
               // Add authorization header if required
@@ -126,7 +128,7 @@ class SavingsDashboardState extends State<SavingsDashboard> {
           if (mounted) {
             setState(() {
               userName = fullName;
-              selfiePath = selfiePathFromApi.isNotEmpty ? 'https://apis.gnmprimesource.co.ke/$selfiePathFromApi' : null;
+              selfiePath = selfiePathFromApi.isNotEmpty ? 'http://apis.nebo.co.ke/apis/$selfiePathFromApi' : null;
             });
           }
 
@@ -170,7 +172,7 @@ class SavingsDashboardState extends State<SavingsDashboard> {
     try {
       final response = await http
           .get(
-            Uri.parse('https://apis.gnmprimesource.co.ke/mpesa-usage/${widget.userId}'),
+            Uri.parse('http://apis.nebo.co.ke/apis/mpesa-usage/${widget.userId}'),
             headers: {
               "Content-Type": "application/json",
               // "Authorization": "Bearer your_api_token",
@@ -217,12 +219,12 @@ class SavingsDashboardState extends State<SavingsDashboard> {
 
   Future<void> fetchTotalSavings() async {
     try {
+      debugPrint('fetchTotalSavings: widget.userId=${widget.userId}');
       final response = await http
           .get(
-            Uri.parse('https://apis.gnmprimesource.co.ke/apis/user-savings/${widget.userId}'),
+            Uri.parse('http://apis.nebo.co.ke/apis/user-savings/${widget.userId}'),
             headers: {
               "Content-Type": "application/json",
-              // "Authorization": "Bearer your_api_token",
             },
           )
           .timeout(const Duration(seconds: 15), onTimeout: () {
@@ -234,14 +236,40 @@ class SavingsDashboardState extends State<SavingsDashboard> {
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body) as Map<String, dynamic>?;
-        if (data?['status'] == 'success' && data?['data'] is Map) {
+        debugPrint('Parsed total savings JSON: $data');
+
+        // Try several possible shapes/keys for the returned total value
+        dynamic rawTotal;
+        if (data != null) {
+          if (data['data'] is Map) {
+            rawTotal = data['data']['total_savings'] ?? data['data']['totalSavings'] ?? data['data']['total'] ;
+          } else {
+            // Some endpoints return the value at top-level
+            rawTotal = data['total_savings'] ?? data['totalSavings'] ?? data['data'];
+          }
+        }
+
+        double parsedTotal = 0.0;
+        if (rawTotal is num) {
+          parsedTotal = rawTotal.toDouble();
+        } else if (rawTotal is String && rawTotal.isNotEmpty) {
+          // handle numeric strings
+          parsedTotal = double.tryParse(rawTotal.replaceAll(',', '')) ?? 0.0;
+        } else {
+          parsedTotal = 0.0;
+        }
+
+        if (data?['status'] == 'success') {
           if (mounted) {
             setState(() {
-              totalSavings = (data?['data']['total_savings'] as num?)?.toDouble() ?? 0.0;
+              totalSavings = parsedTotal;
             });
           }
         } else {
-          if (mounted) {
+          // If API returned success with different structure, still set parsed value
+          if (parsedTotal > 0 && mounted) {
+            setState(() => totalSavings = parsedTotal);
+          } else if (mounted) {
             setState(() => totalSavings = 0.0);
           }
         }
@@ -268,7 +296,7 @@ class SavingsDashboardState extends State<SavingsDashboard> {
     try {
       final response = await http
           .get(
-            Uri.parse('https://apis.gnmprimesource.co.ke/savings-history/${widget.userId}'),
+            Uri.parse('http://apis.nebo.co.ke/apis/savings-history/${widget.userId}'),
             headers: {
               "Content-Type": "application/json",
               // "Authorization": "Bearer your_api_token",
@@ -325,7 +353,7 @@ class SavingsDashboardState extends State<SavingsDashboard> {
     try {
       final response = await http
           .get(
-            Uri.parse('https://apis.gnmprimesource.co.ke/apis/last-payment/${widget.userId}'),
+            Uri.parse('http://apis.nebo.co.ke/apis/last-payment/${widget.userId}'),
             headers: {
               "Content-Type": "application/json",
               // "Authorization": "Bearer your_api_token",
@@ -381,7 +409,7 @@ class SavingsDashboardState extends State<SavingsDashboard> {
     try {
       final response = await http
           .get(
-            Uri.parse('https://apis.gnmprimesource.co.ke/roundup-settings/${widget.userId}'),
+            Uri.parse('http://apis.nebo.co.ke/apis/roundup-settings/${widget.userId}'),
             headers: {
               "Content-Type": "application/json",
               // "Authorization": "Bearer your_api_token",
@@ -730,41 +758,76 @@ class SavingsDashboardState extends State<SavingsDashboard> {
           ),
         ),
       ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () {
-          if (!mounted) return;
-          try {
-            Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (context) => GoalCreationScreen(userId: widget.userId),
+floatingActionButton: Stack(
+        children: [
+          // Main FAB - Create Goal (bottom-right)
+          Positioned(
+            bottom: 16,
+            right: 16,
+            child: FloatingActionButton.extended(
+              heroTag: "createGoal",
+              onPressed: () {
+                if (!mounted) return;
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => GoalCreationScreen(userId: widget.userId),
+                  ),
+                );
+              },
+              label: const Text(
+                'Create Goal',
+                style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold),
               ),
-            );
-            debugPrint('Navigating to GoalCreationScreen');
-          } catch (e) {
-            debugPrint('Navigation error: $e');
-            if (mounted) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(content: Text('Failed to navigate: $e')),
-              );
-            }
-          }
-        },
-        label: const Text(
-          'Create Savings Goal',
-          style: TextStyle(color: Colors.black, fontSize: 16, fontWeight: FontWeight.bold),
-        ),
-        icon: const Icon(Icons.add, color: Colors.black),
-        backgroundColor: const Color(0xFFF5BB1B),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(50),
-          side: const BorderSide(color: Colors.white70, width: 2),
-        ),
-        elevation: 8,
-        highlightElevation: 12,
-        splashColor: Colors.white.withValues(alpha: 0.3),
+              icon: const Icon(Icons.add, color: Colors.black),
+              backgroundColor: const Color(0xFFF5BB1B),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(50),
+                side: const BorderSide(color: Colors.white70, width: 2),
+              ),
+            ),
+          ),
+
+          // Small FAB - View Goals (slightly above and left of main FAB)
+          Positioned(
+            bottom: 90, // Adjust as needed
+            right: 28,
+            child: FloatingActionButton(
+              mini: true, // Makes it smaller
+              heroTag: "viewGoals",
+              backgroundColor: const Color(0xFFF5BB1B),
+              elevation: 6,
+              child: const Icon(Icons.flag, color: Colors.black, size: 24),
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => GoalsDashboard(userId: widget.userId),
+                  ),
+                );
+              },
+            ),
+          ),
+
+          // Optional: Add a tooltip or label for the small button
+          Positioned(
+            bottom: 140,
+            right: 20,
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 200),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+              decoration: BoxDecoration(
+                color: Colors.black87,
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: const Text(
+                'View Goals',
+                style: TextStyle(color: Colors.white, fontSize: 12),
+              ),
+            ),
+          ),
+        ],
       ),
-      floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
       bottomNavigationBar: Container(
         color: const Color(0xFF374151),
         child: Padding(

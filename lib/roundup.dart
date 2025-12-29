@@ -45,7 +45,7 @@ class _RoundUpSettingsState extends State<RoundUpSettings> {
 
     try {
       final response = await http.get(
-        Uri.parse('http://apis.gnmprimesource.co.ke/apis/roundup-settings/$userId'),
+        Uri.parse('http://apis.nebo.co.ke/apis/roundup-settings/$userId'),
         headers: {"Content-Type": "application/json"},
       );
       debugPrint('Load API Response Status: ${response.statusCode}');
@@ -107,7 +107,7 @@ class _RoundUpSettingsState extends State<RoundUpSettings> {
 
     try {
       final response = await http.post(
-        Uri.parse('http://apis.gnmprimesource.co.ke/apis/roundup-settings'),
+        Uri.parse('http://apis.nebo.co.ke/apis/roundup-settings'),
         headers: {"Content-Type": "application/json"},
         body: jsonEncode(payload),
       );

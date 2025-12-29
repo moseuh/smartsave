@@ -10,6 +10,7 @@ import 'graph.dart'; // SavingsDashboard
 import 'addtofavourites.dart';
 import 'homepage.dart';
 import 'favourites.dart';
+import 'profile.dart'; // <-- add this import
 
 class ProcessingDialog extends StatefulWidget {
   final VoidCallback? onCancel;
@@ -130,7 +131,7 @@ class _BuyGoodsSelectState extends State<BuyGoodsSelect> {
 
     try {
       final response = await http.get(
-        Uri.parse('https://apis.gnmprimesource.co.ke/apis/user-details/${widget.userId}'),
+        Uri.parse('http://apis.nebo.co.ke/apis/user-details/${widget.userId}'),
         headers: {'Content-Type': 'application/json'},
       );
 
@@ -163,7 +164,7 @@ class _BuyGoodsSelectState extends State<BuyGoodsSelect> {
 
     try {
       final response = await http.get(
-        Uri.parse('https://apis.gnmprimesource.co.ke/apis/roundup-settings/${widget.userId}'),
+        Uri.parse('http://apis.nebo.co.ke/apis/roundup-settings/${widget.userId}'),
         headers: {'Content-Type': 'application/json'},
       );
 
@@ -200,7 +201,7 @@ class _BuyGoodsSelectState extends State<BuyGoodsSelect> {
 
     try {
       final response = await http.get(
-        Uri.parse('https://apis.gnmprimesource.co.ke/apis/last-payment/${widget.userId}'),
+        Uri.parse('http://apis.nebo.co.ke/apis/last-payment/${widget.userId}'),
         headers: {'Content-Type': 'application/json'},
       );
 
@@ -306,7 +307,7 @@ class _BuyGoodsSelectState extends State<BuyGoodsSelect> {
       try {
         debugPrint('Fetching transaction status for ID: $transactionId (Attempt ${attempt + 1})');
         final response = await http.get(
-          Uri.parse('https://apis.gnmprimesource.co.ke/apis/transaction-status/$transactionId'),
+          Uri.parse('http://apis.nebo.co.ke/apis/transaction-status/$transactionId'),
           headers: {'Content-Type': 'application/json'},
         ).timeout(const Duration(seconds: 5));
 
@@ -339,37 +340,48 @@ class _BuyGoodsSelectState extends State<BuyGoodsSelect> {
   Future<void> savePaymentData() async {
     if (tillNumberController.text.isEmpty || amountController.text.isEmpty) {
       debugPrint('Validation error: Please fill in all required fields');
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Please fill all required fields'), backgroundColor: Colors.red));
       return;
     }
 
     if (!RegExp(r'^\d{6}$').hasMatch(tillNumberController.text)) {
       debugPrint('Validation error: Till number must be 6 digits');
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Till number must be 6 digits'), backgroundColor: Colors.red));
       return;
     }
 
     double enteredAmount = double.tryParse(amountController.text) ?? 0.0;
     if (enteredAmount <= 0) {
       debugPrint('Validation error: Please enter a valid amount');
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Please enter a valid amount'), backgroundColor: Colors.red));
       return;
     }
 
     if (!isBuyGoods && accountNumberController.text.isEmpty) {
       debugPrint('Validation error: Please enter an account number for Pay Bill');
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Please enter an account number'), backgroundColor: Colors.red));
       return;
     }
 
-    if (userDetails == null || userDetails?['phone_number'] == null) {
-      debugPrint('Validation error: User phone number not available');
+    // Robust phone extraction and normalization
+    final normalizedPhone = _extractAndNormalizePhone();
+    if (normalizedPhone == null || normalizedPhone.isEmpty) {
+      debugPrint('Validation error: User phone number not available or invalid');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text('Your phone number is missing or invalid. Please update it in your profile.'),
+          action: SnackBarAction(label: 'Profile', onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (c) => Profile(userId: widget.userId)))),
+          backgroundColor: Colors.red,
+        ),
+      );
       return;
     }
 
-    final url = Uri.parse('https://apis.gnmprimesource.co.ke/apis/process-paybill-payment');
+    final url = Uri.parse('http://apis.nebo.co.ke/apis/process-paybill-payment');
     final timestamp = DateTime.now();
     final payload = {
       'user_id': int.parse(widget.userId),
-      'phone_number': userDetails!['phone_number'].startsWith('0')
-          ? '254${userDetails!['phone_number'].substring(1)}'
-          : userDetails!['phone_number'],
+      'phone_number': normalizedPhone,
       'amount': totalAmount,
       'savings_amount': roundUpSavings,
       'merchant_paybill': tillNumberController.text,
@@ -692,7 +704,7 @@ class _BuyGoodsSelectState extends State<BuyGoodsSelect> {
 
     try {
       final response = await http.post(
-        Uri.parse('https://apis.gnmprimesource.co.ke/apis/favourites'),
+        Uri.parse('http://apis.nebo.co.ke/apis/favourites'),
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode(payload),
       );
@@ -722,6 +734,53 @@ class _BuyGoodsSelectState extends State<BuyGoodsSelect> {
     } catch (e) {
       debugPrint('Error saving favourite: $e');
     }
+  }
+
+  // helper to extract and normalize phone from userDetails
+  String? _extractAndNormalizePhone() {
+    if (userDetails == null) return null;
+    // common keys to check
+    final candidates = ['phone_number', 'phone', 'msisdn', 'mobile', 'telephone', 'contact'];
+    for (final key in candidates) {
+      final val = userDetails?[key];
+      if (val != null) {
+        final s = val.toString().trim();
+        if (s.isNotEmpty) {
+          // remove spaces, +, brackets, dashes
+          var cleaned = s.replaceAll(RegExp(r'[\s\-\(\)\+]'), '');
+          // If it's local format starting with 0 (e.g. 07xxxxxxx), convert to 2547xxxxxxx
+          if (cleaned.startsWith('0') && cleaned.length >= 9) {
+            cleaned = '254' + cleaned.substring(1);
+          } else if (cleaned.startsWith('7') && cleaned.length == 9) {
+            // e.g. 7XXXXXXXX -> 2547XXXXXXXX
+            cleaned = '254' + cleaned;
+          }
+          // final basic validation: must start with 254 and followed by 9 digits (Kenyan mobile)
+          if (RegExp(r'^2547\d{8}$').hasMatch(cleaned)) {
+            debugPrint('Normalized phone: $cleaned (from key: $key)');
+            return cleaned;
+          } else {
+            debugPrint('Phone found but failed normalization: "$s" -> "$cleaned" (key: $key)');
+            // still return cleaned if it's numeric and reasonably long - fallback
+            if (RegExp(r'^\d{8,15}$').hasMatch(cleaned)) return cleaned;
+          }
+        }
+      }
+    }
+    // try nested structures just in case
+    if (userDetails!['data'] is Map) {
+      final nested = userDetails!['data'] as Map;
+      for (final key in candidates) {
+        final val = nested[key];
+        if (val != null && val.toString().trim().isNotEmpty) {
+          var cleaned = val.toString().trim().replaceAll(RegExp(r'[\s\-\(\)\+]'), '');
+          if (cleaned.startsWith('0') && cleaned.length >= 9) cleaned = '254' + cleaned.substring(1);
+          if (RegExp(r'^2547\d{8}$').hasMatch(cleaned)) return cleaned;
+          if (RegExp(r'^\d{8,15}$').hasMatch(cleaned)) return cleaned;
+        }
+      }
+    }
+    return null;
   }
 
   @override
