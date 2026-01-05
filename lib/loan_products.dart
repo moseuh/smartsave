@@ -6,7 +6,6 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter_contacts/flutter_contacts.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:signature/signature.dart';
-import 'package:fl_chart/fl_chart.dart';
 import 'sign_in_screen.dart';
 import 'wallet_page.dart';
 import 'buygoodselect.dart';
@@ -43,7 +42,6 @@ class _LoanProductsState extends State<LoanProducts> with TickerProviderStateMix
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
   Map<String, dynamic>? userDetails;
   bool isLoading = true;
-  final String _selectedCurrency = 'KES';
   final String baseUrl = 'https://apis.nebo.co.ke/apis';
   late AnimationController _knobController;
   late AnimationController _fadeController;
@@ -110,7 +108,8 @@ class _LoanProductsState extends State<LoanProducts> with TickerProviderStateMix
             min: min,
             max: max,
             divisions: (max - min).toInt(),
-            label: '${int.parse(controller.text)} months',
+            label: '${controller.text} months',
+            activeColor: const Color(0xFFF5BB1B),
             onChanged: (v) {
               setStateSlider(() => controller.text = v.toInt().toString());
             },
@@ -121,10 +120,11 @@ class _LoanProductsState extends State<LoanProducts> with TickerProviderStateMix
     );
   }
 
-  // ----------------- Public P2P Loan Request Form -----------------
+  // ----------------- Public P2P Loan Request (Variable Interest Rate) -----------------
   void _showPublicP2PFlow() {
     final amountCtrl = TextEditingController();
-    final monthsCtrl = TextEditingController(text: '1');
+    final monthsCtrl = TextEditingController(text: '6');
+    final interestCtrl = TextEditingController(text: '15.0');
     final descCtrl = TextEditingController();
     final formKey = GlobalKey<FormState>();
 
@@ -134,7 +134,7 @@ class _LoanProductsState extends State<LoanProducts> with TickerProviderStateMix
       builder: (_) => AlertDialog(
         backgroundColor: const Color(0xFF374151),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: const Text('Post P2P Loan Request', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+        title: const Text('Post Public P2P Loan Request', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
         content: Form(
           key: formKey,
           child: SingleChildScrollView(
@@ -147,21 +147,45 @@ class _LoanProductsState extends State<LoanProducts> with TickerProviderStateMix
                 validator: (v) {
                   final val = double.tryParse(v ?? '');
                   if (val == null || val <= 0) return 'Enter valid amount';
+                  if (val < 1000) return 'Minimum KES 1,000';
                   return null;
                 },
               ),
               const SizedBox(height: 12),
               _monthsSlider(monthsCtrl, min: 1, max: 36),
-              const SizedBox(height: 12),
+              const SizedBox(height: 20),
+              const Text('Maximum Interest Rate You\'ll Accept (%)', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+              const SizedBox(height: 8),
+              StatefulBuilder(
+                builder: (context, setState) => Column(
+                  children: [
+                    Slider(
+                      value: double.tryParse(interestCtrl.text) ?? 15.0,
+                      min: 8.0,
+                      max: 225.0,
+                      divisions: 134,
+                      label: '${interestCtrl.text}%',
+                      activeColor: const Color(0xFFF5BB1B),
+                      onChanged: (value) {
+                        setState(() => interestCtrl.text = value.toStringAsFixed(1));
+                      },
+                    ),
+                    Text('You will accept offers up to ${interestCtrl.text}% p.a.', style: const TextStyle(color: Colors.white70, fontSize: 13), textAlign: TextAlign.center),
+                    const SizedBox(height: 6),
+                    const Text('Lower rate = faster funding, but fewer offers', style: TextStyle(color: Colors.orangeAccent, fontSize: 12)),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 16),
               TextFormField(
                 controller: descCtrl,
                 maxLines: 3,
                 style: const TextStyle(color: Colors.white),
                 decoration: _inputDec('Loan Purpose (optional)'),
               ),
-              const SizedBox(height: 8),
+              const SizedBox(height: 12),
               Container(
-                padding: const EdgeInsets.all(10),
+                padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
                   color: const Color(0xFF2D3748),
                   borderRadius: BorderRadius.circular(8),
@@ -169,12 +193,12 @@ class _LoanProductsState extends State<LoanProducts> with TickerProviderStateMix
                 ),
                 child: const Row(
                   children: [
-                    Icon(Icons.info, color: Colors.white54, size: 20),
-                    SizedBox(width: 8),
+                    Icon(Icons.info_outline, color: Colors.white54, size: 20),
+                    SizedBox(width: 10),
                     Expanded(
                       child: Text(
-                        'Your request will be visible to public lenders. Interest rates negotiable.',
-                        style: TextStyle(color: Colors.white54, fontSize: 12),
+                        'Lenders will see your max rate and offer at or below it.\nCurrent market: 10–20% p.a. (avg ~15%)',
+                        style: TextStyle(color: Colors.white70, fontSize: 13),
                       ),
                     ),
                   ],
@@ -184,10 +208,7 @@ class _LoanProductsState extends State<LoanProducts> with TickerProviderStateMix
           ),
         ),
         actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel', style: TextStyle(color: Colors.white70)),
-          ),
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel', style: TextStyle(color: Colors.white70))),
           ElevatedButton(
             style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFF5BB1B)),
             onPressed: () {
@@ -196,11 +217,12 @@ class _LoanProductsState extends State<LoanProducts> with TickerProviderStateMix
                 _submitPublicP2PLoanRequest(
                   amount: double.parse(amountCtrl.text),
                   tenureMonths: int.parse(monthsCtrl.text),
-                  purpose: descCtrl.text,
+                  interestRate: double.parse(interestCtrl.text),
+                  purpose: descCtrl.text.trim(),
                 );
               }
             },
-            child: const Text('Post Request'),
+            child: const Text('submit', style: TextStyle(color: Colors.black)),
           ),
         ],
       ),
@@ -210,26 +232,29 @@ class _LoanProductsState extends State<LoanProducts> with TickerProviderStateMix
   Future<void> _submitPublicP2PLoanRequest({
     required double amount,
     required int tenureMonths,
+    required double interestRate,
     required String purpose,
   }) async {
-    try {
-      if (!mounted) return;
-      showDialog(
-        context: context,
-        barrierDismissible: false,
-        builder: (_) => AlertDialog(
-          backgroundColor: const Color(0xFF374151),
-          content: Column(mainAxisSize: MainAxisSize.min, children: [LoanStatusKnob(status: 'submitting')]),
-        ),
-      );
+    if (!mounted) return;
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => const AlertDialog(
+        backgroundColor: Color(0xFF374151),
+        content: Column(mainAxisSize: MainAxisSize.min, children: [LoanStatusKnob(status: 'submitting')]),
+      ),
+    );
 
+    try {
       final response = await http.post(
         Uri.parse('$baseUrl/request'),
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({
           'user_id': widget.userId,
-          'amount_requested': amount,  // FIXED for 400 error
+          'amount': amount,
           'tenure_months': tenureMonths,
+          'interest_rate': interestRate,
+          if (purpose.isNotEmpty) 'purpose': purpose,
         }),
       );
 
@@ -240,30 +265,35 @@ class _LoanProductsState extends State<LoanProducts> with TickerProviderStateMix
         final data = jsonDecode(response.body);
         final loanId = data['loan_id'] ?? 'N/A';
 
+        if (!mounted) return;
         showDialog(
           context: context,
           builder: (_) => AlertDialog(
             backgroundColor: const Color(0xFF374151),
-            title: const Text('Request Posted!', style: TextStyle(color: Colors.white)),
+            title: const Text('Request Posted!', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
             content: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
                 const Icon(Icons.check_circle, color: Colors.green, size: 60),
                 const SizedBox(height: 16),
-                Text('KES ${amount.toStringAsFixed(0)}', style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold)),
+                Text('KES ${amount.toStringAsFixed(0)}', style: const TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold)),
                 const SizedBox(height: 8),
-                Text('$tenureMonths months', style: const TextStyle(color: Colors.white70)),
+                Text('Max ${interestRate.toStringAsFixed(1)}% p.a. • $tenureMonths months', style: const TextStyle(color: Colors.white70)),
                 const SizedBox(height: 16),
-                Text('Loan ID: $loanId\nLenders can now see your request and make offers!', style: const TextStyle(color: Colors.white70, fontSize: 12)),
+                Text('Loan ID: $loanId', style: const TextStyle(color: Colors.white70)),
               ],
             ),
             actions: [TextButton(onPressed: () => Navigator.pop(context), child: const Text('OK'))],
           ),
         );
       } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error ${response.statusCode}: ${response.body}')),
-        );
+        String msg = 'Failed';
+        try {
+          final err = jsonDecode(response.body);
+          msg = err['message'] ?? msg;
+        } catch (_) {}
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $msg')));
       }
     } catch (e) {
       if (!mounted) return;
@@ -278,7 +308,7 @@ class _LoanProductsState extends State<LoanProducts> with TickerProviderStateMix
     if (!status.isGranted) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Contacts permission required to pick a friend/family')),
+        const SnackBar(content: Text('Contacts permission required')),
       );
       return;
     }
@@ -289,10 +319,11 @@ class _LoanProductsState extends State<LoanProducts> with TickerProviderStateMix
       final phone = phoneRaw?.replaceAll(RegExp(r'\D'), '');
       if (phone == null || phone.length < 9) {
         if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('No valid phone number found')));
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('No valid phone number')));
         return;
       }
-      final name = contact.displayName ?? 'Unknown Contact';
+      final name = contact.displayName ?? 'Unknown';
+
       if (!mounted) return;
       showDialog(
         context: context,
@@ -312,7 +343,7 @@ class _LoanProductsState extends State<LoanProducts> with TickerProviderStateMix
       );
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error opening contacts: $e')));
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e')));
     }
   }
 
@@ -322,6 +353,7 @@ class _LoanProductsState extends State<LoanProducts> with TickerProviderStateMix
     final monthsCtrl = TextEditingController(text: '1');
     final reasonCtrl = TextEditingController();
     final sigCtrl = SignatureController(penStrokeWidth: 5, penColor: Colors.white);
+
     showDialog(
       context: context,
       barrierDismissible: false,
@@ -364,7 +396,7 @@ class _LoanProductsState extends State<LoanProducts> with TickerProviderStateMix
                 }
                 if (sigCtrl.isEmpty) {
                   if (!mounted) return;
-                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Please sign the agreement')));
+                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Please sign')));
                   return;
                 }
                 final sigBytes = await sigCtrl.toPngBytes();
@@ -414,11 +446,13 @@ class _LoanProductsState extends State<LoanProducts> with TickerProviderStateMix
     final list = prefs.getStringList('friend_family_loans') ?? [];
     list.add(jsonEncode(loan));
     await prefs.setStringList('friend_family_loans', list);
+
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(
       content: Text(isBorrowing ? 'Borrow request sent to $name!' : 'Lending offer sent to $name!'),
       backgroundColor: Colors.green,
     ));
+
     if (signature != null && mounted) {
       showDialog(
         context: context,
@@ -436,17 +470,88 @@ class _LoanProductsState extends State<LoanProducts> with TickerProviderStateMix
     }
   }
 
-  // ----------------- Bank Loans -----------------
+  // ----------------- Bank Loans (Now POSTS TO BACKEND) -----------------
+  Future<void> _submitBankLoanRequest({
+    required double amount,
+    required int months,
+    required String loanType,
+  }) async {
+    if (!mounted) return;
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => const AlertDialog(
+        backgroundColor: Color(0xFF374151),
+        content: Column(mainAxisSize: MainAxisSize.min, children: [LoanStatusKnob(status: 'submitting')]),
+      ),
+    );
+
+    try {
+      final response = await http.post(
+        Uri.parse('$baseUrl/bank-loan-request'), // Change if your endpoint is different
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({
+          'user_id': widget.userId,
+          'amount': amount,
+          'tenure_months': months,
+          'loan_type': loanType,
+        }),
+      );
+
+      if (!mounted) return;
+      Navigator.pop(context);
+
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        final data = jsonDecode(response.body);
+        final loanId = data['loan_id'] ?? 'N/A';
+
+        if (!mounted) return;
+        showDialog(
+          context: context,
+          builder: (_) => AlertDialog(
+            backgroundColor: const Color(0xFF374151),
+            title: const Text('Bank Loan Submitted!', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(Icons.check_circle, color: Colors.green, size: 60),
+                const SizedBox(height: 16),
+                Text('KES ${amount.toStringAsFixed(0)}', style: const TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold)),
+                const SizedBox(height: 8),
+                Text('$months months • ${loanType.replaceAll('_', ' ').toUpperCase()}', style: const TextStyle(color: Colors.white70)),
+                const SizedBox(height: 16),
+                Text('Request ID: $loanId', style: const TextStyle(color: Colors.white70)),
+              ],
+            ),
+            actions: [TextButton(onPressed: () => Navigator.pop(context), child: const Text('OK'))],
+          ),
+        );
+      } else {
+        String msg = 'Submission failed';
+        try {
+          final err = jsonDecode(response.body);
+          msg = err['message'] ?? msg;
+        } catch (_) {}
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $msg'), backgroundColor: Colors.red));
+      }
+    } catch (e) {
+      if (!mounted) return;
+      Navigator.pop(context);
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Network error: $e')));
+    }
+  }
+
   void _showLoanOffersDialog(String category) async {
     final allOffers = [
       {'id': 1, 'title': 'Salary Advance', 'max_amount': 50000.0, 'interest': 8.5, 'max_months': 3},
       {'id': 2, 'title': 'Emergency Loan', 'max_amount': 100000.0, 'interest': 12.0, 'max_months': 2},
       {'id': 3, 'title': 'Business Loan', 'max_amount': 500000.0, 'interest': 10.0, 'max_months': 6},
     ];
-    final offers = allOffers.where((o) => o['title'].toString().toLowerCase().contains(category.toLowerCase())).toList();
-    if (!mounted) return;
+    final offers = allOffers.where((o) => (o['title'] as String).toLowerCase().contains(category.toLowerCase())).toList();
     if (offers.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('No offers available for this category')));
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('No offers available')));
       return;
     }
     showDialog(
@@ -462,15 +567,11 @@ class _LoanProductsState extends State<LoanProducts> with TickerProviderStateMix
             itemCount: offers.length,
             itemBuilder: (ctx, i) {
               final offer = offers[i];
-              final maxAmountStr = (offer['max_amount'] as num).toStringAsFixed(0);
-              final interestStr = offer['interest'].toString();
-              final maxMonthsStr = (offer['max_months'] as num).toInt().toString();
-              final titleStr = offer['title'].toString();
               return Card(
                 color: const Color(0xFF2D3748),
                 child: ListTile(
-                  title: Text(titleStr, style: const TextStyle(color: Colors.white)),
-                  subtitle: Text('Max: $_selectedCurrency $maxAmountStr • $interestStr% • $maxMonthsStr mo',
+                  title: Text(offer['title'] as String, style: const TextStyle(color: Colors.white)),
+                  subtitle: Text('Max: KES ${(offer['max_amount'] as num).toStringAsFixed(0)} • ${(offer['interest'] as num).toStringAsFixed(1)}% • ${offer['max_months']} mo',
                       style: const TextStyle(color: Colors.white70, fontSize: 12)),
                   trailing: const Icon(Icons.arrow_forward_ios, color: Colors.white54, size: 16),
                   onTap: () {
@@ -488,150 +589,89 @@ class _LoanProductsState extends State<LoanProducts> with TickerProviderStateMix
   }
 
   void _showAmountAndTermDialog(Map<String, dynamic> offer, String category) {
-    try {
-      final double userSavings = (userDetails?['savings'] as num?)?.toDouble() ?? 0.0;
-      final double maxAllowed = userSavings * 2;
-      final amountCtrl = TextEditingController();
-      final monthsCtrl = TextEditingController(text: '1');
-      final formKey = GlobalKey<FormState>();
-      showDialog(
-        context: context,
-        builder: (c) => AlertDialog(
-          backgroundColor: const Color(0xFF374151),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-          title: Text('Request ${offer['title'] ?? 'Loan'}', style: const TextStyle(color: Colors.white)),
-          content: Form(
-            key: formKey,
-            child: SingleChildScrollView(
-              child: Column(mainAxisSize: MainAxisSize.min, children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    const Text('Max Offer:', style: TextStyle(color: Colors.white70, fontSize: 12)),
-                    Text('KES ${(offer['max_amount'] as num).toStringAsFixed(0)}',
-                        style: const TextStyle(color: Colors.green, fontSize: 14, fontWeight: FontWeight.bold)),
-                  ],
-                ),
-                const SizedBox(height: 8),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    const Text('Your Savings:', style: TextStyle(color: Colors.white70, fontSize: 12)),
-                    Text('KES ${userSavings.toStringAsFixed(0)}',
-                        style: const TextStyle(color: Colors.green, fontSize: 14, fontWeight: FontWeight.bold)),
-                  ],
-                ),
-                const SizedBox(height: 8),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    const Text('Max Loan (2×):', style: TextStyle(color: Colors.white70, fontSize: 12)),
-                    Text('KES ${maxAllowed.toStringAsFixed(0)}',
-                        style: const TextStyle(color: Colors.green, fontSize: 14, fontWeight: FontWeight.bold)),
-                  ],
-                ),
-                const SizedBox(height: 16),
-                TextFormField(
-                  controller: amountCtrl,
-                  keyboardType: TextInputType.number,
-                  style: const TextStyle(color: Colors.white),
-                  decoration: _inputDec('Amount (KES)'),
-                  validator: (v) {
-                    final val = double.tryParse(v ?? '');
-                    if (val == null || val <= 0) return 'Invalid amount';
-                    if (val > (offer['max_amount'] as num).toDouble()) return 'Exceeds offer max';
-                    if (maxAllowed > 0 && val > maxAllowed) return 'Max 2× your savings';
-                    return null;
-                  },
-                ),
-                const SizedBox(height: 12),
-                _monthsSlider(monthsCtrl, min: 1, max: (offer['max_months'] as num).toDouble()),
+    final double userSavings = (userDetails?['savings'] as num?)?.toDouble() ?? 0.0;
+    final double maxAllowed = userSavings * 2;
+    final amountCtrl = TextEditingController();
+    final monthsCtrl = TextEditingController(text: '1');
+    final formKey = GlobalKey<FormState>();
+
+    String loanType = '';
+    if (category.toLowerCase().contains('salary')) loanType = 'salary_advance';
+    else if (category.toLowerCase().contains('emergency')) loanType = 'emergency';
+    else if (category.toLowerCase().contains('business')) loanType = 'business';
+
+    showDialog(
+      context: context,
+      builder: (c) => AlertDialog(
+        backgroundColor: const Color(0xFF374151),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        title: Text('Request ${offer['title'] as String}', style: const TextStyle(color: Colors.white)),
+        content: Form(
+          key: formKey,
+          child: SingleChildScrollView(
+            child: Column(mainAxisSize: MainAxisSize.min, children: [
+              Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+                const Text('Max Offer:', style: TextStyle(color: Colors.white70, fontSize: 12)),
+                Text('KES ${(offer['max_amount'] as num).toStringAsFixed(0)}', style: const TextStyle(color: Colors.green, fontSize: 14, fontWeight: FontWeight.bold)),
               ]),
-            ),
+              const SizedBox(height: 8),
+              Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+                const Text('Your Savings:', style: TextStyle(color: Colors.white70, fontSize: 12)),
+                Text('KES ${userSavings.toStringAsFixed(0)}', style: const TextStyle(color: Colors.green, fontSize: 14, fontWeight: FontWeight.bold)),
+              ]),
+              const SizedBox(height: 8),
+              Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+                const Text('Max Loan (2×):', style: TextStyle(color: Colors.white70, fontSize: 12)),
+                Text('KES ${maxAllowed.toStringAsFixed(0)}', style: const TextStyle(color: Colors.green, fontSize: 14, fontWeight: FontWeight.bold)),
+              ]),
+              const SizedBox(height: 16),
+              TextFormField(
+                controller: amountCtrl,
+                keyboardType: TextInputType.number,
+                style: const TextStyle(color: Colors.white),
+                decoration: _inputDec('Amount (KES)'),
+                validator: (v) {
+                  final val = double.tryParse(v ?? '');
+                  if (val == null || val <= 0) return 'Invalid amount';
+                  if (val > (offer['max_amount'] as num).toDouble()) return 'Exceeds max';
+                  if (val > maxAllowed) return 'Max 2× savings';
+                  return null;
+                },
+              ),
+              const SizedBox(height: 12),
+              _monthsSlider(monthsCtrl, min: 1, max: (offer['max_months'] as num).toDouble()),
+            ]),
           ),
-          actions: [
-            TextButton(onPressed: () => Navigator.pop(c), child: const Text('Cancel', style: TextStyle(color: Colors.white70))),
-            ElevatedButton(
-              style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFF5BB1B)),
-              onPressed: () {
-                if (formKey.currentState!.validate()) {
-                  Navigator.pop(c);
-                  _submitStandardLoanRequest(
-                    type: category,
-                    amount: double.parse(amountCtrl.text),
-                    months: int.parse(monthsCtrl.text),
-                    offerId: (offer['id'] as num).toInt(),
-                  );
-                }
-              },
-              child: const Text('Submit'),
-            ),
-          ],
         ),
-      );
-    } catch (e) {
-      debugPrint('Error: $e');
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red));
-    }
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(c), child: const Text('Cancel', style: TextStyle(color: Colors.white70))),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFF5BB1B)),
+            onPressed: () {
+              if (formKey.currentState!.validate()) {
+                Navigator.pop(c);
+                _submitBankLoanRequest(
+                  amount: double.parse(amountCtrl.text),
+                  months: int.parse(monthsCtrl.text),
+                  loanType: loanType,
+                );
+              }
+            },
+            child: const Text('Submit Request'),
+          ),
+        ],
+      ),
+    );
   }
 
-  Future<void> _submitStandardLoanRequest({
-    required String type,
-    required double amount,
-    required int months,
-    required int offerId,
-  }) async {
-    try {
-      if (!mounted) return;
-      showDialog(
-        context: context,
-        barrierDismissible: false,
-        builder: (_) => AlertDialog(
-          backgroundColor: const Color(0xFF374151),
-          content: Column(mainAxisSize: MainAxisSize.min, children: [LoanStatusKnob(status: 'submitting')]),
-        ),
-      );
-      await Future.delayed(const Duration(seconds: 2));
-      if (!mounted) return;
-      Navigator.pop(context);
-      if (!mounted) return;
-      showDialog(
-        context: context,
-        builder: (_) => AlertDialog(
-          backgroundColor: const Color(0xFF374151),
-          title: const Text('Loan Request Submitted!', style: TextStyle(color: Colors.white)),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text('Type: $type', style: const TextStyle(color: Colors.white70)),
-              const SizedBox(height: 8),
-              Text('Amount: KES ${amount.toStringAsFixed(0)}', style: const TextStyle(color: Colors.white70)),
-              const SizedBox(height: 8),
-              Text('Duration: $months months', style: const TextStyle(color: Colors.white70)),
-            ],
-          ),
-          actions: [TextButton(onPressed: () => Navigator.pop(context), child: const Text('OK'))],
-        ),
-      );
-    } catch (e) {
-      if (!mounted) return;
-      Navigator.pop(context);
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e')));
-    }
-  }
-
-  // ----------------- API Methods (SAFE PARSING) -----------------
+  // ----------------- API Methods -----------------
   Future<List<Map<String, dynamic>>> _fetchPendingLoans() async {
     try {
       final response = await http.get(Uri.parse('$baseUrl/pending-loans'));
       if (response.statusCode == 200) {
         final dynamic json = jsonDecode(response.body);
-        if (json is List) {
-          return List<Map<String, dynamic>>.from(json);
-        } else if (json is Map<String, dynamic> && json['data'] is List) {
-          return List<Map<String, dynamic>>.from(json['data']);
-        }
+        if (json is List) return List<Map<String, dynamic>>.from(json);
+        if (json is Map && json['data'] is List) return List<Map<String, dynamic>>.from(json['data']);
       }
     } catch (e) {
       debugPrint('Fetch pending loans error: $e');
@@ -644,11 +684,8 @@ class _LoanProductsState extends State<LoanProducts> with TickerProviderStateMix
       final response = await http.get(Uri.parse('$baseUrl/p2p-portfolio/${widget.userId}'));
       if (response.statusCode == 200) {
         final dynamic json = jsonDecode(response.body);
-        if (json is List) {
-          return List<Map<String, dynamic>>.from(json);
-        } else if (json is Map<String, dynamic> && json['data'] is List) {
-          return List<Map<String, dynamic>>.from(json['data']);
-        }
+        if (json is List) return List<Map<String, dynamic>>.from(json);
+        if (json is Map && json['data'] is List) return List<Map<String, dynamic>>.from(json['data']);
       }
     } catch (e) {
       debugPrint('Portfolio error: $e');
@@ -662,13 +699,10 @@ class _LoanProductsState extends State<LoanProducts> with TickerProviderStateMix
       if (response.statusCode == 200) {
         final dynamic json = jsonDecode(response.body);
         List<dynamic> allRequests = [];
-        if (json is List) {
-          allRequests = json;
-        } else if (json is Map<String, dynamic> && json['data'] is List) {
-          allRequests = json['data'];
-        }
+        if (json is List) allRequests = json;
+        if (json is Map && json['data'] is List) allRequests = json['data'];
         return allRequests
-            .where((r) => r['user_id']?.toString() == widget.userId)
+            .where((r) => (r['user_id']?.toString() ?? '') == widget.userId)
             .map((e) => Map<String, dynamic>.from(e))
             .toList();
       }
@@ -685,12 +719,14 @@ class _LoanProductsState extends State<LoanProducts> with TickerProviderStateMix
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({'lender_id': widget.userId, 'loan_request_id': loanRequestId, 'amount': amount}),
       );
+      if (!mounted) return;
       if (response.statusCode == 200 || response.statusCode == 201) {
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Lent successfully!'), backgroundColor: Colors.green));
       } else {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error ${response.statusCode}')));
       }
     } catch (e) {
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e')));
     }
   }
@@ -698,6 +734,7 @@ class _LoanProductsState extends State<LoanProducts> with TickerProviderStateMix
   Future<void> _toggleAutoLend(bool enabled) async {
     if (!enabled) {
       setState(() => _autoLendEnabled = false);
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Auto-Lend disabled')));
       return;
     }
@@ -734,6 +771,7 @@ class _LoanProductsState extends State<LoanProducts> with TickerProviderStateMix
                     if (maxPer != null) 'max_per_loan': maxPer,
                   }),
                 );
+                if (!mounted) return;
                 if (response.statusCode == 200) {
                   setState(() => _autoLendEnabled = true);
                   ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Auto-Lend enabled!'), backgroundColor: Colors.green));
@@ -741,6 +779,7 @@ class _LoanProductsState extends State<LoanProducts> with TickerProviderStateMix
                   ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error ${response.statusCode}')));
                 }
               } catch (e) {
+                if (!mounted) return;
                 ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Auto-Lend error: $e')));
               }
             },
@@ -793,6 +832,7 @@ class _LoanProductsState extends State<LoanProducts> with TickerProviderStateMix
                 Expanded(
                   child: TabBarView(
                     children: [
+                      // Portfolio Tab
                       FutureBuilder<List<Map<String, dynamic>>>(
                         future: _fetchP2PPortfolio(),
                         builder: (c, snap) {
@@ -801,7 +841,7 @@ class _LoanProductsState extends State<LoanProducts> with TickerProviderStateMix
                           if (loans.isEmpty) return const Center(child: Text('No active investments yet', style: TextStyle(color: Colors.white70, fontSize: 16)));
 
                           final totalLent = loans.fold<double>(0.0, (s, l) => s + (l['amount'] as num).toDouble());
-                          final totalReturn = loans.map((l) => (l['expected_return'] as num?)?.toDouble() ?? 0.0).fold<double>(0.0, (a, b) => a + b);
+                          final totalReturn = loans.fold<double>(0.0, (sum, l) => sum + ((l['expected_return'] as num?)?.toDouble() ?? 0.0));
 
                           return ListView(
                             padding: const EdgeInsets.all(16),
@@ -829,54 +869,56 @@ class _LoanProductsState extends State<LoanProducts> with TickerProviderStateMix
                                     crossAxisAlignment: CrossAxisAlignment.start,
                                     children: [
                                       Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-                                        Expanded(child: Text(l['borrower_name'] ?? l['full_name'] ?? 'Unknown Borrower', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 18))),
+                                        Expanded(child: Text((l['borrower_name'] ?? l['full_name'] ?? 'Unknown') as String, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 18))),
                                         Container(
                                           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                                          decoration: BoxDecoration(color: _getRiskColor(l['risk_level']), borderRadius: BorderRadius.circular(20)),
+                                          decoration: BoxDecoration(color: _getRiskColor(l['risk_level'] as String?), borderRadius: BorderRadius.circular(20)),
                                           child: Text(l['risk_level'] ?? 'N/A', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12)),
                                         ),
                                       ]),
                                       const SizedBox(height: 12),
                                       Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
                                         Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                                          Text('Lent Amount', style: TextStyle(color: Colors.white70, fontSize: 13)),
-                                          Text('KES ${(l['amount'] as num).toStringAsFixed(0)}', style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
+                                          const Text('Lent Amount', style: TextStyle(color: Colors.white70, fontSize: 13)),
+                                          Text('KES ${(l['amount'] as num).toStringAsFixed(0)}', style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
                                         ]),
                                         Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                                          Text('Interest Rate', style: TextStyle(color: Colors.white70, fontSize: 13)),
-                                          Text('${l['interest'] ?? 'N/A'}%', style: TextStyle(color: Colors.white, fontSize: 16)),
-                                        ]),
-                                      ]),
-                                      const SizedBox(height: 12),
-                                      Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-                                        Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                                          Text('Tenure', style: TextStyle(color: Colors.white70, fontSize: 13)),
-                                          Text('${l['tenure_months'] ?? 'N/A'} months', style: TextStyle(color: Colors.white, fontSize: 16)),
-                                        ]),
-                                        Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                                          Text('Due Date', style: TextStyle(color: Colors.white70, fontSize: 13)),
-                                          Text(l['due_date'] ?? 'N/A', style: TextStyle(color: Colors.orangeAccent, fontSize: 16, fontWeight: FontWeight.bold)),
+                                          const Text('Interest Rate', style: TextStyle(color: Colors.white70, fontSize: 13)),
+                                          Text('${l['interest_rate'] ?? l['interest'] ?? 'N/A'}%', style: const TextStyle(color: Colors.white, fontSize: 16)),
                                         ]),
                                       ]),
                                       const SizedBox(height: 12),
                                       Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
                                         Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                                          Text('Status', style: TextStyle(color: Colors.white70, fontSize: 13)),
-                                          Text(l['status'] ?? 'Unknown', style: TextStyle(color: _kStatusColors[l['status']?.toLowerCase()] ?? Colors.grey, fontWeight: FontWeight.bold, fontSize: 15)),
+                                          const Text('Tenure', style: TextStyle(color: Colors.white70, fontSize: 13)),
+                                          Text('${l['tenure_months'] ?? 'N/A'} months', style: const TextStyle(color: Colors.white, fontSize: 16)),
+                                        ]),
+                                        Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                                          const Text('Due Date', style: TextStyle(color: Colors.white70, fontSize: 13)),
+                                          Text(l['due_date'] ?? 'N/A', style: const TextStyle(color: Colors.orangeAccent, fontSize: 16, fontWeight: FontWeight.bold)),
+                                        ]),
+                                      ]),
+                                      const SizedBox(height: 12),
+                                      Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+                                        Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                                          const Text('Status', style: TextStyle(color: Colors.white70, fontSize: 13)),
+                                          Text(l['status'] ?? 'Unknown', style: TextStyle(color: _kStatusColors[(l['status'] as String?)?.toLowerCase()] ?? Colors.grey, fontWeight: FontWeight.bold, fontSize: 15)),
                                         ]),
                                         Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
-                                          Text('Expected Return', style: TextStyle(color: Colors.white70, fontSize: 13)),
+                                          const Text('Expected Return', style: TextStyle(color: Colors.white70, fontSize: 13)),
                                           Text('KES ${(l['expected_return'] as num?)?.toStringAsFixed(0) ?? '0'}', style: const TextStyle(color: Colors.greenAccent, fontSize: 18, fontWeight: FontWeight.bold)),
                                         ]),
                                       ]),
                                     ],
                                   ),
                                 ),
-                              )).toList(),
+                              )),
                             ],
                           );
                         },
                       ),
+
+                      // My Requests Tab
                       Stack(
                         children: [
                           FutureBuilder<List<Map<String, dynamic>>>(
@@ -900,11 +942,11 @@ class _LoanProductsState extends State<LoanProducts> with TickerProviderStateMix
                                         children: [
                                           Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
                                             Text('Request #${r['id']}', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 18)),
-                                            Text(r['status'] ?? 'Pending', style: TextStyle(color: _kStatusColors[(r['status'] ?? '').toLowerCase()] ?? Colors.grey)),
+                                            Text(r['status'] ?? 'Pending', style: TextStyle(color: _kStatusColors[(r['status'] as String?)?.toLowerCase()] ?? Colors.grey)),
                                           ]),
                                           const SizedBox(height: 12),
-                                          Text('Amount: KES ${(r['amount_requested'] ?? r['amount'])?.toStringAsFixed(0)}', style: const TextStyle(color: Colors.white, fontSize: 16)),
-                                          Text('Tenure: ${r['tenure_months']} months', style: const TextStyle(color: Colors.white70)),
+                                          Text('Amount: KES ${(r['amount'] ?? r['amount_requested'])?.toStringAsFixed(0)}', style: const TextStyle(color: Colors.white, fontSize: 16)),
+                                          Text('Max Rate: ${r['interest_rate'] ?? 'N/A'}% • ${r['tenure_months']} months', style: const TextStyle(color: Colors.white70)),
                                           Text('Created: ${r['created_at'] ?? 'N/A'}', style: const TextStyle(color: Colors.white54)),
                                         ],
                                       ),
@@ -928,6 +970,8 @@ class _LoanProductsState extends State<LoanProducts> with TickerProviderStateMix
                           ),
                         ],
                       ),
+
+                      // Lend Tab
                       StatefulBuilder(
                         builder: (lendCtx, setLendState) => Padding(
                           padding: const EdgeInsets.all(16),
@@ -942,33 +986,34 @@ class _LoanProductsState extends State<LoanProducts> with TickerProviderStateMix
                                   builder: (c, snap) {
                                     if (snap.connectionState != ConnectionState.done) return const Center(child: CircularProgressIndicator(color: Color(0xFFF5BB1B)));
                                     final requests = snap.data ?? [];
-                                    if (requests.isEmpty) return const Center(child: Text('No open loan requests at the moment', style: TextStyle(color: Colors.white70, fontSize: 16)));
+                                    if (requests.isEmpty) return const Center(child: Text('No open requests at the moment', style: TextStyle(color: Colors.white70, fontSize: 16)));
 
                                     return ListView.builder(
                                       itemCount: requests.length,
                                       itemBuilder: (_, i) {
                                         final r = requests[i];
+                                        final maxRate = r['interest_rate'] ?? 'N/A';
                                         return Card(
                                           color: const Color(0xFF2D3748),
                                           margin: const EdgeInsets.only(bottom: 12),
                                           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                                           child: ListTile(
                                             contentPadding: const EdgeInsets.all(16),
-                                            title: Text('KES ${r['amount_requested']}', style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold)),
+                                            title: Text('KES ${(r['amount'] ?? r['amount_requested'])}', style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold)),
                                             subtitle: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                                              Text('Duration: ${r['tenure_months']} months', style: const TextStyle(color: Colors.white70)),
+                                              Text('Max Rate: $maxRate% • ${r['tenure_months']} months', style: const TextStyle(color: Colors.white70)),
                                               Text('Borrower: ${r['full_name'] ?? 'Anonymous'}', style: const TextStyle(color: Colors.white70)),
                                             ]),
                                             trailing: ElevatedButton(
                                               style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFF5BB1B)),
                                               onPressed: () {
-                                                final ctrl = TextEditingController(text: r['amount_requested'].toString());
+                                                final ctrl = TextEditingController(text: (r['amount'] ?? r['amount_requested']).toString());
                                                 showDialog(
                                                   context: context,
                                                   builder: (_) => AlertDialog(
                                                     backgroundColor: const Color(0xFF374151),
-                                                    title: const Text('How much do you want to lend?', style: TextStyle(color: Colors.white)),
-                                                    content: TextField(controller: ctrl, keyboardType: TextInputType.number, style: const TextStyle(color: Colors.white), decoration: _inputDec('Amount (KES)')),
+                                                    title: const Text('How much to lend?', style: TextStyle(color: Colors.white)),
+                                                    content: TextField(controller: ctrl, keyboardType: TextInputType.number, decoration: _inputDec('Amount (KES)')),
                                                     actions: [
                                                       TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel', style: TextStyle(color: Colors.white70))),
                                                       ElevatedButton(
@@ -1021,7 +1066,7 @@ class _LoanProductsState extends State<LoanProducts> with TickerProviderStateMix
     );
   }
 
-  // ----------------- UI -----------------
+  // ----------------- UI Build Methods -----------------
   PreferredSizeWidget _buildAppBar() {
     return AppBar(
       backgroundColor: const Color(0xFF374151),
@@ -1039,7 +1084,7 @@ class _LoanProductsState extends State<LoanProducts> with TickerProviderStateMix
         children: [
           DrawerHeader(
             decoration: const BoxDecoration(color: Color(0xFF2D3748)),
-            child: Text(userDetails?['name'] ?? 'User', style: const TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.bold)),
+            child: Text(userDetails?['name'] as String? ?? 'User', style: const TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.bold)),
           ),
           ListTile(
             leading: const Icon(Icons.logout, color: Colors.white70),
@@ -1067,12 +1112,12 @@ class _LoanProductsState extends State<LoanProducts> with TickerProviderStateMix
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('Welcome, ${userDetails?['name'] ?? 'User'}!', style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold)),
+                    Text('Welcome}!', style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold)),
                     const SizedBox(height: 12),
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                       decoration: BoxDecoration(color: const Color(0xFF2D3748), borderRadius: BorderRadius.circular(8)),
-                      child: Text('Your Savings: KES ${userDetails?['savings']?.toString() ?? '0'}', style: const TextStyle(color: Colors.green, fontSize: 16, fontWeight: FontWeight.bold)),
+                      child: Text('Your Savings: KES ${(userDetails?['savings'] as num?)?.toStringAsFixed(0) ?? '0'}', style: const TextStyle(color: Colors.green, fontSize: 16, fontWeight: FontWeight.bold)),
                     ),
                   ],
                 ),
@@ -1152,7 +1197,7 @@ class _LoanProductsState extends State<LoanProducts> with TickerProviderStateMix
   Future<void> _validateAndFetchUserDetails() async {
     if (widget.userId.isEmpty) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Invalid user ID. Please log in again.')));
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Invalid user ID')));
       await _logout();
       return;
     }
@@ -1162,7 +1207,7 @@ class _LoanProductsState extends State<LoanProducts> with TickerProviderStateMix
   Future<void> fetchUserDetails() async {
     setState(() => isLoading = true);
     try {
-      final response = await http.get(Uri.parse('$baseUrl/user-details/${widget.userId}'), headers: {'Content-Type': 'application/json'});
+      final response = await http.get(Uri.parse('$baseUrl/user-details/${widget.userId}'));
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
         if (data['status'] == 'success') {
@@ -1171,34 +1216,36 @@ class _LoanProductsState extends State<LoanProducts> with TickerProviderStateMix
             isLoading = false;
           });
         } else {
-          throw Exception(data['message'] ?? 'Failed to load user details');
+          throw Exception(data['message'] ?? 'Failed');
         }
       } else {
-        throw Exception('Failed to load user details: ${response.statusCode}');
+        throw Exception('Failed: ${response.statusCode}');
       }
     } catch (e) {
-      if (!mounted) return;
       setState(() => isLoading = false);
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e'), action: SnackBarAction(label: 'Retry', onPressed: fetchUserDetails)));
     }
   }
 
   Future<void> _logout() async {
-    SharedPreferences prefs = await SharedPreferences.getInstance();
+    final prefs = await SharedPreferences.getInstance();
     await prefs.clear();
-    if (!mounted) return;
-    Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const SignInScreen()));
+    if (mounted) {
+      Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const SignInScreen()));
+    }
   }
 
   void _onItemTapped(int index) {
-    if (!mounted) return;
     final pages = [
       WalletPage(userId: widget.userId),
       LoanProducts(userId: widget.userId),
       BuyGoodsSelect(userId: widget.userId),
       Profile(userId: widget.userId),
     ];
-    if (index < pages.length) Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => pages[index]));
+    if (index != 1 && index < pages.length) {
+      Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => pages[index]));
+    }
   }
 
   @override
@@ -1218,8 +1265,8 @@ class _LoanProductsState extends State<LoanProducts> with TickerProviderStateMix
 
 class LoanStatusKnob extends StatefulWidget {
   final String status;
-  final VoidCallback? onRetry;
-  const LoanStatusKnob({super.key, required this.status, this.onRetry});
+  const LoanStatusKnob({super.key, required this.status});
+
   @override
   State<LoanStatusKnob> createState() => _LoanStatusKnobState();
 }
@@ -1245,7 +1292,7 @@ class _LoanStatusKnobState extends State<LoanStatusKnob> with SingleTickerProvid
   Widget build(BuildContext context) {
     final bool isRotating = widget.status == 'submitting' || widget.status == 'reviewing';
     final color = _kStatusColors[widget.status] ?? Colors.grey;
-    final text = _kStatusTexts[widget.status] ?? 'Unknown';
+    final text = _kStatusTexts[widget.status] ?? 'Processing';
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
@@ -1254,8 +1301,7 @@ class _LoanStatusKnobState extends State<LoanStatusKnob> with SingleTickerProvid
           child: Icon(Icons.autorenew, size: 64, color: color),
         ),
         const SizedBox(height: 12),
-        Text(text, style: TextStyle(color: color, fontWeight: FontWeight.bold)),
-        if (widget.status == 'rejected' && widget.onRetry != null) TextButton(onPressed: widget.onRetry, child: const Text('Retry')),
+        Text(text, style: TextStyle(color: color, fontWeight: FontWeight.bold, fontSize: 16)),
       ],
     );
   }

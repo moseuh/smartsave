@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
-import 'goals_dashboard.dart'; // <-- ADD THIS LINE
+import 'goals_dashboard.dart';
 import 'dart:io';
 import 'dart:async';
 import 'sign_in_screen.dart';
@@ -10,8 +10,7 @@ import 'SetSavingsGoalScreen.dart';
 import 'roundup.dart';
 import 'buygoodselect.dart';
 import 'profile.dart';
-import 'transactiohistory.dart'; // Fixed typo
-import 'SetSavingsGoalScreen.dart';
+import 'transactiohistory.dart';
 
 class SavingsDashboard extends StatefulWidget {
   final String userId;
@@ -103,11 +102,7 @@ class SavingsDashboardState extends State<SavingsDashboard> {
       final response = await http
           .get(
             Uri.parse('http://apis.nebo.co.ke/apis/user/$userId'),
-            headers: {
-              "Content-Type": "application/json",
-              // Add authorization header if required
-              // "Authorization": "Bearer your_api_token",
-            },
+            headers: {"Content-Type": "application/json"},
           )
           .timeout(const Duration(seconds: 15), onTimeout: () {
         throw TimeoutException('User data request timed out');
@@ -173,10 +168,7 @@ class SavingsDashboardState extends State<SavingsDashboard> {
       final response = await http
           .get(
             Uri.parse('http://apis.nebo.co.ke/apis/mpesa-usage/${widget.userId}'),
-            headers: {
-              "Content-Type": "application/json",
-              // "Authorization": "Bearer your_api_token",
-            },
+            headers: {"Content-Type": "application/json"},
           )
           .timeout(const Duration(seconds: 15), onTimeout: () {
         throw TimeoutException('M-Pesa request timed out');
@@ -223,9 +215,7 @@ class SavingsDashboardState extends State<SavingsDashboard> {
       final response = await http
           .get(
             Uri.parse('http://apis.nebo.co.ke/apis/user-savings/${widget.userId}'),
-            headers: {
-              "Content-Type": "application/json",
-            },
+            headers: {"Content-Type": "application/json"},
           )
           .timeout(const Duration(seconds: 15), onTimeout: () {
         throw TimeoutException('Total savings request timed out');
@@ -238,13 +228,11 @@ class SavingsDashboardState extends State<SavingsDashboard> {
         final data = jsonDecode(response.body) as Map<String, dynamic>?;
         debugPrint('Parsed total savings JSON: $data');
 
-        // Try several possible shapes/keys for the returned total value
         dynamic rawTotal;
         if (data != null) {
           if (data['data'] is Map) {
-            rawTotal = data['data']['total_savings'] ?? data['data']['totalSavings'] ?? data['data']['total'] ;
+            rawTotal = data['data']['total_savings'] ?? data['data']['totalSavings'] ?? data['data']['total'];
           } else {
-            // Some endpoints return the value at top-level
             rawTotal = data['total_savings'] ?? data['totalSavings'] ?? data['data'];
           }
         }
@@ -253,7 +241,6 @@ class SavingsDashboardState extends State<SavingsDashboard> {
         if (rawTotal is num) {
           parsedTotal = rawTotal.toDouble();
         } else if (rawTotal is String && rawTotal.isNotEmpty) {
-          // handle numeric strings
           parsedTotal = double.tryParse(rawTotal.replaceAll(',', '')) ?? 0.0;
         } else {
           parsedTotal = 0.0;
@@ -266,7 +253,6 @@ class SavingsDashboardState extends State<SavingsDashboard> {
             });
           }
         } else {
-          // If API returned success with different structure, still set parsed value
           if (parsedTotal > 0 && mounted) {
             setState(() => totalSavings = parsedTotal);
           } else if (mounted) {
@@ -297,10 +283,7 @@ class SavingsDashboardState extends State<SavingsDashboard> {
       final response = await http
           .get(
             Uri.parse('http://apis.nebo.co.ke/apis/savings-history/${widget.userId}'),
-            headers: {
-              "Content-Type": "application/json",
-              // "Authorization": "Bearer your_api_token",
-            },
+            headers: {"Content-Type": "application/json"},
           )
           .timeout(const Duration(seconds: 15), onTimeout: () {
         throw TimeoutException('Savings history request timed out');
@@ -354,10 +337,7 @@ class SavingsDashboardState extends State<SavingsDashboard> {
       final response = await http
           .get(
             Uri.parse('http://apis.nebo.co.ke/apis/last-payment/${widget.userId}'),
-            headers: {
-              "Content-Type": "application/json",
-              // "Authorization": "Bearer your_api_token",
-            },
+            headers: {"Content-Type": "application/json"},
           )
           .timeout(const Duration(seconds: 15), onTimeout: () {
         throw TimeoutException('Recent transactions request timed out');
@@ -410,10 +390,7 @@ class SavingsDashboardState extends State<SavingsDashboard> {
       final response = await http
           .get(
             Uri.parse('http://apis.nebo.co.ke/apis/roundup-settings/${widget.userId}'),
-            headers: {
-              "Content-Type": "application/json",
-              // "Authorization": "Bearer your_api_token",
-            },
+            headers: {"Content-Type": "application/json"},
           )
           .timeout(const Duration(seconds: 15), onTimeout: () {
         throw TimeoutException('Round-up settings request timed out');
@@ -752,81 +729,34 @@ class SavingsDashboardState extends State<SavingsDashboard> {
                           ],
                         ),
                       ),
-                      const SizedBox(height: 80), // Prevent FAB overlap
+                      const SizedBox(height: 80),
                     ],
                   ),
           ),
         ),
       ),
-floatingActionButton: Stack(
-        children: [
-          // Main FAB - Create Goal (bottom-right)
-          Positioned(
-            bottom: 16,
-            right: 16,
-            child: FloatingActionButton.extended(
-              heroTag: "createGoal",
-              onPressed: () {
-                if (!mounted) return;
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => GoalCreationScreen(userId: widget.userId),
-                  ),
-                );
-              },
-              label: const Text(
-                'Create Goal',
-                style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold),
-              ),
-              icon: const Icon(Icons.add, color: Colors.black),
-              backgroundColor: const Color(0xFFF5BB1B),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(50),
-                side: const BorderSide(color: Colors.white70, width: 2),
-              ),
+      // CLEAN SINGLE FAB - ONLY "Create Goal"
+      floatingActionButton: FloatingActionButton.extended(
+        heroTag: "createGoal",
+        onPressed: () {
+          if (!mounted) return;
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => GoalCreationScreen(userId: widget.userId),
             ),
-          ),
-
-          // Small FAB - View Goals (slightly above and left of main FAB)
-          Positioned(
-            bottom: 90, // Adjust as needed
-            right: 28,
-            child: FloatingActionButton(
-              mini: true, // Makes it smaller
-              heroTag: "viewGoals",
-              backgroundColor: const Color(0xFFF5BB1B),
-              elevation: 6,
-              child: const Icon(Icons.flag, color: Colors.black, size: 24),
-              onPressed: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => GoalsDashboard(userId: widget.userId),
-                  ),
-                );
-              },
-            ),
-          ),
-
-          // Optional: Add a tooltip or label for the small button
-          Positioned(
-            bottom: 140,
-            right: 20,
-            child: AnimatedContainer(
-              duration: const Duration(milliseconds: 200),
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-              decoration: BoxDecoration(
-                color: Colors.black87,
-                borderRadius: BorderRadius.circular(20),
-              ),
-              child: const Text(
-                'View Goals',
-                style: TextStyle(color: Colors.white, fontSize: 12),
-              ),
-            ),
-          ),
-        ],
+          );
+        },
+        label: const Text(
+          'Create Goal',
+          style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold),
+        ),
+        icon: const Icon(Icons.add, color: Colors.black),
+        backgroundColor: const Color(0xFFF5BB1B),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(50),
+          side: const BorderSide(color: Colors.white70, width: 2),
+        ),
       ),
       bottomNavigationBar: Container(
         color: const Color(0xFF374151),
@@ -882,7 +812,7 @@ class SavingsGraphPainter extends CustomPainter {
   SavingsGraphPainter({required this.savingsHistory}) {
     debugPrint('SavingsGraphPainter: savingsHistory=$savingsHistory');
     if (savingsHistory.isEmpty || savingsHistory.length < 7) {
-      this.savingsHistory.addAll(List.filled(7 - savingsHistory.length, 0.0));
+      savingsHistory.addAll(List.filled(7 - savingsHistory.length, 0.0));
     }
   }
 
