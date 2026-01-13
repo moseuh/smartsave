@@ -16,32 +16,54 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
 }
 
 // Database configuration
-const DB_HOST = 'localhost';
-const DB_USER = 'nebocoke_root';
-const DB_PASS = 'Moses@4602';
-const DB_NAME = 'nebocoke_saveapp';
-const DEBUG = true;
+// Load from environment variables for security
+const DB_HOST = getenv('DB_HOST') ?: 'localhost';
+const DB_USER = getenv('DB_USER') ?: '';
+const DB_PASS = getenv('DB_PASS') ?: '';
+const DB_NAME = getenv('DB_NAME') ?: '';
+const DEBUG = getenv('DEBUG') === 'true';
+
+// Validate required database credentials
+if (empty(DB_USER) || empty(DB_PASS) || empty(DB_NAME)) {
+    error_log('CRITICAL: Database credentials not configured in environment variables');
+    http_response_code(500);
+    echo json_encode(['error' => 'Server configuration error']);
+    exit;
+}
 
 // Informa API configuration
-const INFORMA_API_KEY = '1PxlknjjiPtGXe9EYEkTeTKnXSivnk0OJT2JfudSBFbvkJr1MqxMKwAZQh2CaKN50';
+const INFORMA_API_KEY = getenv('INFORMA_API_KEY') ?: '';
 const INFORMA_LIVE_ENDPOINT = 'https://api.informa.co.ke';
 const INFORMA_SANDBOX_ENDPOINT = 'https://sandbox.informa.co.ke';
-const INFORMA_API_BASE = INFORMA_SANDBOX_ENDPOINT; // Changed to sandbox for testing
+const INFORMA_USE_SANDBOX = getenv('INFORMA_USE_SANDBOX') === 'true';
+const INFORMA_API_BASE = INFORMA_USE_SANDBOX ? INFORMA_SANDBOX_ENDPOINT : INFORMA_LIVE_ENDPOINT;
+
+// Validate Informa API key
+if (empty(INFORMA_API_KEY)) {
+    error_log('WARNING: Informa API key not configured in environment variables');
+}
 
 // Safaricom M-PESA API configuration
+const MPESA_B2B_SECURITY_CREDENTIAL = getenv('MPESA_B2B_SECURITY_CREDENTIAL') ?: '';
+const MPESA_B2B_SHORTCODE = getenv('MPESA_B2B_SHORTCODE') ?: '';
+const MPESA_CALLBACK_URL = getenv('MPESA_CALLBACK_URL') ?: '';
+const MPESA_CONSUMER_KEY = getenv('MPESA_CONSUMER_KEY') ?: '';
+const MPESA_CONSUMER_SECRET = getenv('MPESA_CONSUMER_SECRET') ?: '';
+const MPESA_PASSKEY = getenv('MPESA_PASSKEY') ?: '';
+const MPESA_SHORTCODE = getenv('MPESA_SHORTCODE') ?: '';
+const MPESA_ENV = getenv('MPESA_ENV') ?: 'sandbox';
 
-const MPESA_B2B_SECURITY_CREDENTIAL = 'placeholder_credential'; // Not needed for STK Push
-const MPESA_B2B_SHORTCODE = '4088127';
-
-const MPESA_CALLBACK_URL = 'http://apis.gnmprimesource.co.ke/apis/mpesa-callback.php'; // Update with your ngrok URL
-const MPESA_CONSUMER_KEY = 'iuqlSSSznmd7xkTrhfqhd0bs69BwGRhs';
-const MPESA_CONSUMER_SECRET = 'ZyBbCZrWkmhYS4wH';
-const MPESA_PASSKEY = '948e4bb1270ef63ed7c97edf9fcd58e16de93e3a62463399aa584979a6f679ac';
-const MPESA_SHORTCODE = '4088127';
-
-const MPESA_ENV = 'live';
+// Validate M-PESA credentials
+if (empty(MPESA_CONSUMER_KEY) || empty(MPESA_CONSUMER_SECRET) || empty(MPESA_PASSKEY) || empty(MPESA_SHORTCODE)) {
+    error_log('WARNING: M-PESA credentials not fully configured in environment variables');
+}
 // Firebase configuration
-const FIREBASE_PROJECT_ID = 'save-d84c2';
+const FIREBASE_PROJECT_ID = getenv('FIREBASE_PROJECT_ID') ?: '';
+
+// Validate Firebase configuration
+if (empty(FIREBASE_PROJECT_ID)) {
+    error_log('WARNING: Firebase project ID not configured in environment variables');
+}
 
 // Helper function to verify Firebase ID token
 function verifyFirebaseIdToken($idToken) {

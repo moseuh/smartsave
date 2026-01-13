@@ -2,9 +2,14 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:provider/provider.dart';
 import 'firebase_options.dart';
-import 'sign_in_screen.dart';
-import 'homepage.dart';
+import 'screens/sign_in_screen.dart';
+import 'screens/homepage.dart';
+import 'screens/sample_dashboard.dart';
+import 'providers/auth_provider.dart' as app_auth;
+import 'providers/wallet_provider.dart';
+import 'constants/app_theme.dart';
 import 'dart:async';
 
 void main() async {
@@ -38,13 +43,24 @@ class MainApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      debugShowCheckedModeBanner: false,
-      home: const SplashScreen(),
-      routes: {
-        '/sign_in': (context) => const SignInScreen(),
-        '/home': (context) => const HomePage(),
-      },
+    return MultiProvider(
+      providers: [
+        ChangeNotifierProvider(create: (_) => app_auth.AuthProvider()),
+        ChangeNotifierProvider(create: (_) => WalletProvider()),
+      ],
+      child: MaterialApp(
+        debugShowCheckedModeBanner: false,
+        title: 'SmartSave',
+        theme: AppTheme.lightTheme,
+        darkTheme: AppTheme.darkTheme,
+        themeMode: ThemeMode.light,
+        home: const SplashScreen(),
+        routes: {
+          '/sign_in': (context) => const SignInScreen(),
+          '/home': (context) => const HomePage(),
+          '/sample': (context) => const SampleDashboard(),
+        },
+      ),
     );
   }
 }
@@ -97,7 +113,7 @@ class _SplashScreenState extends State<SplashScreen>
       CurvedAnimation(parent: _controller, curve: Curves.linear),
     );
 
-    // Navigate to AuthWrapper after 3 seconds
+    // Navigate to AuthWrapper to check authentication status
     _timer = Timer(const Duration(seconds: 3), () {
       if (mounted) {
         Navigator.pushReplacement(
