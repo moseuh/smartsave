@@ -92,7 +92,7 @@ class _LoansCreditScoreState extends State<LoansCreditScore> with SingleTickerPr
 
     try {
       final response = await http.get(
-        Uri.parse('http://apis.nebo.co.ke/apis/user-details/${widget.userId}'),
+        Uri.parse('${AppConstants.apiBaseUrl}/user-details/${widget.userId}'),
         headers: {'Content-Type': 'application/json'},
       );
 

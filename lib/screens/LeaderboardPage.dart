@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
+import '../constants/app_constants.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 
 class LeaderboardPage extends StatefulWidget {
@@ -30,7 +31,7 @@ class _LeaderboardPageState extends State<LeaderboardPage> {
 
     try {
       final response = await http.get(
-        Uri.parse('https://apis.nebo.co.ke/apis/leaderboard'),
+        Uri.parse('${AppConstants.apiBaseUrl}/leaderboard'),
         headers: {'Content-Type': 'application/json'},
       );
 

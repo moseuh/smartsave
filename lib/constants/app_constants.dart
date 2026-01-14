@@ -3,9 +3,10 @@ class AppConstants {
   AppConstants._();
 
   // API Configuration
+  // Change this to your local XAMPP/WAMP server
   static const String apiBaseUrl = String.fromEnvironment(
     'API_BASE_URL',
-    defaultValue: 'https://yourdomain.com/api',
+    defaultValue: 'http://localhost/smartsave-api',
   );
 
   // API Endpoints

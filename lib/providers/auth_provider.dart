@@ -1,22 +1,47 @@
 import 'package:flutter/foundation.dart';
-import '../services/api_service.dart';
-import '../constants/app_constants.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import '../models/user_model.dart';
+import '../repositories/user_repository.dart';
 
-/// Authentication state and business logic
+/// Authentication state and business logic with clean architecture
 class AuthProvider with ChangeNotifier {
-  final ApiService _apiService = ApiService();
+  final UserRepository _userRepository;
   
   bool _isAuthenticated = false;
   bool _isLoading = false;
-  String? _userId;
-  String? _userEmail;
+  User? _currentUser;
   String? _errorMessage;
+
+  AuthProvider({UserRepository? userRepository})
+      : _userRepository = userRepository ?? UserRepository();
 
   bool get isAuthenticated => _isAuthenticated;
   bool get isLoading => _isLoading;
-  String? get userId => _userId;
-  String? get userEmail => _userEmail;
+  User? get currentUser => _currentUser;
+  String? get userId => _currentUser?.id;
+  String? get userEmail => _currentUser?.email;
   String? get errorMessage => _errorMessage;
+
+  /// Initialize authentication state from storage
+  Future<void> init() async {
+    _isLoading = true;
+    notifyListeners();
+
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final storedUserId = prefs.getString('user_id');
+      
+      if (storedUserId != null && storedUserId.isNotEmpty) {
+        _currentUser = await _userRepository.getUserDetails(storedUserId);
+        _isAuthenticated = _currentUser != null;
+      }
+    } catch (e) {
+      print('Error initializing auth: $e');
+    } finally {
+      _isLoading = false;
+      notifyListeners();
+    }
+  }
 
   /// Sign in with email and password
   Future<bool> signInWithEmail(String email, String password) async {
@@ -25,28 +50,33 @@ class AuthProvider with ChangeNotifier {
     notifyListeners();
 
     try {
-      final response = await _apiService.post(
-        AppConstants.loginEndpoint,
-        body: {
-          'email': email,
-          'password': password,
-        },
-        requiresAuth: false,
+      final response = await _userRepository.loginUser(
+        email: email,
+        password: password,
       );
 
-      if (response != null && response['success'] == true) {
-        _isAuthenticated = true;
-        _userId = response['user_id']?.toString();
-        _userEmail = email;
-        
-        // Store auth token
-        if (response['token'] != null) {
-          _apiService.setAuthToken(response['token']);
-        }
+      if (response != null && response['status'] == 'success') {
+        final userId = response['userId']?.toString();
+        if (userId != null) {
+          // Fetch full user details
+          _currentUser = await _userRepository.getUserDetails(userId);
+          _isAuthenticated = _currentUser != null;
 
-        _isLoading = false;
-        notifyListeners();
-        return true;
+          // Store in SharedPreferences
+          final prefs = await SharedPreferences.getInstance();
+          await prefs.setString('user_id', userId);
+          await prefs.setString('email', email);
+          if (_currentUser != null) {
+            await prefs.setString('user_name', _currentUser!.fullName);
+            if (_currentUser!.selfiePath != null) {
+              await prefs.setString('selfie_path', _currentUser!.selfiePath!);
+            }
+          }
+
+          _isLoading = false;
+          notifyListeners();
+          return true;
+        }
       } else {
         _errorMessage = response['message'] ?? 'Login failed';
         _isLoading = false;

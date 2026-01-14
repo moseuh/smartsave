@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
+import '../constants/app_constants.dart';
 import 'dart:typed_data';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter_contacts/flutter_contacts.dart';
@@ -42,7 +43,7 @@ class _LoanProductsState extends State<LoanProducts> with TickerProviderStateMix
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
   Map<String, dynamic>? userDetails;
   bool isLoading = true;
-  final String baseUrl = 'https://apis.nebo.co.ke/apis';
+  String get baseUrl => AppConstants.apiBaseUrl;
   late AnimationController _knobController;
   late AnimationController _fadeController;
   late Animation<double> _fadeAnimation;

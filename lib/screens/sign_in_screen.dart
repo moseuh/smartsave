@@ -12,6 +12,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import '../widgets/graph.dart' as graph;
+import '../constants/app_constants.dart';
 
 // Google Sign-In Client ID for Web
 const String webClientId = '825042983512-b3eea0b1eg88hvqks2c7d0i989tj79qf.apps.googleusercontent.com';
@@ -75,163 +76,20 @@ Future<bool> checkInternetConnectivity() async {
       debugPrint('No network connectivity detected.');
       return false;
     }
-    final url = kIsWeb
-        ? Uri.parse('https://jsonplaceholder.typicode.com/todos/1')
-        : Uri.parse('http://127.0.0.1/apis/api.php/apis/');
-    final response = await http.get(url).timeout(const Duration(seconds: 5));
+    // Use a reliable endpoint that always responds
+    final url = Uri.parse('https://www.google.com');
+    final response = await http.head(url).timeout(const Duration(seconds: 5));
     debugPrint('Connectivity check response: ${response.statusCode}');
-    return response.statusCode == 200;
+    return response.statusCode == 200 || response.statusCode == 301 || response.statusCode == 302;
   } catch (e) {
     debugPrint('Connectivity check error: $e');
-    return false;
+    // If connectivity check fails, return true to allow the login attempt
+    // The actual API call will show the real error
+    return true;
   }
 }
 
-// Main App Entry
-void main() {
-  WidgetsFlutterBinding.ensureInitialized();
-  runApp(const MyApp());
-}
-
-class MyApp extends StatelessWidget {
-  const MyApp({super.key});
-  @override
-  Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'Haba na Haba',
-      theme: ThemeData(
-        primarySwatch: Colors.blue,
-        visualDensity: VisualDensity.adaptivePlatformDensity,
-      ),
-      home: const SplashScreen(),
-      routes: {
-        '/sign_in': (context) => const SignInScreen(),
-        '/home': (context) => graph.SavingsDashboard(
-              userId: ModalRoute.of(context)!.settings.arguments as String? ?? 'default_user',
-            ),
-      },
-      onGenerateRoute: (settings) {
-        debugPrint('onGenerateRoute called for: ${settings.name}');
-        if (settings.name == '/sign_up') {
-          final args = settings.arguments as Map<String, dynamic>? ?? {};
-          return MaterialPageRoute(
-            builder: (context) => SignUpScreen(
-              isGoogleSignIn: args['isGoogleSignIn'] ?? false,
-              googleName: args['googleName'],
-              googleEmail: args['googleEmail'],
-              googleIdToken: args['googleIdToken'],
-              googlePhotoUrl: args['googlePhotoUrl'],
-            ),
-          );
-        }
-        return null;
-      },
-    );
-  }
-}
-
-// Splash Screen
-class SplashScreen extends StatefulWidget {
-  const SplashScreen({super.key});
-  @override
-  _SplashScreenState createState() => _SplashScreenState();
-}
-
-class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderStateMixin {
-  late AnimationController _controller;
-  late Animation<double> _scaleAnimation;
-  @override
-  void initState() {
-    super.initState();
-    _controller = AnimationController(
-      duration: const Duration(seconds: 2),
-      vsync: this,
-    )..repeat(reverse: true);
-    _scaleAnimation = Tween<double>(begin: 0.8, end: 1.2).animate(
-      CurvedAnimation(parent: _controller, curve: Curves.easeInOut),
-    );
-    Future.delayed(const Duration(seconds: 3), () async {
-      if (mounted) {
-        final prefs = await SharedPreferences.getInstance();
-        final userId = prefs.getString('user_id');
-        if (userId != null && userId.isNotEmpty) {
-          Navigator.pushReplacementNamed(context, '/home', arguments: userId);
-        } else {
-          Navigator.pushReplacementNamed(context, '/sign_in');
-        }
-      }
-    });
-  }
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.grey[850],
-      body: Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            AnimatedBuilder(
-              animation: _controller,
-              builder: (context, child) {
-                return Transform.scale(
-                  scale: _scaleAnimation.value,
-                  child: Container(
-                    padding: const EdgeInsets.all(20),
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      gradient: const LinearGradient(
-                        colors: [Colors.yellow, Colors.amber],
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                      ),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.yellow.withOpacity(0.6),
-                          blurRadius: 20,
-                          spreadRadius: 5,
-                        ),
-                      ],
-                    ),
-                    child: Image.asset(
-                      'assets/logo.png',
-                      width: 100,
-                      height: 100,
-                      fit: BoxFit.contain,
-                      errorBuilder: (context, error, stackTrace) {
-                        debugPrint('Asset loading error: $error');
-                        return const Icon(Icons.error, size: 100, color: Colors.red);
-                      },
-                    ),
-                  ),
-                );
-              },
-            ),
-            const SizedBox(height: 20),
-            const Text(
-              'Haba na Haba',
-              style: TextStyle(
-                color: Colors.white,
-                fontSize: 24,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            const SizedBox(height: 20),
-            const CircularProgressIndicator(
-              valueColor: AlwaysStoppedAnimation<Color>(Colors.yellow),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-// ==================== UPDATED SIGN UP SCREEN WITH ID DOCUMENT UPLOAD ====================
+// ==================== SIGN UP SCREEN WITH ID DOCUMENT UPLOAD ====================
 
 class SignUpScreen extends StatefulWidget {
   final bool isGoogleSignIn;
@@ -405,7 +263,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
     try {
       var request = http.MultipartRequest(
         'POST',
-        Uri.parse('http://apis.nebo.co.ke/apis/register'),
+        Uri.parse('${AppConstants.apiBaseUrl}/register'),
       );
       request.fields['full_name'] = _fullNameController.text;
       request.fields['email'] = _emailController.text;
@@ -875,7 +733,7 @@ class _SignInScreenState extends State<SignInScreen> {
     setState(() {
       _isLoading = true;
     });
-    const String apiUrl = 'http://apis.nebo.co.ke/apis/login';
+    final String apiUrl = '${AppConstants.apiBaseUrl}/login';
     try {
       final response = await http.post(
         Uri.parse(apiUrl),
@@ -907,7 +765,7 @@ class _SignInScreenState extends State<SignInScreen> {
           }
           try {
             final userResponse = await http.get(
-              Uri.parse('http://apis.nebo.co.ke/apis/user/$userId'),
+              Uri.parse('${AppConstants.apiBaseUrl}/user/$userId'),
               headers: {'Content-Type': 'application/json'},
             ).timeout(const Duration(seconds: 10));
             final userData = jsonDecode(userResponse.body);
@@ -1027,7 +885,7 @@ class _SignInScreenState extends State<SignInScreen> {
       final String? photoUrl = user.photoURL;
       debugPrint('Firebase Sign-In: Email: $email, Name: $name, PhotoURL: $photoUrl');
       final loginResponse = await http.post(
-        Uri.parse('http://apis.nebo.co.ke/apis/login'),
+        Uri.parse('${AppConstants.apiBaseUrl}/login'),
         headers: {
           'Content-Type': 'application/json',
           'Accept': 'application/json',
@@ -1052,7 +910,7 @@ class _SignInScreenState extends State<SignInScreen> {
           Map<String, dynamic> userData = {};
           try {
             final userResponse = await http.get(
-              Uri.parse('http://apis.nebo.co.ke/apis/user/$backendUserId'),
+              Uri.parse('${AppConstants.apiBaseUrl}/user/$backendUserId'),
               headers: {'Content-Type': 'application/json'},
             ).timeout(const Duration(seconds: 10));
             debugPrint('User API Response Status: ${userResponse.statusCode}');

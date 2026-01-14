@@ -36,7 +36,7 @@ class _TransactionHistoryState extends State<TransactionHistory> {
 
     try {
       final response = await http.get(
-        Uri.parse('http://apis.nebo.co.ke/apis/transactions/${widget.userId}'),
+        Uri.parse('${AppConstants.apiBaseUrl}/transactions/${widget.userId}'),
         headers: {'Content-Type': 'application/json'},
       ).timeout(const Duration(seconds: 10));
 

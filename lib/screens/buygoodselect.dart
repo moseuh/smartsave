@@ -131,7 +131,7 @@ class _BuyGoodsSelectState extends State<BuyGoodsSelect> {
 
     try {
       final response = await http.get(
-        Uri.parse('http://apis.nebo.co.ke/apis/user-details/${widget.userId}'),
+        Uri.parse('${AppConstants.apiBaseUrl}/user-details/${widget.userId}'),
         headers: {'Content-Type': 'application/json'},
       );
 
@@ -164,7 +164,7 @@ class _BuyGoodsSelectState extends State<BuyGoodsSelect> {
 
     try {
       final response = await http.get(
-        Uri.parse('http://apis.nebo.co.ke/apis/roundup-settings/${widget.userId}'),
+        Uri.parse('${AppConstants.apiBaseUrl}/roundup-settings/${widget.userId}'),
         headers: {'Content-Type': 'application/json'},
       );
 
@@ -201,7 +201,7 @@ class _BuyGoodsSelectState extends State<BuyGoodsSelect> {
 
     try {
       final response = await http.get(
-        Uri.parse('http://apis.nebo.co.ke/apis/last-payment/${widget.userId}'),
+        Uri.parse('${AppConstants.apiBaseUrl}/last-payment/${widget.userId}'),
         headers: {'Content-Type': 'application/json'},
       );
 
@@ -307,7 +307,7 @@ class _BuyGoodsSelectState extends State<BuyGoodsSelect> {
       try {
         debugPrint('Fetching transaction status for ID: $transactionId (Attempt ${attempt + 1})');
         final response = await http.get(
-          Uri.parse('http://apis.nebo.co.ke/apis/transaction-status/$transactionId'),
+          Uri.parse('${AppConstants.apiBaseUrl}/transaction-status/$transactionId'),
           headers: {'Content-Type': 'application/json'},
         ).timeout(const Duration(seconds: 5));
 
@@ -377,7 +377,7 @@ class _BuyGoodsSelectState extends State<BuyGoodsSelect> {
       return;
     }
 
-    final url = Uri.parse('http://apis.nebo.co.ke/apis/process-paybill-payment');
+    final url = Uri.parse('${AppConstants.apiBaseUrl}/process-paybill-payment');
     final timestamp = DateTime.now();
     final payload = {
       'user_id': int.parse(widget.userId),
@@ -704,7 +704,7 @@ class _BuyGoodsSelectState extends State<BuyGoodsSelect> {
 
     try {
       final response = await http.post(
-        Uri.parse('http://apis.nebo.co.ke/apis/favourites'),
+        Uri.parse('${AppConstants.apiBaseUrl}/favourites'),
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode(payload),
       );

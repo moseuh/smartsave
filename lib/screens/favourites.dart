@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
+import '../constants/app_constants.dart';
 import '../widgets/graph.dart'; // SavingsDashboard
 
 class Favourites extends StatefulWidget {
@@ -30,7 +31,7 @@ class _FavouritesState extends State<Favourites> {
 
     try {
       final response = await http.get(
-        Uri.parse('http://apis.nebo.co.ke/apis/favourites/${widget.userId}'),
+        Uri.parse('${AppConstants.apiBaseUrl}/favourites/${widget.userId}'),
         headers: {'Content-Type': 'application/json'},
       );
 
@@ -79,7 +80,7 @@ class _FavouritesState extends State<Favourites> {
   Future<void> deleteFavourite(int favouriteId) async {
     try {
       final response = await http.delete(
-        Uri.parse('http://apis.nebo.co.ke/apis/favourites/$favouriteId'),
+        Uri.parse('${AppConstants.apiBaseUrl}/favourites/$favouriteId'),
         headers: {'Content-Type': 'application/json'},
       );
 

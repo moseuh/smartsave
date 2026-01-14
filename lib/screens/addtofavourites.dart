@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
+import '../constants/app_constants.dart';
 import 'buygoodselect.dart'; // Adjust this import based on your project structure
 import 'homepage.dart'; // Adjust this import based on your project structure
 
@@ -26,7 +27,7 @@ class _AddToFavouritesState extends State<AddToFavourites> {
   Future<void> fetchTillNumbers() async {
     try {
       final response = await http.get(
-        Uri.parse('http://apis.nebo.co.ke/apis/buy-goods-payments?userId=${widget.userId}'),
+        Uri.parse('${AppConstants.apiBaseUrl}/buy-goods-payments?userId=${widget.userId}'),
         headers: {'Content-Type': 'application/json'},
       );
 

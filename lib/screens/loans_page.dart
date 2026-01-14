@@ -85,7 +85,7 @@ class _LoansPageState extends State<LoansPage> {
 
     try {
       final response = await http.get(
-        Uri.parse('http://apis.nebo.co.ke/apis/user-details/${widget.userId}'),
+        Uri.parse('${AppConstants.apiBaseUrl}/user-details/${widget.userId}'),
         headers: {'Content-Type': 'application/json'},
       );
 
@@ -124,7 +124,7 @@ class _LoansPageState extends State<LoansPage> {
   Future<void> fetchLoanDetails() async {
     try {
       final response = await http.get(
-        Uri.parse('http://apis.nebo.co.ke/apis/loans/${widget.userId}'),
+        Uri.parse('${AppConstants.apiBaseUrl}/loans/${widget.userId}'),
         headers: {'Content-Type': 'application/json'},
       );
 
@@ -162,7 +162,7 @@ class _LoansPageState extends State<LoansPage> {
   Future<void> fetchLoanEligibility() async {
     try {
       final response = await http.get(
-        Uri.parse('http://apis.nebo.co.ke/apis/loan-eligibility/${widget.userId}'),
+        Uri.parse('${AppConstants.apiBaseUrl}/loan-eligibility/${widget.userId}'),
         headers: {'Content-Type': 'application/json'},
       );
 
@@ -202,7 +202,7 @@ class _LoansPageState extends State<LoansPage> {
 
     try {
       final response = await http.post(
-        Uri.parse('http://apis.nebo.co.ke/apis/apply-loan'),
+        Uri.parse('${AppConstants.apiBaseUrl}/apply-loan'),
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({
           'user_id': widget.userId,
@@ -254,7 +254,7 @@ class _LoansPageState extends State<LoansPage> {
 
     try {
       final response = await http.post(
-        Uri.parse('http://apis.nebo.co.ke/apis/repay-loan'),
+        Uri.parse('${AppConstants.apiBaseUrl}/repay-loan'),
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({
           'user_id': widget.userId,

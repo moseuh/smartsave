@@ -5,6 +5,7 @@ import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter_spinkit/flutter_spinkit.dart';
+import '../constants/app_constants.dart';
 import 'loan_products.dart';
 // === YOUR PAGES ===
 import 'buygoodselect.dart';
@@ -47,7 +48,7 @@ class _WalletPageState extends State<WalletPage> {
   bool isLoading = true;
   bool _isPayBillMode = false;
 
-  static const String baseUrl = 'https://apis.nebo.co.ke/apis';
+  String get baseUrl => AppConstants.apiBaseUrl;
 
   @override
   void initState() {
@@ -67,7 +68,7 @@ class _WalletPageState extends State<WalletPage> {
 
   Future<void> fetchUserDetails() async {
     try {
-      final res = await http.get(Uri.parse('http://apis.nebo.co.ke/apis/user-details/${widget.userId}'));
+      final res = await http.get(Uri.parse('${AppConstants.apiBaseUrl}/user-details/${widget.userId}'));
       if (res.statusCode == 200) {
         final data = jsonDecode(res.body);
         if (data['status'] == 'success') {
@@ -82,7 +83,7 @@ class _WalletPageState extends State<WalletPage> {
 
   Future<void> fetchWalletData() async {
     try {
-      final res = await http.get(Uri.parse('http://apis.nebo.co.ke/apis/wallet/${widget.userId}'));
+      final res = await http.get(Uri.parse('${AppConstants.apiBaseUrl}/wallet/${widget.userId}'));
       if (res.statusCode == 200) {
         final data = jsonDecode(res.body);
         if (data['status'] == 'success') walletData = data['data'];
@@ -762,7 +763,7 @@ class _GlobalSendFlowState extends State<GlobalSendFlow> {
 
     try {
       final res = await http.post(
-        Uri.parse('https://apis.nebo.co.ke/apis/remittance'),
+        Uri.parse('${AppConstants.apiBaseUrl}/remittance'),
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({
           "user_id": int.parse(widget.userId),

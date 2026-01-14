@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
+import '../constants/app_constants.dart';
 import '../screens/goals_dashboard.dart';
 import 'dart:io';
 import 'dart:async';
@@ -101,7 +102,7 @@ class SavingsDashboardState extends State<SavingsDashboard> {
 
       final response = await http
           .get(
-            Uri.parse('http://apis.nebo.co.ke/apis/user/$userId'),
+            Uri.parse('${AppConstants.apiBaseUrl}/user/$userId'),
             headers: {"Content-Type": "application/json"},
           )
           .timeout(const Duration(seconds: 15), onTimeout: () {
@@ -123,7 +124,7 @@ class SavingsDashboardState extends State<SavingsDashboard> {
           if (mounted) {
             setState(() {
               userName = fullName;
-              selfiePath = selfiePathFromApi.isNotEmpty ? 'http://apis.nebo.co.ke/apis/$selfiePathFromApi' : null;
+              selfiePath = selfiePathFromApi.isNotEmpty ? '${AppConstants.apiBaseUrl}/$selfiePathFromApi' : null;
             });
           }
 
@@ -167,7 +168,7 @@ class SavingsDashboardState extends State<SavingsDashboard> {
     try {
       final response = await http
           .get(
-            Uri.parse('http://apis.nebo.co.ke/apis/mpesa-usage/${widget.userId}'),
+            Uri.parse('${AppConstants.apiBaseUrl}/mpesa-usage/${widget.userId}'),
             headers: {"Content-Type": "application/json"},
           )
           .timeout(const Duration(seconds: 15), onTimeout: () {
@@ -214,7 +215,7 @@ class SavingsDashboardState extends State<SavingsDashboard> {
       debugPrint('fetchTotalSavings: widget.userId=${widget.userId}');
       final response = await http
           .get(
-            Uri.parse('http://apis.nebo.co.ke/apis/user-savings/${widget.userId}'),
+            Uri.parse('${AppConstants.apiBaseUrl}/user-savings/${widget.userId}'),
             headers: {"Content-Type": "application/json"},
           )
           .timeout(const Duration(seconds: 15), onTimeout: () {
@@ -282,7 +283,7 @@ class SavingsDashboardState extends State<SavingsDashboard> {
     try {
       final response = await http
           .get(
-            Uri.parse('http://apis.nebo.co.ke/apis/savings-history/${widget.userId}'),
+            Uri.parse('${AppConstants.apiBaseUrl}/savings-history/${widget.userId}'),
             headers: {"Content-Type": "application/json"},
           )
           .timeout(const Duration(seconds: 15), onTimeout: () {
@@ -336,7 +337,7 @@ class SavingsDashboardState extends State<SavingsDashboard> {
     try {
       final response = await http
           .get(
-            Uri.parse('http://apis.nebo.co.ke/apis/last-payment/${widget.userId}'),
+            Uri.parse('${AppConstants.apiBaseUrl}/last-payment/${widget.userId}'),
             headers: {"Content-Type": "application/json"},
           )
           .timeout(const Duration(seconds: 15), onTimeout: () {
@@ -389,7 +390,7 @@ class SavingsDashboardState extends State<SavingsDashboard> {
     try {
       final response = await http
           .get(
-            Uri.parse('http://apis.nebo.co.ke/apis/roundup-settings/${widget.userId}'),
+            Uri.parse('${AppConstants.apiBaseUrl}/roundup-settings/${widget.userId}'),
             headers: {"Content-Type": "application/json"},
           )
           .timeout(const Duration(seconds: 15), onTimeout: () {

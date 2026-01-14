@@ -59,7 +59,7 @@ class _GoalsDashboardState extends State<GoalsDashboard> {
 Future<void> fetchGoals() async {
   try {
     final response = await http.get(
-      Uri.parse('http://apis.nebo.co.ke/apis/goalslist/${widget.userId}'),
+      Uri.parse('${AppConstants.apiBaseUrl}/goalslist/${widget.userId}'),
       headers: {"Content-Type": "application/json"},
     ).timeout(const Duration(seconds: 15));
 
@@ -113,7 +113,7 @@ Future<void> fetchGoals() async {
   Future<void> fetchRecentSavings() async {
     try {
       final response = await http.get(
-        Uri.parse('http://apis.nebo.co.ke/apis/savings-recent/${widget.userId}'),
+        Uri.parse('${AppConstants.apiBaseUrl}/savings-recent/${widget.userId}'),
         headers: {
           "Content-Type": "application/json",
           // "Authorization": "Bearer your_api_token",

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
+import '../constants/app_constants.dart';
 
 class RoundUpSettings extends StatefulWidget {
   const RoundUpSettings({super.key});
@@ -45,7 +46,7 @@ class _RoundUpSettingsState extends State<RoundUpSettings> {
 
     try {
       final response = await http.get(
-        Uri.parse('http://apis.nebo.co.ke/apis/roundup-settings/$userId'),
+        Uri.parse('${AppConstants.apiBaseUrl}/roundup-settings/$userId'),
         headers: {"Content-Type": "application/json"},
       );
       debugPrint('Load API Response Status: ${response.statusCode}');
@@ -107,7 +108,7 @@ class _RoundUpSettingsState extends State<RoundUpSettings> {
 
     try {
       final response = await http.post(
-        Uri.parse('http://apis.nebo.co.ke/apis/roundup-settings'),
+        Uri.parse('${AppConstants.apiBaseUrl}/roundup-settings'),
         headers: {"Content-Type": "application/json"},
         body: jsonEncode(payload),
       );

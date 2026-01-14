@@ -136,7 +136,7 @@ class _GoalCreationScreenState extends State<GoalCreationScreen> {
   Future<void> _fetchUserPhone() async {
     try {
       final response = await http.get(
-        Uri.parse('https://apis.nebo.co.ke/apis/user-details/${widget.userId}'),
+        Uri.parse('${AppConstants.apiBaseUrl}/user-details/${widget.userId}'),
         headers: {"Content-Type": "application/json"},
       );
 
@@ -183,7 +183,7 @@ class _GoalCreationScreenState extends State<GoalCreationScreen> {
 
     try {
       final response = await http.post(
-        Uri.parse('https://apis.nebo.co.ke/apis/challengesjoin'),
+        Uri.parse('${AppConstants.apiBaseUrl}/challengesjoin'),
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({
           'user_id': widget.userId,
@@ -281,7 +281,7 @@ class _GoalCreationScreenState extends State<GoalCreationScreen> {
 
     try {
       final response = await http.post(
-        Uri.parse('https://apis.nebo.co.ke/apis/challengescontribute'),
+        Uri.parse('${AppConstants.apiBaseUrl}/challengescontribute'),
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({
           'user_id': widget.userId,
@@ -417,7 +417,7 @@ class _GoalCreationScreenState extends State<GoalCreationScreen> {
   Future<void> fetchLeaderboard() async {
     try {
       final response = await http.get(
-        Uri.parse('http://apis.nebo.co.ke/apis/leaderboard/top-10-weekly'),
+        Uri.parse('${AppConstants.apiBaseUrl}/leaderboard/top-10-weekly'),
         headers: {"Content-Type": "application/json"},
       ).timeout(const Duration(seconds: 15));
 
@@ -444,7 +444,7 @@ class _GoalCreationScreenState extends State<GoalCreationScreen> {
   Future<void> fetchRecentSavings() async {
     try {
       final response = await http.get(
-        Uri.parse('http://apis.nebo.co.ke/apis/savings-recent/${widget.userId}'),
+        Uri.parse('${AppConstants.apiBaseUrl}/savings-recent/${widget.userId}'),
         headers: {"Content-Type": "application/json"},
       ).timeout(const Duration(seconds: 15));
 
@@ -594,7 +594,7 @@ class _GoalCreationScreenState extends State<GoalCreationScreen> {
 
     try {
       final response = await http.post(
-        Uri.parse('http://apis.nebo.co.ke/apis/goalscreate'),
+        Uri.parse('${AppConstants.apiBaseUrl}/goalscreate'),
         headers: {"Content-Type": "application/json"},
         body: jsonEncode({
           "user_id": widget.userId,
