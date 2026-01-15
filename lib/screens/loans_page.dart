@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
+import '../constants/app_constants.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter_spinkit/flutter_spinkit.dart';
@@ -12,7 +13,7 @@ import 'package:open_file/open_file.dart';
 import 'dart:io';
 import '../widgets/graph.dart' as graph;
 import 'buygoodselect.dart';
-import 'sign_in_screen.dart';
+import 'modern_login_screen.dart';
 import 'profile.dart';
 
 class LoansPage extends StatefulWidget {
@@ -295,7 +296,7 @@ class _LoansPageState extends State<LoansPage> {
     if (mounted) {
       Navigator.pushReplacement(
         context,
-        MaterialPageRoute(builder: (context) => const SignInScreen()),
+        MaterialPageRoute(builder: (context) => const ModernLoginScreen()),
       );
     }
   }

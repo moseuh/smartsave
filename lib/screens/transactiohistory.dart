@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
+import '../constants/app_constants.dart';
 import '../widgets/graph.dart'; // Import SavingsDashboard
 import 'buygoodselect.dart'; // Import BuyGoodsSelect
 import 'profile.dart'; // Import Profile
@@ -216,26 +217,28 @@ class _TransactionHistoryState extends State<TransactionHistory> {
       backgroundColor: const Color.fromARGB(255, 31, 41, 55),
       appBar: PreferredSize(
         preferredSize: const Size.fromHeight(70.0),
-        child: Container(
-          color: const Color(0xFF374151),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                const Text(
-                  'Transaction History',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
+        child: SafeArea(
+          child: Container(
+            color: const Color(0xFF374151),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Text(
+                    'Transaction History',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
-                ),
-                IconButton(
-                  icon: const Icon(Icons.search, color: Colors.white),
-                  onPressed: _onSearchTapped,
-                ),
-              ],
+                  IconButton(
+                    icon: const Icon(Icons.search, color: Colors.white),
+                    onPressed: _onSearchTapped,
+                  ),
+                ],
+              ),
             ),
           ),
         ),

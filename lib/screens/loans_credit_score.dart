@@ -1,12 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
+import '../constants/app_constants.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter_spinkit/flutter_spinkit.dart';
 import '../widgets/graph.dart' as graph;
 import 'buygoodselect.dart';
-import 'sign_in_screen.dart';
+import 'modern_login_screen.dart';
 import 'loans_page.dart';
 import 'profile.dart';
 
@@ -194,7 +196,7 @@ class _LoansCreditScoreState extends State<LoansCreditScore> with SingleTickerPr
     if (!mounted) return;
     Navigator.pushReplacement(
       context,
-      MaterialPageRoute(builder: (context) => const SignInScreen()),
+      MaterialPageRoute(builder: (context) => const ModernLoginScreen()),
     );
   }
 

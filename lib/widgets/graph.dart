@@ -6,12 +6,13 @@ import '../constants/app_constants.dart';
 import '../screens/goals_dashboard.dart';
 import 'dart:io';
 import 'dart:async';
-import '../screens/sign_in_screen.dart';
+import '../screens/modern_login_screen.dart';
 import '../screens/SetSavingsGoalScreen.dart';
 import '../screens/roundup.dart';
 import '../screens/buygoodselect.dart';
 import '../screens/profile.dart';
 import '../screens/transactiohistory.dart';
+import '../widgets/beautiful_app_bar.dart';
 
 class SavingsDashboard extends StatefulWidget {
   final String userId;
@@ -82,12 +83,11 @@ class SavingsDashboardState extends State<SavingsDashboard> {
         if (mounted) {
           Navigator.pushReplacement(
             context,
-            MaterialPageRoute(builder: (context) => const SignInScreen()),
+            MaterialPageRoute(builder: (context) => const ModernLoginScreen()),
           );
         }
         return;
       }
-
       String? storedUserName = prefs.getString('user_name');
       String? storedSelfiePath = prefs.getString('selfie_path');
       if (storedUserName != null && storedSelfiePath != null) {
@@ -116,14 +116,16 @@ class SavingsDashboardState extends State<SavingsDashboard> {
         final data = jsonDecode(response.body) as Map<String, dynamic>?;
         if (data?['status'] == 'success') {
           final fullName = data?['name']?.toString() ?? 'User';
+          // Extract first name for greeting
+          final firstName = fullName.split(' ').first;
           final selfiePathFromApi = data?['selfie_path']?.toString().replaceAll('\\', '/') ?? '';
 
-          await prefs.setString('user_name', fullName);
+          await prefs.setString('user_name', firstName);
           await prefs.setString('selfie_path', selfiePathFromApi);
 
           if (mounted) {
             setState(() {
-              userName = fullName;
+              userName = firstName;
               selfiePath = selfiePathFromApi.isNotEmpty ? '${AppConstants.apiBaseUrl}/$selfiePathFromApi' : null;
             });
           }
@@ -424,56 +426,19 @@ class SavingsDashboardState extends State<SavingsDashboard> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFF1F2937),
-      appBar: PreferredSize(
-        preferredSize: const Size.fromHeight(70.0),
-        child: Container(
-          color: const Color(0xFF374151),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Row(
-                  children: [
-                    CircleAvatar(
-                      radius: 20,
-                      backgroundColor: Colors.grey[300],
-                      backgroundImage: selfiePath?.isNotEmpty == true
-                          ? NetworkImage(selfiePath!)
-                          : const AssetImage('assets/Profile.png') as ImageProvider,
-                      onBackgroundImageError: (error, stackTrace) {
-                        debugPrint('Image load error: $error');
-                        WidgetsBinding.instance.addPostFrameCallback((_) {
-                          if (mounted) {
-                            setState(() => selfiePath = null);
-                          }
-                        });
-                      },
-                    ),
-                    const SizedBox(width: 12),
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Text(
-                          'Welcome back',
-                          style: TextStyle(color: Colors.white70, fontSize: 14, fontWeight: FontWeight.w400),
-                        ),
-                        Text(
-                          userName,
-                          style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-                IconButton(
-                  icon: const Icon(Icons.notifications, color: Color(0xFFF5BB1B)),
-                  onPressed: () {},
-                ),
-              ],
-            ),
-          ),
-        ),
+      appBar: BeautifulAppBar(
+        userName: userName,
+        profileImageUrl: selfiePath,
+        userId: widget.userId,
+        onNotificationTap: () {},
+        onProfileTap: () async {
+          await Navigator.push(
+            context,
+            MaterialPageRoute(builder: (context) => Profile(userId: widget.userId)),
+          );
+          // Refresh user data after returning from profile
+          fetchUserData();
+        },
       ),
       body: SafeArea(
         child: SingleChildScrollView(
@@ -490,6 +455,14 @@ class SavingsDashboardState extends State<SavingsDashboard> {
                         decoration: BoxDecoration(
                           color: const Color(0xFF374151),
                           borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: const Color(0xFFF5BB1B).withOpacity(0.3), width: 1),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withOpacity(0.2),
+                              blurRadius: 8,
+                              offset: const Offset(0, 2),
+                            ),
+                          ],
                         ),
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
@@ -501,8 +474,8 @@ class SavingsDashboardState extends State<SavingsDashboard> {
                                   'TOTAL SAVINGS',
                                   style: TextStyle(
                                     color: Colors.white70,
-                                    fontSize: 14,
-                                    fontWeight: FontWeight.w500,
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w600,
                                     letterSpacing: 1.2,
                                   ),
                                 ),
@@ -512,15 +485,15 @@ class SavingsDashboardState extends State<SavingsDashboard> {
                                       : 'KSh 0',
                                   style: const TextStyle(
                                     color: Color(0xFFF5BB1B),
-                                    fontSize: 28,
+                                    fontSize: 24,
                                     fontWeight: FontWeight.bold,
                                   ),
                                 ),
                               ],
                             ),
-                            const SizedBox(height: 12),
+                            const SizedBox(height: 16),
                             SizedBox(
-                              height: 150,
+                              height: 120,
                               child: CustomPaint(
                                 painter: SavingsGraphPainter(savingsHistory: savingsHistory),
                                 child: const Center(),
@@ -530,19 +503,19 @@ class SavingsDashboardState extends State<SavingsDashboard> {
                             const Row(
                               mainAxisAlignment: MainAxisAlignment.spaceAround,
                               children: [
-                                Text('Mon', style: TextStyle(color: Colors.white70, fontSize: 12)),
-                                Text('Tue', style: TextStyle(color: Colors.white70, fontSize: 12)),
-                                Text('Wed', style: TextStyle(color: Colors.white70, fontSize: 12)),
-                                Text('Thu', style: TextStyle(color: Colors.white70, fontSize: 12)),
-                                Text('Fri', style: TextStyle(color: Colors.white70, fontSize: 12)),
-                                Text('Sat', style: TextStyle(color: Colors.white70, fontSize: 12)),
-                                Text('Sun', style: TextStyle(color: Colors.white70, fontSize: 12)),
+                                Text('Mon', style: TextStyle(color: Colors.white54, fontSize: 10)),
+                                Text('Tue', style: TextStyle(color: Colors.white54, fontSize: 10)),
+                                Text('Wed', style: TextStyle(color: Colors.white54, fontSize: 10)),
+                                Text('Thu', style: TextStyle(color: Colors.white54, fontSize: 10)),
+                                Text('Fri', style: TextStyle(color: Colors.white54, fontSize: 10)),
+                                Text('Sat', style: TextStyle(color: Colors.white54, fontSize: 10)),
+                                Text('Sun', style: TextStyle(color: Colors.white54, fontSize: 10)),
                               ],
                             ),
                           ],
                         ),
                       ),
-                      const SizedBox(height: 20),
+                      const SizedBox(height: 24),
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
@@ -550,15 +523,24 @@ class SavingsDashboardState extends State<SavingsDashboard> {
                             children: [
                               const Text(
                                 'DAILY SPEND',
-                                style: TextStyle(color: Colors.white70, fontSize: 12, fontWeight: FontWeight.w500, letterSpacing: 1.2),
+                                style: TextStyle(
+                                  color: Colors.white70,
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w600,
+                                  letterSpacing: 1.0,
+                                ),
                                 textAlign: TextAlign.center,
                               ),
-                              const SizedBox(height: 8),
+                              const SizedBox(height: 5),
                               Text(
                                 mpesaData?['total_spent'] != null
                                     ? 'KSh ${(mpesaData!['total_spent'] / 30).toStringAsFixed(0).replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (Match m) => '${m[1]},')}'
                                     : 'KSh 0',
-                                style: const TextStyle(color: Color(0xFFF5BB1B), fontSize: 16, fontWeight: FontWeight.bold),
+                                style: const TextStyle(
+                                  color: Color(0xFFF5BB1B),
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.bold,
+                                ),
                                 textAlign: TextAlign.center,
                               ),
                               const SizedBox(height: 8),
@@ -566,7 +548,7 @@ class SavingsDashboardState extends State<SavingsDashboard> {
                                 value: mpesaData?['total_spent'] != null ? (mpesaData!['total_spent'] / 30) / 1000 : 0.0,
                                 backgroundColor: Colors.grey[700],
                                 valueColor: const AlwaysStoppedAnimation<Color>(Color(0xFFF5BB1B)),
-                                minHeight: 4,
+                                minHeight: 3,
                               ),
                             ],
                           ),
@@ -574,15 +556,24 @@ class SavingsDashboardState extends State<SavingsDashboard> {
                             children: [
                               const Text(
                                 'WEEKLY SPEND',
-                                style: TextStyle(color: Colors.white70, fontSize: 12, fontWeight: FontWeight.w500, letterSpacing: 1.2),
+                                style: TextStyle(
+                                  color: Colors.white70,
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w600,
+                                  letterSpacing: 1.0,
+                                ),
                                 textAlign: TextAlign.center,
                               ),
-                              const SizedBox(height: 8),
+                              const SizedBox(height: 5),
                               Text(
                                 mpesaData?['weekly_avg'] != null
                                     ? 'KSh ${mpesaData!['weekly_avg'].toStringAsFixed(0).replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (Match m) => '${m[1]},')}'
                                     : 'KSh 0',
-                                style: const TextStyle(color: Color(0xFFF5BB1B), fontSize: 16, fontWeight: FontWeight.bold),
+                                style: const TextStyle(
+                                  color: Color(0xFFF5BB1B),
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.bold,
+                                ),
                                 textAlign: TextAlign.center,
                               ),
                               const SizedBox(height: 8),
@@ -590,7 +581,7 @@ class SavingsDashboardState extends State<SavingsDashboard> {
                                 value: mpesaData?['weekly_avg'] != null ? mpesaData!['weekly_avg'] / 7000 : 0.0,
                                 backgroundColor: Colors.grey[700],
                                 valueColor: const AlwaysStoppedAnimation<Color>(Color(0xFFF5BB1B)),
-                                minHeight: 4,
+                                minHeight: 3,
                               ),
                             ],
                           ),
@@ -598,15 +589,24 @@ class SavingsDashboardState extends State<SavingsDashboard> {
                             children: [
                               const Text(
                                 'MONTHLY SPEND',
-                                style: TextStyle(color: Colors.white70, fontSize: 12, fontWeight: FontWeight.w500, letterSpacing: 1.2),
+                                style: TextStyle(
+                                  color: Colors.white70,
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w600,
+                                  letterSpacing: 1.0,
+                                ),
                                 textAlign: TextAlign.center,
                               ),
-                              const SizedBox(height: 8),
+                              const SizedBox(height: 6),
                               Text(
                                 mpesaData?['monthly_avg'] != null
                                     ? 'KSh ${mpesaData!['monthly_avg'].toStringAsFixed(0).replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (Match m) => '${m[1]},')}'
                                     : 'KSh 0',
-                                style: const TextStyle(color: Color(0xFFF5BB1B), fontSize: 16, fontWeight: FontWeight.bold),
+                                style: const TextStyle(
+                                  color: Color(0xFFF5BB1B),
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.bold,
+                                ),
                                 textAlign: TextAlign.center,
                               ),
                               const SizedBox(height: 8),
@@ -614,7 +614,7 @@ class SavingsDashboardState extends State<SavingsDashboard> {
                                 value: mpesaData?['monthly_avg'] != null ? mpesaData!['monthly_avg'] / 30000 : 0.0,
                                 backgroundColor: Colors.grey[700],
                                 valueColor: const AlwaysStoppedAnimation<Color>(Color(0xFFF5BB1B)),
-                                minHeight: 4,
+                                minHeight: 3,
                               ),
                             ],
                           ),
@@ -626,7 +626,11 @@ class SavingsDashboardState extends State<SavingsDashboard> {
                         children: [
                           const Text(
                             'Recent Transactions',
-                            style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                            ),
                           ),
                           TextButton(
                             onPressed: () {
@@ -639,7 +643,11 @@ class SavingsDashboardState extends State<SavingsDashboard> {
                             },
                             child: const Text(
                               'See All',
-                              style: TextStyle(color: Color(0xFFF5BB1B), fontSize: 14, fontWeight: FontWeight.w500),
+                              style: TextStyle(
+                                color: Color(0xFFF5BB1B),
+                                fontSize: 13,
+                                fontWeight: FontWeight.w500,
+                              ),
                             ),
                           ),
                         ],
@@ -694,7 +702,11 @@ class SavingsDashboardState extends State<SavingsDashboard> {
                       const SizedBox(height: 20),
                       const Text(
                         'Round-Up Settings',
-                        style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
                       const SizedBox(height: 8),
                       Container(
@@ -702,6 +714,7 @@ class SavingsDashboardState extends State<SavingsDashboard> {
                         decoration: BoxDecoration(
                           color: const Color(0xFF374151),
                           borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: const Color(0xFFF5BB1B).withOpacity(0.3), width: 1),
                         ),
                         child: Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -709,7 +722,11 @@ class SavingsDashboardState extends State<SavingsDashboard> {
                             const Expanded(
                               child: Text(
                                 'Enable Round-Up Savings\nRound up transactions to nearest KSh and save the difference',
-                                style: TextStyle(color: Colors.white, fontSize: 14, height: 1.5),
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 13,
+                                  height: 1.5,
+                                ),
                               ),
                             ),
                             Switch(
@@ -750,14 +767,15 @@ class SavingsDashboardState extends State<SavingsDashboard> {
         },
         label: const Text(
           'Create Goal',
-          style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold),
+          style: TextStyle(
+            color: Colors.black,
+            fontWeight: FontWeight.bold,
+            fontSize: 14,
+          ),
         ),
         icon: const Icon(Icons.add, color: Colors.black),
         backgroundColor: const Color(0xFFF5BB1B),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(50),
-          side: const BorderSide(color: Colors.white70, width: 2),
-        ),
+        elevation: 4,
       ),
       bottomNavigationBar: Container(
         color: const Color(0xFF374151),
@@ -797,12 +815,17 @@ class SavingsDashboardState extends State<SavingsDashboard> {
   Widget _buildSavingsCard({required List<Widget> children}) {
     return Container(
       width: MediaQuery.of(context).size.width / 3.5,
+      height: 95,
       padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
       decoration: BoxDecoration(
         color: const Color(0xFF374151),
         borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: const Color(0xFFF5BB1B).withOpacity(0.3), width: 1),
       ),
-      child: Column(children: children),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: children,
+      ),
     );
   }
 }

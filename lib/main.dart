@@ -3,10 +3,11 @@ import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:provider/provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'firebase_options.dart';
-import 'screens/sign_in_screen.dart';
+import 'screens/modern_login_screen.dart';
 import 'screens/homepage.dart';
-import 'screens/sample_dashboard.dart';
+import 'screens/profile_completion_screen.dart';
 import 'providers/auth_provider.dart' as app_auth;
 import 'providers/wallet_provider.dart';
 import 'constants/app_theme.dart';
@@ -56,9 +57,8 @@ class MainApp extends StatelessWidget {
         themeMode: ThemeMode.light,
         home: const SplashScreen(),
         routes: {
-          '/sign_in': (context) => const SignInScreen(),
+          '/sign_in': (context) => const ModernLoginScreen(),
           '/home': (context) => const HomePage(),
-          '/sample': (context) => const SampleDashboard(),
         },
       ),
     );
@@ -68,18 +68,44 @@ class MainApp extends StatelessWidget {
 class AuthWrapper extends StatelessWidget {
   const AuthWrapper({super.key});
 
+  Future<Widget> _getInitialScreen() async {
+    final prefs = await SharedPreferences.getInstance();
+    final isLoggedIn = prefs.getBool('is_logged_in') ?? false;
+    
+    if (!isLoggedIn) {
+      return const ModernLoginScreen();
+    }
+    
+    // Check if profile is completed
+    final profileCompleted = prefs.getBool('profile_completed') ?? false;
+    
+    if (!profileCompleted) {
+      // Get user info for profile completion
+      final userId = prefs.getString('user_id') ?? '';
+      final userName = prefs.getString('user_name') ?? '';
+      final userEmail = prefs.getString('email') ?? '';
+      
+      if (userId.isNotEmpty) {
+        return ProfileCompletionScreen(
+          userId: userId,
+          userName: userName,
+          userEmail: userEmail,
+        );
+      }
+    }
+    
+    return const HomePage();
+  }
+
   @override
   Widget build(BuildContext context) {
-    return StreamBuilder<User?>(
-      stream: FirebaseAuth.instance.authStateChanges(),
+    return FutureBuilder<Widget>(
+      future: _getInitialScreen(),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Scaffold(body: Center(child: CircularProgressIndicator()));
         }
-        if (snapshot.hasData) {
-          return const HomePage();
-        }
-        return const SignInScreen();
+        return snapshot.data ?? const ModernLoginScreen();
       },
     );
   }
@@ -122,77 +148,78 @@ class _SplashScreenState extends State<SplashScreen>
         );
       }
     });
-
-    // Dispose the controller when navigation occurs
-    _controller.addStatusListener((status) {
-      if (status == AnimationStatus.completed && mounted) {
-        _controller.dispose();
-      }
-    });
   }
 
   @override
   void dispose() {
     _timer.cancel();
-    _controller.dispose(); // Ensure disposal if not already handled
+    _controller.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF4B5563), // Fintech-themed dark grayish-blue
-      body: Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween, // Spread content vertically
-          children: [
-            const SizedBox(height: 20), // Spacer at the top
-            Image.asset(
-              'assets/logo.png', // Logo without enclosing container
-              width: 120,
-              height: 120,
-              fit: BoxFit.contain,
-              errorBuilder: (context, error, stackTrace) =>
-                  const Icon(Icons.account_balance, size: 120, color: Colors.white),
-            ),
-            Column(
-              children: [
-                const SizedBox(height: 20),
-                SizedBox(
-                  width: 200, // Fixed width for progress bar
-                  child: AnimatedBuilder(
-                    animation: _controller,
-                    builder: (context, child) {
-                      return LinearProgressIndicator(
-                        value: _progressAnimation.value,
-                        backgroundColor: Colors.grey[700],
-                        valueColor: const AlwaysStoppedAnimation<Color>(Color(0xFFD4AF37)), // Gold progress
-                        minHeight: 8,
-                      );
-                    },
+      backgroundColor: const Color(0xFF4B5563), // Dark grayish-blue
+      body: SafeArea(
+        child: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Spacer(flex: 2),
+              // Logo
+              Image.asset(
+                'assets/logo.png',
+                width: 140,
+                height: 140,
+                fit: BoxFit.contain,
+                errorBuilder: (context, error, stackTrace) =>
+                    const Icon(Icons.account_balance, size: 140, color: Colors.white),
+              ),
+              const Spacer(flex: 3),
+              // Progress section at bottom
+              Column(
+                children: [
+                  SizedBox(
+                    width: 200,
+                    child: AnimatedBuilder(
+                      animation: _controller,
+                      builder: (context, child) {
+                        return LinearProgressIndicator(
+                          value: _progressAnimation.value,
+                          backgroundColor: Colors.grey[700],
+                          valueColor: const AlwaysStoppedAnimation<Color>(Color(0xFFD4AF37)), // Gold
+                          minHeight: 8,
+                        );
+                      },
+                    ),
                   ),
-                ),
-                const SizedBox(height: 20),
-                const Text(
-                  'Empowering Your Finances...',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 26,
-                    fontWeight: FontWeight.w600,
-                    fontFamily: 'Inter', // Fallback to Roboto
-                    letterSpacing: 0.5,
-                    shadows: [
-                      Shadow(
-                        color: Color(0xFFD4AF37), // Gold shadow
-                        blurRadius: 8,
-                        offset: Offset(0, 2),
+                  const SizedBox(height: 24),
+                  const Padding(
+                    padding: EdgeInsets.symmetric(horizontal: 40),
+                    child: Text(
+                      'Empowering Your Finances...',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 22,
+                        fontWeight: FontWeight.w600,
+                        letterSpacing: 0.5,
+                        shadows: [
+                          Shadow(
+                            color: Color(0xFFD4AF37), // Gold shadow
+                            blurRadius: 8,
+                            offset: Offset(0, 2),
+                          ),
+                        ],
                       ),
-                    ],
+                    ),
                   ),
-                ),
-              ],
-            ),
-          ],
+                  const SizedBox(height: 40),
+                ],
+              ),
+            ],
+          ),
         ),
       ),
     );

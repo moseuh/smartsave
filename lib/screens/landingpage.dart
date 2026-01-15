@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'sign_in_screen.dart';
+import 'modern_login_screen.dart';
 import 'homepage.dart';
 
 void main() {
@@ -57,6 +57,45 @@ class _LandingPageState extends State<LandingPage> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+                  // Logo and App Description
+                  Center(
+                    child: Column(
+                      children: [
+                        Image.asset(
+                          'assets/logo.png',
+                          width: 120,
+                          height: 120,
+                          errorBuilder: (context, error, stackTrace) =>
+                              const Icon(Icons.account_balance, size: 120, color: Color(0xFFF5BB1B)),
+                        ),
+                        const SizedBox(height: 16),
+                        const Text(
+                          'SmartSave',
+                          style: TextStyle(
+                            color: Color(0xFFF5BB1B),
+                            fontSize: 32,
+                            fontWeight: FontWeight.bold,
+                            letterSpacing: 1.2,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        const Padding(
+                          padding: EdgeInsets.symmetric(horizontal: 32.0),
+                          child: Text(
+                            'Your intelligent financial companion. Save automatically, invest wisely, and build wealth effortlessly.',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              color: Colors.white70,
+                              fontSize: 16,
+                              height: 1.4,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 40),
+                  
                   Stack(
                     children: [
                       Image.asset('assets/background.png', width: double.infinity, height: 200, fit: BoxFit.cover),
@@ -162,7 +201,7 @@ class _LandingPageState extends State<LandingPage> {
                   Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 16.0),
                     child: ElevatedButton(
-                      onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const SignInScreen())),
+                      onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const ModernLoginScreen())),
                       style: ElevatedButton.styleFrom(
                         backgroundColor: const Color(0xFFF5BB1B),
                         padding: const EdgeInsets.symmetric(vertical: 20),

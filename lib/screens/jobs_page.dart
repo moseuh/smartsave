@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
+import '../constants/app_constants.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter_spinkit/flutter_spinkit.dart';
@@ -10,7 +11,7 @@ import 'package:share_plus/share_plus.dart';
 import '../widgets/graph.dart' as graph;
 import 'buygoodselect.dart';
 import 'loans_page.dart';
-import 'sign_in_screen.dart';
+import 'modern_login_screen.dart';
 import 'profile.dart';
 
 class JobsPage extends StatefulWidget {
@@ -464,7 +465,7 @@ class _JobsPageState extends State<JobsPage> {
     if (mounted) {
       Navigator.pushReplacement(
         context,
-        MaterialPageRoute(builder: (context) => const SignInScreen()),
+        MaterialPageRoute(builder: (context) => const ModernLoginScreen()),
       );
     }
   }
@@ -1047,7 +1048,7 @@ class _JobsPageState extends State<JobsPage> {
                         'Jobs & Opportunities',
                         style: TextStyle(
                           color: Colors.white,
-                          fontSize: 20,
+                          fontSize: 18,
                           fontWeight: FontWeight.bold,
                         ),
                       ),

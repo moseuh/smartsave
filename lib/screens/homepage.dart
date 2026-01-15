@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'landingpage.dart';
-import 'sign_in_screen.dart' as signIn;
+import 'modern_login_screen.dart' as signIn;
 
 // === YOUR REAL PAGES ===
 import 'wallet_page.dart';
@@ -123,7 +123,7 @@ class _HomePageState extends State<HomePage> {
                           onPressed: () async {
                             final result = await Navigator.push(
                               context,
-                              MaterialPageRoute(builder: (_) => const signIn.SignInScreen()),
+                              MaterialPageRoute(builder: (_) => const signIn.ModernLoginScreen()),
                             );
                             if (result is String) {
                               _handleSuccessfulLogin(result);
@@ -178,7 +178,7 @@ class _HomePageState extends State<HomePage> {
                           icon: Icons.swap_horiz,
                           title: 'P2P Lending',
                           description: 'Lend & borrow from peers',
-                          onTap: () => _openPage(currentUserId != null ? LoansCreditScore(userId: currentUserId!) : const signIn.SignInScreen()),
+                          onTap: () => _openPage(currentUserId != null ? LoansCreditScore(userId: currentUserId!) : const signIn.ModernLoginScreen()),
                         ),
                       ),
                       Expanded(
@@ -221,7 +221,7 @@ class _HomePageState extends State<HomePage> {
                   icon: Icons.account_balance,
                   title: 'Loans',
                   description: 'Quick credit access',
-                  onTap: () => _openPage(currentUserId != null ? LoansCreditScore(userId: currentUserId!) : const signIn.SignInScreen()),
+                  onTap: () => _openPage(currentUserId != null ? LoansCreditScore(userId: currentUserId!) : const signIn.ModernLoginScreen()),
                 ),
               ),
               Expanded(
@@ -237,7 +237,7 @@ class _HomePageState extends State<HomePage> {
                   icon: Icons.account_balance_wallet,
                   title: 'Wallet',
                   description: 'Your balance',
-                  onTap: () => _openPage(currentUserId != null ? WalletPage(userId: currentUserId!) : const signIn.SignInScreen()),
+                  onTap: () => _openPage(currentUserId != null ? WalletPage(userId: currentUserId!) : const signIn.ModernLoginScreen()),
                 ),
               ),
             ],
@@ -251,7 +251,7 @@ class _HomePageState extends State<HomePage> {
                   icon: Icons.work,
                   title: 'Jobs',
                   description: 'Find opportunities',
-                  onTap: () => _openPage(currentUserId != null ? JobsPage(userId: currentUserId!) : const signIn.SignInScreen()),
+                  onTap: () => _openPage(currentUserId != null ? JobsPage(userId: currentUserId!) : const signIn.ModernLoginScreen()),
                 ),
               ),
               Expanded(
@@ -267,7 +267,7 @@ class _HomePageState extends State<HomePage> {
                   icon: Icons.person,
                   title: 'Profile',
                   description: 'Manage account',
-                  onTap: () => _openPage(currentUserId != null ? Profile(userId: currentUserId!) : const signIn.SignInScreen()),
+                  onTap: () => _openPage(currentUserId != null ? Profile(userId: currentUserId!) : const signIn.ModernLoginScreen()),
                 ),
               ),
             ],

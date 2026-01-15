@@ -1,16 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
-import 'dart:io' show File, Platform;
+import '../constants/app_constants.dart';
+import 'dart:io' show File;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'buygoodselect.dart';
-import 'sign_in_screen.dart';
+import 'modern_login_screen.dart';
 import 'loans_credit_score.dart';
 import 'wallet_page.dart';
-import 'loan_products.dart';
-import 'jobs_page.dart';
+import '../widgets/beautiful_app_bar.dart';
 
 class Profile extends StatefulWidget {
   final String userId;
@@ -90,7 +90,7 @@ class _ProfileState extends State<Profile> {
     if (!mounted) return;
     Navigator.pushReplacement(
       context,
-      MaterialPageRoute(builder: (context) => const SignInScreen()),
+      MaterialPageRoute(builder: (context) => const ModernLoginScreen()),
     );
   }
 
@@ -201,70 +201,11 @@ class _ProfileState extends State<Profile> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFF1F2937),
-      appBar: PreferredSize(
-        preferredSize: const Size.fromHeight(70.0),
-        child: Container(
-          color: const Color(0xFF374151),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
-            child: Row(
-              children: [
-                // Removed hamburger menu icon completely
-                Stack(
-                  alignment: Alignment.bottomRight,
-                  children: [
-                    CircleAvatar(
-                      radius: 20,
-                      child: ClipOval(
-                        child: userDetails != null && userDetails!['selfie_path'] != null
-                            ? CachedNetworkImage(
-                                imageUrl: userDetails!['selfie_path'],
-                                placeholder: (_, __) => const CircularProgressIndicator(color: Color(0xFFF5BB1B)),
-                                errorWidget: (_, __, ___) => const Icon(Icons.person, size: 20, color: Colors.white),
-                                fit: BoxFit.cover,
-                                width: 40,
-                                height: 40,
-                              )
-                            : const Icon(Icons.person, size: 20, color: Colors.white),
-                      ),
-                    ),
-                    GestureDetector(
-                      onTap: isUploading ? null : _changeProfilePicture,
-                      child: Container(
-                        padding: const EdgeInsets.all(2),
-                        decoration: const BoxDecoration(color: Colors.black54, shape: BoxShape.circle),
-                        child: isUploading
-                            ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                            : const Icon(Icons.camera_alt, color: Colors.white, size: 16),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Text(
-                        userDetails != null ? userDetails!['full_name'] ?? 'User' : 'Loading...',
-                        style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
-                      ),
-                      const Text(
-                        'Member since 2022',
-                        style: TextStyle(color: Colors.white70, fontSize: 12),
-                      ),
-                    ],
-                  ),
-                ),
-                IconButton(
-                  icon: const Icon(Icons.notifications, color: Colors.white),
-                  onPressed: () {},
-                ),
-              ],
-            ),
-          ),
-        ),
+      appBar: BeautifulAppBar(
+        userName: userDetails?['full_name'] ?? 'User',
+        profileImageUrl: userDetails?['selfie_path'],
+        onProfileTap: isUploading ? null : _changeProfilePicture,
+        onNotificationTap: () {},
       ),
       body: Padding(
         padding: const EdgeInsets.all(16.0),
@@ -279,7 +220,11 @@ class _ProfileState extends State<Profile> {
                         const SizedBox(height: 10),
                         const Text(
                           'Account Information',
-                          style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                          ),
                         ),
                         const SizedBox(height: 16),
                         Container(

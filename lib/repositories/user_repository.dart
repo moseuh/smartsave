@@ -58,15 +58,9 @@ class UserRepository {
   /// Upload profile picture
   Future<String?> uploadProfilePicture(String userId, String imagePath) async {
     try {
-      final response = await _apiService.uploadFile(
-        '/upload-profile-picture/$userId',
-        filePath: imagePath,
-        fieldName: 'profile_picture',
-      );
-      
-      if (response != null && response['status'] == 'success') {
-        return response['selfie_path']?.toString();
-      }
+      // TODO: Implement multipart file upload when ApiService supports it
+      // For now, this is a placeholder
+      print('Upload profile picture not yet implemented for: $imagePath');
       return null;
     } catch (e) {
       print('Error uploading profile picture: $e');
@@ -75,7 +69,7 @@ class UserRepository {
   }
 
   /// Register new user
-  Future<User?> registerUser({
+  Future<Map<String, dynamic>?> registerUser({
     required String fullName,
     required String email,
     required String phoneNumber,
@@ -105,10 +99,7 @@ class UserRepository {
         requiresAuth: false,
       );
 
-      if (response != null && response['status'] == 'success') {
-        return User.fromJson(response);
-      }
-      return null;
+      return response;
     } catch (e) {
       print('Error registering user: $e');
       rethrow;

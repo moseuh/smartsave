@@ -6,7 +6,7 @@ class AppConstants {
   // Change this to your local XAMPP/WAMP server
   static const String apiBaseUrl = String.fromEnvironment(
     'API_BASE_URL',
-    defaultValue: 'http://localhost/smartsave-api',
+    defaultValue: 'http://apis.nebo.co.ke/apis',
   );
 
   // API Endpoints

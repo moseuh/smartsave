@@ -77,9 +77,51 @@ class AuthProvider with ChangeNotifier {
           notifyListeners();
           return true;
         }
+      }
+      
+      // If we get here, login failed
+      _errorMessage = response?['message'] ?? 'Login failed';
+      _isLoading = false;
+      notifyListeners();
+      return false;
+    } catch (e) {
+      _errorMessage = e.toString();
+      _isLoading = false;
+      notifyListeners();
+      return false;
+    }
+  }
+
+  /// Sign up with email and password
+  Future<bool> signUp({
+    required String email,
+    required String password,
+    required String fullName,
+    required String phoneNumber,
+    required String nationalId,
+    required String dateOfBirth,
+  }) async {
+    _isLoading = true;
+    _errorMessage = null;
+    notifyListeners();
+
+    try {
+      final response = await _userRepository.registerUser(
+        email: email,
+        password: password,
+        fullName: fullName,
+        phoneNumber: phoneNumber,
+        nationalId: nationalId,
+        dateOfBirth: dateOfBirth,
+      );
+
+      _isLoading = false;
+
+      if (response != null && response['status'] == 'success') {
+        notifyListeners();
+        return true;
       } else {
-        _errorMessage = response['message'] ?? 'Login failed';
-        _isLoading = false;
+        _errorMessage = response?['message'] ?? 'Registration failed';
         notifyListeners();
         return false;
       }
@@ -91,33 +133,79 @@ class AuthProvider with ChangeNotifier {
     }
   }
 
-  /// Sign up with email and password
-  Future<bool> signUpWithEmail(String email, String password, String name) async {
+  /// Sign in with Google
+  Future<bool> signInWithGoogle(String email, String googleIdToken) async {
     _isLoading = true;
     _errorMessage = null;
     notifyListeners();
 
     try {
-      final response = await _apiService.post(
-        AppConstants.registerEndpoint,
-        body: {
-          'email': email,
-          'password': password,
-          'name': name,
-        },
-        requiresAuth: false,
+      final response = await _userRepository.googleSignIn(
+        email: email,
+        googleIdToken: googleIdToken,
       );
+      
+      if (response != null && response['status'] == 'success') {
+        final userId = response['userId']?.toString();
+        if (userId != null) {
+          _currentUser = await _userRepository.getUserDetails(userId);
+          _isAuthenticated = _currentUser != null;
 
-      if (response != null && response['success'] == true) {
-        _isLoading = false;
-        notifyListeners();
-        return true;
-      } else {
-        _errorMessage = response['message'] ?? 'Registration failed';
-        _isLoading = false;
-        notifyListeners();
-        return false;
+          // Store in SharedPreferences
+          if (_currentUser != null) {
+            final prefs = await SharedPreferences.getInstance();
+            await prefs.setString('user_id', _currentUser!.id);
+            await prefs.setString('email', _currentUser!.email);
+            await prefs.setString('user_name', _currentUser!.fullName);
+          }
+
+          _isLoading = false;
+          notifyListeners();
+          return true;
+        }
       }
+      
+      _errorMessage = 'Google sign-in failed';
+      _isLoading = false;
+      notifyListeners();
+      return false;
+    } catch (e) {
+      _errorMessage = e.toString();
+      _isLoading = false;
+      notifyListeners();
+      return false;
+    }
+  }
+
+  /// Refresh current user data
+  Future<void> refreshUser() async {
+    if (_currentUser?.id == null) return;
+
+    try {
+      _currentUser = await _userRepository.getUserDetails(_currentUser!.id);
+      notifyListeners();
+    } catch (e) {
+      debugPrint('Error refreshing user: $e');
+    }
+  }
+
+  /// Update user profile
+  Future<bool> updateProfile(Map<String, dynamic> updates) async {
+    if (_currentUser?.id == null) return false;
+
+    _isLoading = true;
+    notifyListeners();
+
+    try {
+      final success = await _userRepository.updateUser(_currentUser!.id, updates);
+      
+      if (success) {
+        await refreshUser();
+      }
+
+      _isLoading = false;
+      notifyListeners();
+      return success;
     } catch (e) {
       _errorMessage = e.toString();
       _isLoading = false;
@@ -129,9 +217,14 @@ class AuthProvider with ChangeNotifier {
   /// Sign out
   Future<void> signOut() async {
     _isAuthenticated = false;
-    _userId = null;
-    _userEmail = null;
-    _apiService.clearAuthToken();
+    _currentUser = null;
+    
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove('user_id');
+    await prefs.remove('email');
+    await prefs.remove('user_name');
+    await prefs.remove('selfie_path');
+    
     notifyListeners();
   }
 

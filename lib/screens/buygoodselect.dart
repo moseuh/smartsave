@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
+import '../constants/app_constants.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:path_provider/path_provider.dart';
 import 'package:open_file/open_file.dart';
@@ -11,6 +12,7 @@ import 'addtofavourites.dart';
 import 'homepage.dart';
 import 'favourites.dart';
 import 'profile.dart'; // <-- add this import
+import 'transactiohistory.dart';
 
 class ProcessingDialog extends StatefulWidget {
   final VoidCallback? onCancel;
@@ -1071,6 +1073,37 @@ class _BuyGoodsSelectState extends State<BuyGoodsSelect> {
                 ],
               ),
             ),
+      bottomNavigationBar: Container(
+        color: const Color(0xFF374151),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+          child: BottomNavigationBar(
+            backgroundColor: Colors.transparent,
+            selectedItemColor: const Color(0xFFF5BB1B),
+            unselectedItemColor: Colors.white54,
+            currentIndex: 2,
+            onTap: (index) {
+              if (index == 2) return;
+              final routes = [
+                MaterialPageRoute(builder: (context) => SavingsDashboard(userId: widget.userId)),
+                MaterialPageRoute(builder: (context) => TransactionHistory(userId: widget.userId)),
+                null,
+                MaterialPageRoute(builder: (context) => Profile(userId: widget.userId)),
+              ];
+              if (index < routes.length && routes[index] != null) {
+                Navigator.pushReplacement(context, routes[index]!);
+              }
+            },
+            type: BottomNavigationBarType.fixed,
+            items: const [
+              BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Home'),
+              BottomNavigationBarItem(icon: Icon(Icons.bar_chart), label: 'Trans...'),
+              BottomNavigationBarItem(icon: Icon(Icons.payment), label: 'Payments'),
+              BottomNavigationBarItem(icon: Icon(Icons.person), label: 'Profile'),
+            ],
+          ),
+        ),
+      ),
     );
   }
 

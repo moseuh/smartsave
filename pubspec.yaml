@@ -1,5 +1,5 @@
-name: save
-description: "A new Flutter project."
+name: smartsave
+description: "SmartSave - Your intelligent financial companion"
 publish_to: 'none'
 version: 0.1.0
 
@@ -28,6 +28,7 @@ dependencies:
   google_sign_in: ^6.3.0
   firebase_core: ^3.13.1
   firebase_auth: ^5.5.4
+  intl_phone_field: ^3.2.0
   firebase_crashlytics: ^4.3.5
   firebase_analytics: ^11.4.5
   firebase_data_connect: ^0.1.0
@@ -50,7 +51,14 @@ dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^5.0.0
+  flutter_launcher_icons: ^0.14.2
 
+flutter_launcher_icons:
+  android: true
+  ios: true
+  image_path: "assets/logo.png"
+  remove_alpha_ios: true
+  
 flutter:
   uses-material-design: true
 

@@ -4,14 +4,14 @@ import 'package:flutter/material.dart';
 class AppTheme {
   AppTheme._();
 
-  // Primary Colors
-  static const Color primaryColor = Color(0xFF6C63FF);
-  static const Color primaryDark = Color(0xFF4B45D9);
-  static const Color primaryLight = Color(0xFF9894FF);
+  // Primary Colors - Gold/Dark Theme
+  static const Color primaryColor = Color(0xFFF5BB1B); // Bright Gold
+  static const Color primaryDark = Color(0xFFD4AF37); // Dark Gold
+  static const Color primaryLight = Color(0xFFFDD97C); // Light Gold
   
   // Accent Colors
-  static const Color accentColor = Color(0xFF00D4AA);
-  static const Color accentLight = Color(0xFF5FFFD7);
+  static const Color accentColor = Color(0xFFF5BB1B); // Gold
+  static const Color accentLight = Color(0xFFFDD97C); // Light Gold
   
   // Status Colors
   static const Color successColor = Color(0xFF2ECC71);
@@ -19,14 +19,36 @@ class AppTheme {
   static const Color errorColor = Color(0xFFE74C3C);
   static const Color infoColor = Color(0xFF3498DB);
   
-  // Neutral Colors
-  static const Color backgroundLight = Color(0xFFF8F9FA);
-  static const Color backgroundDark = Color(0xFF1A1A2E);
-  static const Color cardLight = Color(0xFFFFFFFF);
-  static const Color cardDark = Color(0xFF16213E);
-  static const Color textPrimary = Color(0xFF2C3E50);
-  static const Color textSecondary = Color(0xFF7F8C8D);
+  // Neutral Colors - Dark Theme
+  static const Color backgroundLight = Color(0xFF1F2937); // Dark gray/charcoal
+  static const Color backgroundDark = Color(0xFF1F2937); // Dark gray/charcoal
+  static const Color cardLight = Color(0xFF111827); // Darker charcoal (darker than background)
+  static const Color cardDark = Color(0xFF111827); // Darker charcoal
+  static const Color textPrimary = Color(0xFFFFFFFF); // White text
+  static const Color textSecondary = Color(0xFFD1D5DB); // Light gray text
   static const Color textLight = Color(0xFFFFFFFF);
+  
+  // Animation Constants
+  static const Duration slowAnimation = Duration(milliseconds: 800);
+  static const Duration normalAnimation = Duration(milliseconds: 300);
+  static const Curve defaultCurve = Curves.easeInOut;
+  
+  // Shadow Styles
+  static final List<BoxShadow> elevatedShadow = [
+    BoxShadow(
+      color: Colors.black.withOpacity(0.2),
+      blurRadius: 20,
+      offset: const Offset(0, 10),
+    ),
+  ];
+  
+  static final List<BoxShadow> cardShadow = [
+    BoxShadow(
+      color: Colors.black.withOpacity(0.1),
+      blurRadius: 10,
+      offset: const Offset(0, 4),
+    ),
+  ];
   
   // Gradient Colors
   static const LinearGradient primaryGradient = LinearGradient(

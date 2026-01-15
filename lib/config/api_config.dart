@@ -5,7 +5,7 @@ class ApiConfig {
   static const bool useLocalServer = true;
   
   // Server URLs
-  static const String localBaseUrl = 'http://192.168.100.29/apis';
+  static const String localBaseUrl = 'http://apis.nebo.co.ke/apis';
   static const String remoteBaseUrl = 'http://apis.nebo.co.ke/apis';
   
   // Active base URL based on configuration

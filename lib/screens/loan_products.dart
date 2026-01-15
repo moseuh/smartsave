@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
+import 'package:smartsave/screens/modern_login_screen.dart';
 import 'dart:convert';
 import '../constants/app_constants.dart';
 import 'dart:typed_data';
@@ -7,7 +8,6 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter_contacts/flutter_contacts.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:signature/signature.dart';
-import 'sign_in_screen.dart';
 import 'wallet_page.dart';
 import 'buygoodselect.dart';
 import 'profile.dart';
@@ -1233,7 +1233,7 @@ class _LoanProductsState extends State<LoanProducts> with TickerProviderStateMix
     final prefs = await SharedPreferences.getInstance();
     await prefs.clear();
     if (mounted) {
-      Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const SignInScreen()));
+      Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const ModernLoginScreen()));
     }
   }
 

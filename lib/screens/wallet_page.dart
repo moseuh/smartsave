@@ -5,11 +5,12 @@ import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter_spinkit/flutter_spinkit.dart';
+import 'package:smartsave/constants/app_theme.dart';
 import '../constants/app_constants.dart';
 import 'loan_products.dart';
 // === YOUR PAGES ===
 import 'buygoodselect.dart';
-import 'sign_in_screen.dart' as signIn;
+import 'modern_login_screen.dart' as signIn;
 import 'loans_credit_score.dart';
 import 'profile.dart';
 import 'jobs_page.dart';
@@ -463,46 +464,26 @@ class _WalletPageState extends State<WalletPage> {
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        width: (MediaQuery.of(context).size.width - 64) / 3,
-        height: 140,
+        width: (MediaQuery.of(context).size.width - 52) / 2,
+        height: 80,
         decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(24),
+          borderRadius: BorderRadius.circular(16),
           color: Colors.white.withOpacity(0.1),
           border: Border.all(color: Colors.white.withOpacity(0.2)),
-          boxShadow: [
-            BoxShadow(color: Colors.black.withOpacity(0.5), blurRadius: 20, offset: const Offset(6, 10)),
-            BoxShadow(color: Colors.white.withOpacity(0.08), blurRadius: 10, offset: const Offset(-4, -4)),
-          ],
         ),
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(24),
-          child: BackdropFilter(
-            filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: color.withOpacity(0.2),
-                    ),
-                    child: Icon(icon, size: 36, color: color),
-                  ),
-                  const SizedBox(height: 12),
-                  Text(
-                    title,
-                    textAlign: TextAlign.center,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w600),
-                  ),
-                ],
-              ),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(icon, size: 36, color: color),
+            const SizedBox(height: 10),
+            Text(
+              title,
+              textAlign: TextAlign.center,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w600),
             ),
-          ),
+          ],
         ),
       ),
     );
@@ -511,19 +492,21 @@ class _WalletPageState extends State<WalletPage> {
   Widget _buildActionButton({required IconData icon, required String label, required VoidCallback onTap}) {
     return GestureDetector(
       onTap: onTap,
-      child: Column(children: [
-        Container(
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            color: Colors.white.withOpacity(0.15),
-            border: Border.all(color: Colors.white.withOpacity(0.2)),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Container(
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: Colors.white.withOpacity(0.15),
+            ),
+            child: Icon(icon, color: AppTheme.primaryColor, size: 28),
           ),
-          child: Icon(icon, color: Colors.white, size: 28),
-        ),
-        const SizedBox(height: 8),
-        Text(label, style: const TextStyle(color: Colors.white70, fontSize: 12)),
-      ]),
+          const SizedBox(height: 8),
+          Text(label, style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w500)),
+        ],
+      ),
     );
   }
 
@@ -547,123 +530,157 @@ class _WalletPageState extends State<WalletPage> {
       ),
       body: isLoading
           ? const Center(child: SpinKitFadingCircle(color: Color(0xFFF5BB1B), size: 60))
-          : Container(
-              decoration: const BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  colors: [Color(0xFF1E293B), Color(0xFF0F172A)],
+          : Padding(
+        padding: const EdgeInsets.only(top: 80),
+            child: Container(
+                decoration: const BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [Color(0xFF1E293B), Color(0xFF0F172A)],
+                  ),
                 ),
-              ),
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.only(top: 100),
                 child: Column(
                   children: [
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 16),
-                      child: GlassCard(
-                        child: Padding(
-                          padding: const EdgeInsets.all(28),
-                          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                            Row(children: [
-                              CircleAvatar(
-                                radius: 32,
-                                backgroundColor: Colors.white.withOpacity(0.2),
-                                child: profilePic != null && profilePic.isNotEmpty
-                                    ? ClipOval(child: CachedNetworkImage(imageUrl: profilePic, fit: BoxFit.cover))
-                                    : const Icon(Icons.person, size: 40, color: Colors.white),
-                              ),
-                              const SizedBox(width: 16),
-                              Expanded(
-                                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                                  Text("Hello, $firstName", style: const TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.bold)),
-                                  const Text("Your money is growing", style: TextStyle(color: Colors.white70)),
+                    // Wallet Balance Section - 25% of screen
+                    SizedBox(
+                      height: MediaQuery.of(context).size.height * 0.25,
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                        child: GlassCard(
+                          child: Padding(
+                            padding: const EdgeInsets.all(16),
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Row(children: [
+                                  CircleAvatar(
+                                    radius: 20,
+                                    backgroundColor: Colors.white.withOpacity(0.2),
+                                    child: profilePic != null && profilePic.isNotEmpty
+                                        ? ClipOval(child: CachedNetworkImage(imageUrl: profilePic, fit: BoxFit.cover, width: 40, height: 40))
+                                        : const Icon(Icons.person, size: 24, color: Colors.white),
+                                  ),
+                                  const SizedBox(width: 12),
+                                  Expanded(
+                                    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                                      Text("Hello, $firstName", style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
+                                      const Text("Your money is growing", style: TextStyle(color: Colors.white70, fontSize: 12)),
+                                    ]),
+                                  ),
                                 ]),
-                              ),
-                            ]),
-                            const SizedBox(height: 32),
-                            const Text("Wallet Balance", style: TextStyle(color: Colors.white70)),
-                            Text("KES ${balance.toStringAsFixed(2)}", style: const TextStyle(color: Colors.greenAccent, fontSize: 44, fontWeight: FontWeight.bold)),
-                            const SizedBox(height: 8),
-                            Text("Savings: KES ${savings.toStringAsFixed(2)}", style: const TextStyle(color: Color(0xFFF5BB1B), fontSize: 18)),
-                          ]),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 30),
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 16),
-                      child: GlassCard(
-                        child: Padding(
-                          padding: const EdgeInsets.all(24),
-                          child: Row(mainAxisAlignment: MainAxisAlignment.spaceEvenly, children: [
-                            _buildActionButton(icon: Icons.add_circle_outline, label: 'Add Money', onTap: _showDepositDialog),
-                            _buildActionButton(icon: Icons.arrow_downward, label: 'Withdraw', onTap: _showWithdrawDialog),
-                            _buildActionButton(icon: Icons.send, label: 'Send Money', onTap: _startGlobalSendFlow),
-                            _buildActionButton(icon: Icons.payment, label: 'Pay Merchant', onTap: _showPayMerchantDialog),
-                          ]),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 30),
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 16),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Text("Quick Links", style: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold)),
-                          const SizedBox(height: 16),
-                          Wrap(
-                            spacing: 12,
-                            runSpacing: 16,
-                            children: [
-                              _buildQuickLinkCard(
-                                icon: Icons.work,
-                                title: "Jobs",
-                                color: Colors.green,
-                                onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => JobsPage(userId: widget.userId))),
-                              ),
-                              _buildQuickLinkCard(
-                                icon: Icons.account_balance,
-                                title: "Loans",
-                                color: Colors.cyan,
-                                onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => LoanProducts(userId: widget.userId))),
-                              ),
-                              _buildQuickLinkCard(
-                                icon: Icons.flag,
-                                title: "Goals",
-                                color: Colors.purpleAccent,
-                                onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => GoalsDashboard(userId: widget.userId))),
-                              ),
-                              _buildQuickLinkCard(
-                                icon: Icons.leaderboard,
-                                title: "Leaderboard",
-                                color: Colors.orangeAccent,
-                                onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => LeaderboardPage(userId: widget.userId))),
-                              ),
-                              _buildQuickLinkCard(
-                                icon: Icons.health_and_safety,
-                                title: "Credit Health",
-                                color: Colors.redAccent,
-                                onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => LoansCreditScore(userId: widget.userId))),
-                              ),
-                              _buildQuickLinkCard(
-                                icon: Icons.bar_chart,
-                                title: "Analytics",
-                                color: Colors.blueAccent,
-                                onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => SavingsDashboard(userId: widget.userId))),
-                              ),
-                            ],
+                                const SizedBox(height: 16),
+                                const Text("Wallet Balance", style: TextStyle(color: Colors.white70, fontSize: 12)),
+                                const SizedBox(height: 4),
+                                Text("KES ${balance.toStringAsFixed(2)}", style: const TextStyle(color: Colors.greenAccent, fontSize: 28, fontWeight: FontWeight.bold)),
+                                const SizedBox(height: 4),
+                                Text("Savings: KES ${savings.toStringAsFixed(2)}", style: const TextStyle(color: Color(0xFFF5BB1B), fontSize: 14)),
+                              ],
+                            ),
                           ),
-                        ],
+                        ),
                       ),
                     ),
-                    const SizedBox(height: 100),
+                    // Action Buttons Section - 15% of screen
+                    SizedBox(
+                      height: MediaQuery.of(context).size.height * 0.12,
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                        child: GlassCard(
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                            child: Row(mainAxisAlignment: MainAxisAlignment.spaceEvenly, children: [
+                              _buildActionButton(icon: Icons.add_circle_outline, label: 'Add', onTap: _showDepositDialog),
+                              _buildActionButton(icon: Icons.arrow_downward, label: 'Withdraw', onTap: _showWithdrawDialog),
+                              _buildActionButton(icon: Icons.send, label: 'Send', onTap: _startGlobalSendFlow),
+                              _buildActionButton(icon: Icons.payment, label: 'Pay', onTap: _showPayMerchantDialog),
+                            ]),
+                          ),
+                        ),
+                      ),
+                    ),
+                    // Quick Links Section - Remaining space
+                    Expanded(
+                      child: SingleChildScrollView(
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text(
+                              "Quick Links",
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 15,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            const SizedBox(height: 12),
+                            Wrap(
+                              spacing: 8,
+                              runSpacing: 10,
+                              children: [
+                                _buildQuickLinkCard(
+                                  icon: Icons.work,
+                                  title: "Jobs",
+                                  color: Colors.green,
+                                  onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => JobsPage(userId: widget.userId))),
+                                ),
+                                _buildQuickLinkCard(
+                                  icon: Icons.account_balance,
+                                  title: "Loans",
+                                  color: Colors.cyan,
+                                  onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => LoanProducts(userId: widget.userId))),
+                                ),
+                                _buildQuickLinkCard(
+                                  icon: Icons.flag,
+                                  title: "Goals",
+                                  color: Colors.purpleAccent,
+                                  onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => GoalsDashboard(userId: widget.userId))),
+                                ),
+                                _buildQuickLinkCard(
+                                  icon: Icons.leaderboard,
+                                  title: "Leaderboard",
+                                  color: Colors.orangeAccent,
+                                  onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => LeaderboardPage(userId: widget.userId))),
+                                ),
+                                _buildQuickLinkCard(
+                                  icon: Icons.health_and_safety,
+                                  title: "Credit Health",
+                                  color: Colors.redAccent,
+                                  onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => LoansCreditScore(userId: widget.userId))),
+                                ),
+                                _buildQuickLinkCard(
+                                  icon: Icons.bar_chart,
+                                  title: "Analytics",
+                                  color: Colors.blueAccent,
+                                  onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => SavingsDashboard(userId: widget.userId))),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 16),
+                          ],
+                        ),
+                      ),
+                    ),
                   ],
                 ),
               ),
-            ),
+          ),
       bottomNavigationBar: BottomNavigationBar(
+        currentIndex: 0,
+        onTap: (index) {
+          if (index == 0) return;
+          final routes = [
+            null,
+            MaterialPageRoute(builder: (context) => LoanProducts(userId: widget.userId)),
+            MaterialPageRoute(builder: (context) => BuyGoodsSelect(userId: widget.userId)),
+            MaterialPageRoute(builder: (context) => Profile(userId: widget.userId)),
+          ];
+          if (index < routes.length && routes[index] != null) {
+            Navigator.push(context, routes[index]!);
+          }
+        },
         backgroundColor: const Color(0xFF1E293B).withOpacity(0.9),
         selectedItemColor: const Color(0xFFF5BB1B),
         unselectedItemColor: Colors.white70,
@@ -687,7 +704,7 @@ class GlassCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(32),
+        borderRadius: BorderRadius.circular(18),
         color: Colors.white.withOpacity(0.1),
         border: Border.all(color: Colors.white.withOpacity(0.2)),
         boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.3), blurRadius: 30, offset: const Offset(0, 10))],
