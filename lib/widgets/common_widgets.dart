@@ -1,4 +1,5 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
+import '../constants/app_theme.dart';
 
 /// Loading overlay widget
 class LoadingOverlay extends StatelessWidget {
@@ -26,14 +27,14 @@ class LoadingOverlay extends StatelessWidget {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   const CircularProgressIndicator(
-                    valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                    valueColor: AlwaysStoppedAnimation<Color>(AppTheme.cardLight),
                   ),
                   if (message != null) ...[
                     const SizedBox(height: 16),
                     Text(
                       message!,
                       style: const TextStyle(
-                        color: Colors.white,
+                        color: AppTheme.textPrimary,
                         fontSize: 16,
                       ),
                     ),
@@ -112,3 +113,4 @@ Future<bool> showConfirmDialog(
   
   return result ?? false;
 }
+

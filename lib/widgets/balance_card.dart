@@ -1,4 +1,5 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
+import '../constants/app_theme.dart';
 import '../constants/app_theme.dart';
 import 'package:intl/intl.dart';
 
@@ -50,12 +51,12 @@ class BalanceCard extends StatelessWidget {
                     Container(
                       padding: const EdgeInsets.all(10),
                       decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(0.2),
+                        color: AppTheme.cardLight.withOpacity(0.2),
                         borderRadius: BorderRadius.circular(12),
                       ),
                       child: Icon(
                         icon,
-                        color: Colors.white,
+                        color: AppTheme.textPrimary,
                         size: 24,
                       ),
                     ),
@@ -63,7 +64,7 @@ class BalanceCard extends StatelessWidget {
                     Text(
                       title,
                       style: const TextStyle(
-                        color: Colors.white,
+                        color: AppTheme.textPrimary,
                         fontSize: 16,
                         fontWeight: FontWeight.w500,
                         letterSpacing: 0.5,
@@ -74,7 +75,7 @@ class BalanceCard extends StatelessWidget {
                 if (onTap != null)
                   Icon(
                     Icons.arrow_forward_ios,
-                    color: Colors.white.withOpacity(0.8),
+                    color: AppTheme.cardLight.withOpacity(0.8),
                     size: 18,
                   ),
               ],
@@ -90,7 +91,7 @@ class BalanceCard extends StatelessWidget {
                         child: CircularProgressIndicator(
                           strokeWidth: 2,
                           valueColor:
-                              AlwaysStoppedAnimation<Color>(Colors.white),
+                              AlwaysStoppedAnimation<Color>(AppTheme.cardLight),
                         ),
                       ),
                     ),
@@ -102,7 +103,7 @@ class BalanceCard extends StatelessWidget {
                       return Text(
                         formatter.format(value),
                         style: const TextStyle(
-                          color: Colors.white,
+                          color: AppTheme.textPrimary,
                           fontSize: 36,
                           fontWeight: FontWeight.bold,
                           letterSpacing: 1,
@@ -122,7 +123,7 @@ class BalanceCard extends StatelessWidget {
                 Text(
                   '+12.5% from last month',
                   style: TextStyle(
-                    color: Colors.white.withOpacity(0.9),
+                    color: AppTheme.cardLight.withOpacity(0.9),
                     fontSize: 12,
                     fontWeight: FontWeight.w500,
                   ),
@@ -135,3 +136,4 @@ class BalanceCard extends StatelessWidget {
     );
   }
 }
+

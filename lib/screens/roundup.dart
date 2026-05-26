@@ -3,6 +3,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import '../constants/app_constants.dart';
+import '../constants/app_theme.dart';
 
 class RoundUpSettings extends StatefulWidget {
   const RoundUpSettings({super.key});
@@ -159,11 +160,11 @@ class _RoundUpSettingsState extends State<RoundUpSettings> {
     final double amountSaved = calculateAmountSaved(originalAmount, roundedUp);
 
     return Scaffold(
-      backgroundColor: Colors.grey[900],
       appBar: AppBar(
-        backgroundColor: Colors.grey[900],
+        backgroundColor: AppTheme.primaryColor,
         elevation: 0,
-        title: const Text('Round-Up Settings'),
+        title: const Text('Round-Up Settings', style: TextStyle(color: AppTheme.textLight)),
+        iconTheme: const IconThemeData(color: AppTheme.textLight),
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16.0),
@@ -172,160 +173,61 @@ class _RoundUpSettingsState extends State<RoundUpSettings> {
           children: [
             const Text(
               'Automatically save the change from your transactions by rounding up to the nearest shilling.',
-              style: TextStyle(color: Colors.white70, fontSize: 14),
+              style: TextStyle(color: AppTheme.textSecondary, fontSize: 14),
             ),
             const SizedBox(height: 20),
-            Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: Colors.grey[850],
-                borderRadius: BorderRadius.circular(10),
-              ),
+            _buildSection(
+              title: 'Transaction Types',
               child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text(
-                    'Transaction Types',
-                    style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
-                  ),
-                  const SizedBox(height: 10),
-                  _buildSwitchTile('Pay Bill Round-Up', payBillRoundUp, (value) {
-                    setState(() => payBillRoundUp = value);
-                  }),
-                  _buildSwitchTile('Buy Goods Round-Up', buyGoodsRoundUp, (value) {
-                    setState(() => buyGoodsRoundUp = value);
-                  }),
+                  _buildSwitchTile('Pay Bill Round-Up', payBillRoundUp, (value) => setState(() => payBillRoundUp = value)),
+                  _buildSwitchTile('Buy Goods Round-Up', buyGoodsRoundUp, (value) => setState(() => buyGoodsRoundUp = value)),
                 ],
               ),
             ),
             const SizedBox(height: 20),
-            Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: Colors.grey[850],
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text(
-                    'Rounding Rules',
-                    style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
-                  ),
-                  const SizedBox(height: 10),
-                  SingleChildScrollView(
-                    scrollDirection: Axis.horizontal,
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        _buildRoundingOption('KSh 5', roundingValue == 'KSh 5', () {
-                          setState(() => roundingValue = 'KSh 5');
-                        }),
-                        const SizedBox(width: 8),
-                        _buildRoundingOption('KSh 10', roundingValue == 'KSh 10', () {
-                          setState(() => roundingValue = 'KSh 10');
-                        }),
-                        const SizedBox(width: 8),
-                        _buildRoundingOption('KSh 100', roundingValue == 'KSh 100', () {
-                          setState(() => roundingValue = 'KSh 100');
-                        }),
-                        const SizedBox(width: 8),
-                        _buildRoundingOption('KSh 1000', roundingValue == 'KSh 1000', () {
-                          setState(() => roundingValue = 'KSh 1000');
-                        }),
-                      ],
-                    ),
-                  ),
-                ],
+            _buildSection(
+              title: 'Rounding Rules',
+              child: SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: Row(
+                  children: [
+                    _buildRoundingOption('KSh 5', roundingValue == 'KSh 5', () => setState(() => roundingValue = 'KSh 5')),
+                    const SizedBox(width: 8),
+                    _buildRoundingOption('KSh 10', roundingValue == 'KSh 10', () => setState(() => roundingValue = 'KSh 10')),
+                    const SizedBox(width: 8),
+                    _buildRoundingOption('KSh 100', roundingValue == 'KSh 100', () => setState(() => roundingValue = 'KSh 100')),
+                    const SizedBox(width: 8),
+                    _buildRoundingOption('KSh 1000', roundingValue == 'KSh 1000', () => setState(() => roundingValue = 'KSh 1000')),
+                  ],
+                ),
               ),
             ),
             const SizedBox(height: 20),
-            Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: Colors.grey[850],
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text(
-                    'Maximum round-up per transaction',
-                    style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
-                  ),
-                  const SizedBox(height: 10),
-                  TextField(
-                    controller: maxRoundUpController,
-                    decoration: InputDecoration(
-                      hintText: 'Enter amount',
-                      hintStyle: const TextStyle(color: Colors.white70),
-                      filled: true,
-                      fillColor: Colors.grey[800],
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(8),
-                        borderSide: BorderSide.none,
-                      ),
-                    ),
-                    style: const TextStyle(color: Colors.white),
-                    keyboardType: TextInputType.number,
-                    onChanged: (value) {
-                      setState(() {});
-                    },
-                  ),
-                ],
+            _buildSection(
+              title: 'Maximum round-up per transaction',
+              child: TextField(
+                controller: maxRoundUpController,
+                decoration: const InputDecoration(hintText: 'Enter amount'),
+                keyboardType: TextInputType.number,
+                onChanged: (_) => setState(() {}),
               ),
             ),
             const SizedBox(height: 20),
-            Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: Colors.grey[850],
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text(
-                    'Monthly round-up cap (optional)',
-                    style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
-                  ),
-                  const SizedBox(height: 10),
-                  TextField(
-                    controller: monthlyCapController,
-                    decoration: InputDecoration(
-                      hintText: 'Enter amount',
-                      hintStyle: const TextStyle(color: Colors.white70),
-                      filled: true,
-                      fillColor: Colors.grey[800],
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(8),
-                        borderSide: BorderSide.none,
-                      ),
-                    ),
-                    style: const TextStyle(color: Colors.white),
-                    keyboardType: TextInputType.number,
-                    onChanged: (value) {
-                      setState(() {});
-                    },
-                  ),
-                ],
+            _buildSection(
+              title: 'Monthly round-up cap (optional)',
+              child: TextField(
+                controller: monthlyCapController,
+                decoration: const InputDecoration(hintText: 'Enter amount'),
+                keyboardType: TextInputType.number,
+                onChanged: (_) => setState(() {}),
               ),
             ),
             const SizedBox(height: 20),
-            Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: Colors.grey[850],
-                borderRadius: BorderRadius.circular(10),
-              ),
+            _buildSection(
+              title: 'Preview Example',
               child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text(
-                    'Preview Example',
-                    style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
-                  ),
-                  const SizedBox(height: 10),
                   _buildPreviewItem('Original amount:', 'KSh ${originalAmount.toStringAsFixed(2)}'),
                   _buildPreviewItem('Rounded up to:', 'KSh ${roundedUp.toStringAsFixed(2)}'),
                   _buildPreviewItem('Amount saved:', 'KSh ${amountSaved.toStringAsFixed(2)}', isBold: true),
@@ -337,17 +239,12 @@ class _RoundUpSettingsState extends State<RoundUpSettings> {
               child: ElevatedButton(
                 onPressed: _saveRoundUpSettings,
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFFF5BB1B), // Changed from Colors.yellow
-                  foregroundColor: Colors.black,
+                  backgroundColor: AppColors.financeGreenV3,
+                  foregroundColor: AppTheme.textLight,
                   padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 15),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(8),
-                  ),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                 ),
-                child: const Text(
-                  'Save Settings',
-                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                ),
+                child: const Text('Save Settings', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
               ),
             ),
             const SizedBox(height: 20),
@@ -357,16 +254,36 @@ class _RoundUpSettingsState extends State<RoundUpSettings> {
     );
   }
 
+  Widget _buildSection({required String title, required Widget child}) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AppTheme.cardLight,
+        borderRadius: BorderRadius.circular(10),
+        boxShadow: [BoxShadow(color: AppColors.financeGreen.withValues(alpha: 0.06), blurRadius: 4, offset: const Offset(0, 2))],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(title, style: const TextStyle(color: AppTheme.textPrimary, fontSize: 16, fontWeight: FontWeight.bold)),
+          const SizedBox(height: 10),
+          child,
+        ],
+      ),
+    );
+  }
+
   Widget _buildSwitchTile(String title, bool value, ValueChanged<bool> onChanged) {
     return ListTile(
-      title: Text(title, style: const TextStyle(color: Colors.white)),
+      contentPadding: EdgeInsets.zero,
+      title: Text(title, style: const TextStyle(color: AppTheme.textPrimary)),
       trailing: Switch(
         value: value,
         onChanged: onChanged,
-        activeColor: const Color(0xFFF5BB1B), // Changed from Colors.yellow
-        activeTrackColor: const Color(0xFFF5BB1B).withOpacity(0.7), // Adjusted for contrast
-        inactiveThumbColor: Colors.grey,
-        inactiveTrackColor: Colors.grey[700],
+        activeColor: AppColors.financeGreenV3,
+        activeTrackColor: AppColors.financeGreenV2,
+        inactiveThumbColor: AppColors.coreWhiteW2,
+        inactiveTrackColor: AppColors.coreWhiteW2,
       ),
     );
   }
@@ -377,15 +294,16 @@ class _RoundUpSettingsState extends State<RoundUpSettings> {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
         decoration: BoxDecoration(
-          color: isSelected ? const Color(0xFFF5BB1B) : Colors.grey[900], // Changed from Colors.yellow
+          color: isSelected ? AppColors.financeGreenV3 : AppColors.coreWhiteW1,
           borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: Colors.grey, width: 1),
+          border: Border.all(color: isSelected ? AppColors.financeGreenV3 : AppColors.coreWhiteW2),
         ),
         child: Text(
           value,
           style: TextStyle(
-            color: isSelected ? Colors.black : Colors.white,
+            color: isSelected ? AppTheme.textLight : AppTheme.textPrimary,
             fontSize: 14,
+            fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
           ),
         ),
       ),
@@ -398,14 +316,11 @@ class _RoundUpSettingsState extends State<RoundUpSettings> {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Text(
-            label,
-            style: const TextStyle(color: Colors.white70, fontSize: 14),
-          ),
+          Text(label, style: const TextStyle(color: AppTheme.textSecondary, fontSize: 14)),
           Text(
             value,
             style: TextStyle(
-              color: isBold ? const Color(0xFFF5BB1B) : Colors.white, // Changed from Colors.yellow
+              color: isBold ? AppColors.financeGreenV3 : AppTheme.textPrimary,
               fontSize: 14,
               fontWeight: isBold ? FontWeight.bold : FontWeight.normal,
             ),

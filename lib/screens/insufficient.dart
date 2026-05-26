@@ -1,4 +1,5 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
+import '../constants/app_theme.dart';
 
 class InsufficientFunds extends StatelessWidget {
   const InsufficientFunds({super.key});
@@ -21,7 +22,7 @@ class InsufficientFunds extends StatelessWidget {
         ),
         actions: [
           IconButton(
-            icon: const Icon(Icons.close, color: Colors.white),
+            icon: const Icon(Icons.close, color: AppTheme.cardLight),
             onPressed: () => Navigator.pop(context),
           ),
         ],
@@ -35,13 +36,13 @@ class InsufficientFunds extends StatelessWidget {
             const CircleAvatar(
               backgroundColor: Colors.red,
               radius: 20,
-              child: Icon(Icons.error, color: Colors.white, size: 20),
+              child: Icon(Icons.error, color: AppTheme.textPrimary, size: 20),
             ),
             const SizedBox(height: 20),
             const Text(
               'Insufficient Funds',
               style: TextStyle(
-                color: Colors.white,
+                color: AppTheme.textPrimary,
                 fontSize: 24,
                 fontWeight: FontWeight.bold,
               ),
@@ -112,20 +113,20 @@ class InsufficientFunds extends StatelessWidget {
                   const Text(
                     'Quick Tips:',
                     style: TextStyle(
-                      color: Colors.white,
+                      color: AppTheme.textPrimary,
                       fontSize: 18,
                       fontWeight: FontWeight.bold,
                     ),
                   ),
                   const SizedBox(height: 10),
                   _buildTipItem(
-                    '• Link a backup payment method for seamless transactions',
+                    'â€¢ Link a backup payment method for seamless transactions',
                   ),
                   _buildTipItem(
-                    '• Enable auto top-up to prevent future insufficient funds',
+                    'â€¢ Enable auto top-up to prevent future insufficient funds',
                   ),
                   _buildTipItem(
-                    '• Split large payments into smaller transactions',
+                    'â€¢ Split large payments into smaller transactions',
                   ),
                 ],
               ),
@@ -141,7 +142,7 @@ class InsufficientFunds extends StatelessWidget {
                     // Add logic for contacting support
                   },
                   style: OutlinedButton.styleFrom(
-                    foregroundColor: Colors.white,
+                    foregroundColor: AppTheme.textPrimary,
                     side: const BorderSide(color: Colors.grey),
                     padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
                     shape: RoundedRectangleBorder(
@@ -151,7 +152,7 @@ class InsufficientFunds extends StatelessWidget {
                   child: const Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Icon(Icons.support_agent, color: Colors.white),
+                      Icon(Icons.support_agent, color: AppTheme.cardLight),
                       SizedBox(width: 8),
                       Text(
                         'Contact Support',
@@ -164,7 +165,7 @@ class InsufficientFunds extends StatelessWidget {
                   onPressed: () => Navigator.pop(context),
                   child: const Text(
                     'Close',
-                    style: TextStyle(color: Colors.white, fontSize: 16),
+                    style: TextStyle(color: AppTheme.textPrimary, fontSize: 16),
                   ),
                 ),
               ],
@@ -174,11 +175,11 @@ class InsufficientFunds extends StatelessWidget {
             // Processing Times
             const Text(
               'Top-up processing time: ~2 minutes',
-              style: TextStyle(color: Colors.white70, fontSize: 12),
+              style: TextStyle(color: AppTheme.textSecondary, fontSize: 12),
             ),
             const Text(
               'Support response time: ~10 minutes',
-              style: TextStyle(color: Colors.white70, fontSize: 12),
+              style: TextStyle(color: AppTheme.textSecondary, fontSize: 12),
             ),
           ],
         ),
@@ -194,12 +195,12 @@ class InsufficientFunds extends StatelessWidget {
         children: [
           Text(
             label,
-            style: TextStyle(color: Colors.white70, fontSize: 14),
+            style: TextStyle(color: AppTheme.textSecondary, fontSize: 14),
           ),
           Text(
             value,
             style: TextStyle(
-              color: textColor ?? Colors.white,
+              color: textColor ?? AppTheme.cardLight,
               fontSize: 16,
             ),
           ),
@@ -213,8 +214,9 @@ class InsufficientFunds extends StatelessWidget {
       padding: const EdgeInsets.symmetric(vertical: 4.0),
       child: Text(
         tip,
-        style: TextStyle(color: Colors.white, fontSize: 14),
+        style: TextStyle(color: AppTheme.textPrimary, fontSize: 14),
       ),
     );
   }
 }
+

@@ -1,4 +1,5 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
+import '../constants/app_theme.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import '../constants/app_constants.dart';
@@ -85,7 +86,7 @@ class _LeaderboardPageState extends State<LeaderboardPage> {
       case 3:
         return Colors.orange[700]!; // Bronze
       default:
-        return const Color(0xFFF5BB1B);
+        return AppColors.financeGreenV3;
     }
   }
 
@@ -96,7 +97,7 @@ class _LeaderboardPageState extends State<LeaderboardPage> {
       decoration: BoxDecoration(
         color: _getRankColor(rank),
         shape: BoxShape.circle,
-        border: Border.all(color: Colors.white, width: 2),
+        border: Border.all(color: AppTheme.textPrimary, width: 2),
       ),
       child: Center(
         child: Text(
@@ -114,30 +115,30 @@ class _LeaderboardPageState extends State<LeaderboardPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF1F2937),
+      backgroundColor: AppColors.coreDark,
       appBar: PreferredSize(
         preferredSize: const Size.fromHeight(70),
         child: Container(
-          color: const Color(0xFF374151),
+          color: AppTheme.cardLight,
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
           child: SafeArea(
             child: Row(
               children: [
                 IconButton(
-                  icon: const Icon(Icons.arrow_back, color: Colors.white),
+                  icon: const Icon(Icons.arrow_back, color: AppTheme.cardLight),
                   onPressed: () => Navigator.pop(context),
                 ),
                 const SizedBox(width: 12),
                 const Text(
                   'Leaderboard',
                   style: TextStyle(
-                    color: Colors.white,
+                    color: AppTheme.textPrimary,
                     fontSize: 20,
                     fontWeight: FontWeight.bold,
                   ),
                 ),
                 const Spacer(),
-                const Icon(Icons.leaderboard, color: Color(0xFFF5BB1B), size: 28),
+                const Icon(Icons.leaderboard, color: AppColors.financeGreenV3, size: 28),
               ],
             ),
           ),
@@ -145,14 +146,14 @@ class _LeaderboardPageState extends State<LeaderboardPage> {
       ),
       body: RefreshIndicator(
         onRefresh: _fetchLeaderboard,
-        color: const Color(0xFFF5BB1B),
+        color: AppColors.financeGreenV3,
         child: isLoading
-            ? const Center(child: CircularProgressIndicator(color: Color(0xFFF5BB1B)))
+            ? const Center(child: CircularProgressIndicator(color: AppColors.financeGreenV3))
             : errorMessage.isNotEmpty && leaderboard.isEmpty
                 ? Center(
                     child: Text(
                       errorMessage,
-                      style: const TextStyle(color: Colors.white70, fontSize: 16),
+                      style: const TextStyle(color: AppTheme.textSecondary, fontSize: 16),
                       textAlign: TextAlign.center,
                     ),
                   )
@@ -168,10 +169,10 @@ class _LeaderboardPageState extends State<LeaderboardPage> {
                         margin: const EdgeInsets.only(bottom: 12),
                         padding: const EdgeInsets.all(16),
                         decoration: BoxDecoration(
-                          color: isCurrentUser ? const Color(0xFF374151).withOpacity(0.8) : const Color(0xFF374151),
+                          color: isCurrentUser ? AppTheme.cardLight.withOpacity(0.8) : AppTheme.cardLight,
                           borderRadius: BorderRadius.circular(16),
                           border: isCurrentUser
-                              ? Border.all(color: const Color(0xFFF5BB1B), width: 2)
+                              ? Border.all(color: AppColors.financeGreenV3, width: 2)
                               : Border.all(color: Colors.transparent),
                         ),
                         child: Row(
@@ -180,14 +181,14 @@ class _LeaderboardPageState extends State<LeaderboardPage> {
                             const SizedBox(width: 16),
                             CircleAvatar(
                               radius: 24,
-                              backgroundColor: Colors.grey[700],
+                              backgroundColor: AppColors.coreWhiteW2,
                               backgroundImage: user['selfie_path']?.isNotEmpty == true
                                   ? CachedNetworkImageProvider(user['selfie_path'])
                                   : null,
                               child: user['selfie_path']?.isEmpty ?? true
                                   ? Text(
                                       user['full_name'][0].toUpperCase(),
-                                      style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                                      style: const TextStyle(color: AppTheme.textPrimary, fontWeight: FontWeight.bold),
                                     )
                                   : null,
                             ),
@@ -199,14 +200,14 @@ class _LeaderboardPageState extends State<LeaderboardPage> {
                                   Text(
                                     user['full_name'],
                                     style: TextStyle(
-                                      color: Colors.white,
+                                      color: AppTheme.textPrimary,
                                       fontSize: 16,
                                       fontWeight: isCurrentUser || isTop3 ? FontWeight.bold : FontWeight.normal,
                                     ),
                                   ),
                                   Text(
                                     'KSh ${user['total_savings'].toStringAsFixed(0).replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (m) => '${m[1]},')} saved',
-                                    style: const TextStyle(color: Colors.white70, fontSize: 13),
+                                    style: const TextStyle(color: AppTheme.textSecondary, fontSize: 13),
                                   ),
                                 ],
                               ),
@@ -217,7 +218,7 @@ class _LeaderboardPageState extends State<LeaderboardPage> {
                                 Text(
                                   '${user['points']} pts',
                                   style: TextStyle(
-                                    color: isTop3 ? _getRankColor(user['rank']) : const Color(0xFFF5BB1B),
+                                    color: isTop3 ? _getRankColor(user['rank']) : AppColors.financeGreenV3,
                                     fontSize: 18,
                                     fontWeight: FontWeight.bold,
                                   ),
@@ -225,7 +226,7 @@ class _LeaderboardPageState extends State<LeaderboardPage> {
                                 if (isCurrentUser)
                                   const Text(
                                     'You',
-                                    style: TextStyle(color: Color(0xFFF5BB1B), fontSize: 12),
+                                    style: TextStyle(color: AppColors.financeGreenV3, fontSize: 12),
                                   ),
                               ],
                             ),
@@ -238,3 +239,4 @@ class _LeaderboardPageState extends State<LeaderboardPage> {
     );
   }
 }
+

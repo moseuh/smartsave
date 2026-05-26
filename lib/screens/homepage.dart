@@ -64,16 +64,15 @@ class _HomePageState extends State<HomePage> {
 
   Widget _comingSoonPage(String title) {
     return Scaffold(
-      backgroundColor: const Color(0xFF0F172A),
-      appBar: AppBar(backgroundColor: const Color(0xFF1E293B), title: Text(title, style: const TextStyle(color: Colors.white))),
+      appBar: AppBar(backgroundColor: AppTheme.primaryColor, title: Text(title, style: const TextStyle(color: AppTheme.textLight))),
       body: const Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(Icons.construction, size: 80, color: Color(0xFFF59E0B)),
+            Icon(Icons.construction, size: 80, color: AppTheme.accentColor),
             SizedBox(height: 20),
-            Text('Coming Soon', style: TextStyle(color: Colors.white, fontSize: 28, fontWeight: FontWeight.bold)),
-            Text('This feature is under development', style: TextStyle(color: Colors.white70, fontSize: 16)),
+            Text('Coming Soon', style: TextStyle(color: AppTheme.textPrimary, fontSize: 28, fontWeight: FontWeight.bold)),
+            Text('This feature is under development', style: TextStyle(color: AppTheme.textSecondary, fontSize: 16)),
           ],
         ),
       ),
@@ -83,7 +82,6 @@ class _HomePageState extends State<HomePage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF0F172A),
       body: SingleChildScrollView(
         child: Column(
           children: [
@@ -114,7 +112,7 @@ class _HomePageState extends State<HomePage> {
                     const SizedBox(height: 16),
                     const Text('Join millions of users who save smarter\nwith automated tools and intelligent insights',
                         textAlign: TextAlign.center,
-                        style: TextStyle(color: Color(0xFFD1D5DB), fontSize: 16, height: 1.5)),
+                        style: TextStyle(color: AppTheme.textSecondary, fontSize: 16, height: 1.5)),
                     const SizedBox(height: 32),
                     Row(
                       mainAxisAlignment: MainAxisAlignment.center,
@@ -130,7 +128,7 @@ class _HomePageState extends State<HomePage> {
                             }
                           },
                           style: ElevatedButton.styleFrom(
-                            backgroundColor: const Color(0xFFF59E0B),
+                            backgroundColor: AppTheme.accentColor,
                             padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 15),
                             shape: const RoundedRectangleBorder(borderRadius: BorderRadius.zero),
                           ),
@@ -156,7 +154,7 @@ class _HomePageState extends State<HomePage> {
             // === KEY FEATURES: ROUND UPS, P2P LENDING, SMART INVESTMENTS ===
             Container(
               width: double.infinity,
-              color: const Color(0xFF1E293B),
+              color: AppTheme.primaryColor,
               padding: const EdgeInsets.symmetric(vertical: 40, horizontal: 20),
               child: Column(
                 children: [
@@ -207,7 +205,7 @@ class _HomePageState extends State<HomePage> {
   Widget buildQuickAccessSection() {
     return Container(
       width: double.infinity,
-      color: const Color(0xFF1E293B),
+      color: AppTheme.primaryColor,
       padding: const EdgeInsets.symmetric(vertical: 40, horizontal: 20),
       child: Column(
         children: [
@@ -302,14 +300,14 @@ class FeatureIcon extends StatelessWidget {
         child: Column(
           children: [
             CircleAvatar(
-              backgroundColor: const Color(0xFF4B5563),
+              backgroundColor: AppTheme.primaryColor,
               radius: 30,
-              child: Icon(icon, color: const Color(0xFFF59E0B), size: 30),
+              child: Icon(icon, color: AppTheme.accentColor, size: 30),
             ),
             const SizedBox(height: 16),
             Text(title, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16), textAlign: TextAlign.center),
             const SizedBox(height: 8),
-            Text(description, textAlign: TextAlign.center, style: const TextStyle(color: Color(0xFFD1D5DB), fontSize: 12), maxLines: 2, overflow: TextOverflow.ellipsis),
+            Text(description, textAlign: TextAlign.center, style: const TextStyle(color: AppTheme.textSecondary, fontSize: 12), maxLines: 2, overflow: TextOverflow.ellipsis),
           ],
         ),
       ),

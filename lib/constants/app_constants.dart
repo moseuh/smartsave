@@ -1,26 +1,14 @@
+import '../config/api_config.dart';
+
 /// Application-wide constants
 class AppConstants {
   AppConstants._();
 
-  // API Configuration
-  // Change this to your local XAMPP/WAMP server
-  static const String apiBaseUrl = String.fromEnvironment(
-    'API_BASE_URL',
-    defaultValue: 'http://apis.nebo.co.ke/apis',
-  );
-
-  // API Endpoints
-  static const String loginEndpoint = '/login';
-  static const String registerEndpoint = '/register';
-  static const String userProfileEndpoint = '/user/profile';
-  static const String transactionsEndpoint = '/transactions';
-  static const String goalsEndpoint = '/goals';
-  static const String loansEndpoint = '/loans';
-  static const String mpesaPaymentEndpoint = '/mpesa/payment';
-  static const String walletEndpoint = '/wallet';
+  // All API calls go through ApiConfig — change useLocalServer there to switch environments
+  static String get apiBaseUrl => ApiConfig.baseUrl;
 
   // App Configuration
-  static const String appName = 'SmartSave';
+  static const String appName = 'Nebo';
   static const String appVersion = '1.0.0';
 
   // Timeouts

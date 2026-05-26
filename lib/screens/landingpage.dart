@@ -1,4 +1,5 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
+import '../constants/app_theme.dart';
 import 'modern_login_screen.dart';
 import 'homepage.dart';
 
@@ -30,22 +31,22 @@ class _LandingPageState extends State<LandingPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF1F2937),
+      backgroundColor: AppColors.coreDark,
       body: Column(
         children: [
           // Top Navigation
           Container(
-            color: const Color(0xFF1F2937),
+            color: AppColors.coreDark,
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 IconButton(
-                  icon: const Icon(Icons.arrow_back, color: Colors.white),
+                  icon: const Icon(Icons.arrow_back, color: AppTheme.cardLight),
                   onPressed: () => Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const HomePage())),
                 ),
-                const Text("Haba na Haba", style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
-                const Icon(Icons.notifications, color: Colors.white),
+                const Text("Haba na Haba", style: TextStyle(color: AppTheme.textPrimary, fontSize: 18, fontWeight: FontWeight.bold)),
+                const Icon(Icons.notifications, color: AppTheme.cardLight),
               ],
             ),
           ),
@@ -66,13 +67,13 @@ class _LandingPageState extends State<LandingPage> {
                           width: 120,
                           height: 120,
                           errorBuilder: (context, error, stackTrace) =>
-                              const Icon(Icons.account_balance, size: 120, color: Color(0xFFF5BB1B)),
+                              const Icon(Icons.account_balance, size: 120, color: AppColors.financeGreenV3),
                         ),
                         const SizedBox(height: 16),
                         const Text(
-                          'SmartSave',
+                          'Nebo',
                           style: TextStyle(
-                            color: Color(0xFFF5BB1B),
+                            color: AppColors.financeGreenV3,
                             fontSize: 32,
                             fontWeight: FontWeight.bold,
                             letterSpacing: 1.2,
@@ -85,7 +86,7 @@ class _LandingPageState extends State<LandingPage> {
                             'Your intelligent financial companion. Save automatically, invest wisely, and build wealth effortlessly.',
                             textAlign: TextAlign.center,
                             style: TextStyle(
-                              color: Colors.white70,
+                              color: AppTheme.textSecondary,
                               fontSize: 16,
                               height: 1.4,
                             ),
@@ -104,7 +105,7 @@ class _LandingPageState extends State<LandingPage> {
                         left: 20,
                         child: Text(
                           'Your Money Works Harder\nThan You Do',
-                          style: TextStyle(color: Colors.white, fontSize: 28, fontWeight: FontWeight.bold),
+                          style: TextStyle(color: AppTheme.textPrimary, fontSize: 28, fontWeight: FontWeight.bold),
                         ),
                       ),
                     ],
@@ -114,7 +115,7 @@ class _LandingPageState extends State<LandingPage> {
                   // How It Works
                   const Padding(
                     padding: EdgeInsets.all(16.0),
-                    child: Text('How It Works', style: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold)),
+                    child: Text('How It Works', style: TextStyle(color: AppTheme.textPrimary, fontSize: 20, fontWeight: FontWeight.bold)),
                   ),
                   const Row(
                     mainAxisAlignment: MainAxisAlignment.spaceAround,
@@ -135,13 +136,13 @@ class _LandingPageState extends State<LandingPage> {
                       children: [
                         const Text(
                           'We Track Your Financial Health in Real-Time',
-                          style: TextStyle(color: Color(0xFFF5BB1B), fontSize: 26, fontWeight: FontWeight.bold),
+                          style: TextStyle(color: AppColors.financeGreenV3, fontSize: 26, fontWeight: FontWeight.bold),
                           textAlign: TextAlign.center,
                         ),
                         const SizedBox(height: 16),
                         const Text(
                           'Live Credit Score powered by over 1,800 data points',
-                          style: TextStyle(color: Colors.white, fontSize: 18),
+                          style: TextStyle(color: AppTheme.textPrimary, fontSize: 18),
                           textAlign: TextAlign.center,
                         ),
                         const SizedBox(height: 24),
@@ -150,8 +151,8 @@ class _LandingPageState extends State<LandingPage> {
                           runSpacing: 16,
                           alignment: WrapAlignment.center,
                           children: [
-                            _buildHighlightCard(icon: Icons.bar_chart, title: 'Live Credit Score', description: 'We analyse over 1,800 data points from your spending, savings, lending, and repayment behaviour — updated daily.'),
-                            _buildHighlightCard(icon: Icons.celebration, title: 'Enjoy Life, We Save For You', description: 'We foster a savings culture without sacrifice. Keep living your best life — we quietly build your wealth in the background.'),
+                            _buildHighlightCard(icon: Icons.bar_chart, title: 'Live Credit Score', description: 'We analyse over 1,800 data points from your spending, savings, lending, and repayment behaviour â€” updated daily.'),
+                            _buildHighlightCard(icon: Icons.celebration, title: 'Enjoy Life, We Save For You', description: 'We foster a savings culture without sacrifice. Keep living your best life â€” we quietly build your wealth in the background.'),
                           ],
                         ),
                       ],
@@ -159,7 +160,7 @@ class _LandingPageState extends State<LandingPage> {
                   ),
                   const SizedBox(height: 40),
 
-                  // The Big Vision — NO OVERFLOW ANYMORE
+                  // The Big Vision â€” NO OVERFLOW ANYMORE
                   Container(
                     width: double.infinity,
                     color: const Color(0xFF111827),
@@ -168,7 +169,7 @@ class _LandingPageState extends State<LandingPage> {
                       children: [
                         const Text(
                           'One App. Infinite Opportunities.',
-                          style: TextStyle(color: Color(0xFFF5BB1B), fontSize: 28, fontWeight: FontWeight.bold),
+                          style: TextStyle(color: AppColors.financeGreenV3, fontSize: 28, fontWeight: FontWeight.bold),
                           textAlign: TextAlign.center,
                         ),
                         const SizedBox(height: 32),
@@ -179,16 +180,16 @@ class _LandingPageState extends State<LandingPage> {
                           runSpacing: 20,
                           alignment: WrapAlignment.center,
                           children: [
-                            _buildVisionCard(icon: Icons.public, title: 'Own Land Across the World', description: 'Fractional ownership in prime property — starting from KES 500.'),
+                            _buildVisionCard(icon: Icons.public, title: 'Own Land Across the World', description: 'Fractional ownership in prime property â€” starting from KES 500.'),
                             _buildVisionCard(icon: Icons.business, title: 'Invest in SMEs', description: 'Back real Kenyan businesses and earn up to 30% returns.'),
-                            _buildVisionCard(icon: Icons.handshake, title: 'Lend Without Losing Friends', description: 'Borrow from or lend to anyone. Smart contracts auto-collect — no awkward chats.'),
+                            _buildVisionCard(icon: Icons.handshake, title: 'Lend Without Losing Friends', description: 'Borrow from or lend to anyone. Smart contracts auto-collect â€” no awkward chats.'),
                             _buildVisionCard(icon: Icons.shopping_bag, title: 'Buy Now, Pay Later', description: 'Shop at thousands of stores and pay in easy installments.'),
                             _buildVisionCard(icon: Icons.flag, title: 'Save for Your Goals', description: 'Wedding? Plot? Business? Lock your money and watch it grow.'),
                             _buildVisionCard(icon: Icons.card_giftcard, title: 'Earn Rewards Everywhere', description: 'Cashback and discounts from our partner stores every time you spend.'),
-                            _buildVisionCard(icon: Icons.work_outline, title: 'Top Up with Micro-Gigs', description: 'Earn extra cash with quick tasks — surveys, referrals, deliveries.'),
-                            _buildVisionCard(icon: Icons.favorite, title: 'In Case of Death', description: 'Your investments automatically go to your chosen dependents — peace of mind guaranteed.'),
-                            _buildVisionCard(icon: Icons.groups, title: 'Join Welfare Groups', description: 'Chamas, table banking, merry-go-rounds — all digital and transparent.'),
-                            _buildVisionCard(icon: Icons.event, title: 'Events & Community', description: 'Financial literacy workshops, investment meetups, networking events — grow together.'),
+                            _buildVisionCard(icon: Icons.work_outline, title: 'Top Up with Micro-Gigs', description: 'Earn extra cash with quick tasks â€” surveys, referrals, deliveries.'),
+                            _buildVisionCard(icon: Icons.favorite, title: 'In Case of Death', description: 'Your investments automatically go to your chosen dependents â€” peace of mind guaranteed.'),
+                            _buildVisionCard(icon: Icons.groups, title: 'Join Welfare Groups', description: 'Chamas, table banking, merry-go-rounds â€” all digital and transparent.'),
+                            _buildVisionCard(icon: Icons.event, title: 'Events & Community', description: 'Financial literacy workshops, investment meetups, networking events â€” grow together.'),
                           ],
                         ),
                       ],
@@ -203,7 +204,7 @@ class _LandingPageState extends State<LandingPage> {
                     child: ElevatedButton(
                       onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const ModernLoginScreen())),
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFFF5BB1B),
+                        backgroundColor: AppColors.financeGreenV3,
                         padding: const EdgeInsets.symmetric(vertical: 20),
                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
                         minimumSize: const Size(double.infinity, 60),
@@ -216,7 +217,7 @@ class _LandingPageState extends State<LandingPage> {
                     child: Center(
                       child: Text(
                         'Over 500,000 Kenyans already growing their money the smart way',
-                        style: TextStyle(color: Colors.white70, fontSize: 15),
+                        style: TextStyle(color: AppTheme.textSecondary, fontSize: 15),
                       ),
                     ),
                   ),
@@ -229,39 +230,39 @@ class _LandingPageState extends State<LandingPage> {
     );
   }
 
-  // Highlight Card — responsive
+  // Highlight Card â€” responsive
   Widget _buildHighlightCard({required IconData icon, required String title, required String description}) {
     return Container(
       width: (MediaQuery.of(context).size.width - 72) / 2, // 2 cards with spacing
       padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(color: const Color(0xFF374151), borderRadius: BorderRadius.circular(20)),
+      decoration: BoxDecoration(color: AppTheme.cardLight, borderRadius: BorderRadius.circular(20)),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Container(padding: const EdgeInsets.all(14), decoration: const BoxDecoration(shape: BoxShape.circle, color: Color(0xFFF5BB1B)), child: Icon(icon, color: Colors.black, size: 32)),
+          Container(padding: const EdgeInsets.all(14), decoration: const BoxDecoration(shape: BoxShape.circle, color: AppColors.financeGreenV3), child: Icon(icon, color: Colors.black, size: 32)),
           const SizedBox(height: 14),
-          Text(title, style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold), textAlign: TextAlign.center),
+          Text(title, style: const TextStyle(color: AppTheme.textPrimary, fontSize: 16, fontWeight: FontWeight.bold), textAlign: TextAlign.center),
           const SizedBox(height: 10),
-          Text(description, style: const TextStyle(color: Colors.white70, fontSize: 13), textAlign: TextAlign.center),
+          Text(description, style: const TextStyle(color: AppTheme.textSecondary, fontSize: 13), textAlign: TextAlign.center),
         ],
       ),
     );
   }
 
-  // Vision Card — responsive, no overflow
+  // Vision Card â€” responsive, no overflow
   Widget _buildVisionCard({required IconData icon, required String title, required String description}) {
     return Container(
       width: (MediaQuery.of(context).size.width - 72) / 2,
       padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(color: const Color(0xFF374151), borderRadius: BorderRadius.circular(20)),
+      decoration: BoxDecoration(color: AppTheme.cardLight, borderRadius: BorderRadius.circular(20)),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Container(padding: const EdgeInsets.all(12), decoration: const BoxDecoration(shape: BoxShape.circle, color: Color(0xFFF5BB1B)), child: Icon(icon, color: Colors.black, size: 28)),
+          Container(padding: const EdgeInsets.all(12), decoration: const BoxDecoration(shape: BoxShape.circle, color: AppColors.financeGreenV3), child: Icon(icon, color: Colors.black, size: 28)),
           const SizedBox(height: 12),
-          Text(title, style: const TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.bold), textAlign: TextAlign.center),
+          Text(title, style: const TextStyle(color: AppTheme.textPrimary, fontSize: 15, fontWeight: FontWeight.bold), textAlign: TextAlign.center),
           const SizedBox(height: 8),
-          Text(description, style: const TextStyle(color: Colors.white70, fontSize: 12.5), textAlign: TextAlign.center),
+          Text(description, style: const TextStyle(color: AppTheme.textSecondary, fontSize: 12.5), textAlign: TextAlign.center),
         ],
       ),
     );
@@ -277,7 +278,7 @@ class FeatureCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Card(
-      color: const Color(0xFF374151),
+      color: AppTheme.cardLight,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
       child: SizedBox(
         width: 100,
@@ -287,7 +288,7 @@ class FeatureCard extends StatelessWidget {
           children: [
             Icon(icon, color: Colors.amber, size: 30),
             const SizedBox(height: 8),
-            Text(text, textAlign: TextAlign.center, style: const TextStyle(color: Colors.white, fontSize: 12)),
+            Text(text, textAlign: TextAlign.center, style: const TextStyle(color: AppTheme.textPrimary, fontSize: 12)),
           ],
         ),
       ),

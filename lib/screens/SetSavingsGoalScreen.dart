@@ -1,4 +1,5 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
+import '../constants/app_theme.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import '../constants/app_constants.dart';
@@ -232,22 +233,22 @@ class _GoalCreationScreenState extends State<GoalCreationScreen> {
     final result = await showDialog<Map<String, dynamic>?>(
       context: context,
       builder: (_) => AlertDialog(
-        backgroundColor: const Color(0xFF374151),
+        backgroundColor: AppTheme.cardLight,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: const Text('Contribute to Challenge', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+        title: const Text('Contribute to Challenge', style: TextStyle(color: AppTheme.textPrimary, fontWeight: FontWeight.bold)),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Text('How much do you want to contribute?', style: TextStyle(color: Colors.white70)),
+            const Text('How much do you want to contribute?', style: TextStyle(color: AppTheme.textSecondary)),
             const SizedBox(height: 16),
             TextField(
               controller: controller,
               keyboardType: TextInputType.number,
-              style: const TextStyle(color: Colors.white),
+              style: const TextStyle(color: AppTheme.cardLight),
               decoration: InputDecoration(
                 hintText: 'e.g., 500',
                 filled: true,
-                fillColor: const Color(0xFF1F2937),
+                fillColor: AppColors.coreDark,
                 border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide.none),
               ),
             ),
@@ -256,7 +257,7 @@ class _GoalCreationScreenState extends State<GoalCreationScreen> {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel', style: TextStyle(color: Colors.white70)),
+            child: const Text('Cancel', style: TextStyle(color: AppTheme.textSecondary)),
           ),
           ElevatedButton(
             onPressed: () {
@@ -269,7 +270,7 @@ class _GoalCreationScreenState extends State<GoalCreationScreen> {
                 ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Enter a valid amount')));
               }
             },
-            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFF5BB1B)),
+            style: ElevatedButton.styleFrom(backgroundColor: AppColors.financeGreenV3),
             child: const Text('Pay Now', style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold)),
           ),
         ],
@@ -331,36 +332,36 @@ class _GoalCreationScreenState extends State<GoalCreationScreen> {
     showDialog(
       context: context,
       builder: (_) => AlertDialog(
-        backgroundColor: const Color(0xFF374151),
+        backgroundColor: AppTheme.cardLight,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: Text(challenge['title'], style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+        title: Text(challenge['title'], style: const TextStyle(color: AppTheme.textPrimary, fontWeight: FontWeight.bold)),
         content: SingleChildScrollView(
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
               if (challengeId == '52_week') ...[
-                Text('Current Week: ${currentWeek + 1} / 52', style: const TextStyle(color: Colors.white, fontSize: 18)),
+                Text('Current Week: ${currentWeek + 1} / 52', style: const TextStyle(color: AppTheme.textPrimary, fontSize: 18)),
                 const SizedBox(height: 12),
                 Text('Amount due this week: KSh ${expectedThisWeek.toStringAsFixed(0)}',
-                    style: const TextStyle(color: Color(0xFFF5BB1B), fontSize: 16, fontWeight: FontWeight.bold)),
+                    style: const TextStyle(color: AppColors.financeGreenV3, fontSize: 16, fontWeight: FontWeight.bold)),
                 const SizedBox(height: 16),
                 LinearProgressIndicator(
                   value: currentWeek / 52,
-                  backgroundColor: Colors.grey[700],
-                  valueColor: const AlwaysStoppedAnimation<Color>(Color(0xFFF5BB1B)),
+                  backgroundColor: AppColors.coreWhiteW2,
+                  valueColor: const AlwaysStoppedAnimation<Color>(AppColors.financeGreenV3),
                   minHeight: 10,
                 ),
                 const SizedBox(height: 8),
-                Text('$currentWeek weeks completed', style: const TextStyle(color: Colors.white70)),
+                Text('$currentWeek weeks completed', style: const TextStyle(color: AppTheme.textSecondary)),
                 const SizedBox(height: 20),
                 Text('Total saved: KSh ${totalSaved.toStringAsFixed(0)}',
                     style: const TextStyle(color: Colors.green, fontSize: 18)),
-                Text('Goal: KSh ${totalExpected.toStringAsFixed(0)}', style: const TextStyle(color: Colors.white70)),
+                Text('Goal: KSh ${totalExpected.toStringAsFixed(0)}', style: const TextStyle(color: AppTheme.textSecondary)),
               ] else ...[
                 Text('Total saved so far: KSh ${totalSaved.toStringAsFixed(0)}',
                     style: const TextStyle(color: Colors.green, fontSize: 20)),
                 const SizedBox(height: 20),
-                const Text('Keep up the great work!', style: TextStyle(color: Colors.white70)),
+                const Text('Keep up the great work!', style: TextStyle(color: AppTheme.textSecondary)),
               ],
               const SizedBox(height: 30),
               ElevatedButton.icon(
@@ -369,7 +370,7 @@ class _GoalCreationScreenState extends State<GoalCreationScreen> {
                 label: const Text('Contribute Now via M-PESA',
                     style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold)),
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFFF5BB1B),
+                  backgroundColor: AppColors.financeGreenV3,
                   padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                 ),
@@ -380,7 +381,7 @@ class _GoalCreationScreenState extends State<GoalCreationScreen> {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text('Close', style: TextStyle(color: Colors.white70)),
+            child: const Text('Close', style: TextStyle(color: AppTheme.textSecondary)),
           ),
         ],
       ),
@@ -511,9 +512,9 @@ class _GoalCreationScreenState extends State<GoalCreationScreen> {
     final result = await showDialog<String>(
       context: context,
       builder: (context) => AlertDialog(
-        backgroundColor: const Color(0xFF374151),
+        backgroundColor: AppTheme.cardLight,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: Text(title, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+        title: Text(title, style: const TextStyle(color: AppTheme.textPrimary, fontWeight: FontWeight.bold)),
         content: SizedBox(
           width: double.maxFinite,
           height: 300,
@@ -522,17 +523,17 @@ class _GoalCreationScreenState extends State<GoalCreationScreen> {
             itemBuilder: (context, index) {
               if (index == items.length) {
                 return Card(
-                  color: const Color(0xFF1F2937),
+                  color: AppColors.coreDark,
                   child: ListTile(
-                    leading: const Icon(Icons.add, color: Color(0xFFF5BB1B)),
-                    title: const Text('Create New', style: TextStyle(color: Colors.white)),
+                    leading: const Icon(Icons.add, color: AppColors.financeGreenV3),
+                    title: const Text('Create New', style: TextStyle(color: AppTheme.cardLight)),
                     onTap: () => Navigator.pop(context, 'Create New'),
                   ),
                 );
               }
               final item = items[index];
               return Card(
-                color: const Color(0xFF1F2937),
+                color: AppColors.coreDark,
                 child: ListTile(
                   leading: goalType == 'Pay for Event'
                       ? ClipRRect(
@@ -542,16 +543,16 @@ class _GoalCreationScreenState extends State<GoalCreationScreen> {
                             width: 40,
                             height: 40,
                             fit: BoxFit.cover,
-                            errorBuilder: (_, __, ___) => const Icon(Icons.event, color: Color(0xFFF5BB1B)),
+                            errorBuilder: (_, __, ___) => const Icon(Icons.event, color: AppColors.financeGreenV3),
                           ),
                         )
-                      : Icon(item['icon'], color: const Color(0xFFF5BB1B)),
-                  title: Text(item['name'], style: const TextStyle(color: Colors.white)),
+                      : Icon(item['icon'], color: AppColors.financeGreenV3),
+                  title: Text(item['name'], style: const TextStyle(color: AppTheme.cardLight)),
                   subtitle: Text(
                     goalType == 'Pay for Event'
-                        ? '${item['date']} • ${item['time']} • KSh ${item['cost']}'
+                        ? '${item['date']} â€¢ ${item['time']} â€¢ KSh ${item['cost']}'
                         : item['description'] ?? item['expected_return'],
-                    style: const TextStyle(color: Colors.white70, fontSize: 12),
+                    style: const TextStyle(color: AppTheme.textSecondary, fontSize: 12),
                   ),
                   onTap: () {
                     if (goalType == 'Pay for Event') {
@@ -569,7 +570,7 @@ class _GoalCreationScreenState extends State<GoalCreationScreen> {
           ),
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel', style: TextStyle(color: Color(0xFFF5BB1B)))),
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel', style: TextStyle(color: AppColors.financeGreenV3))),
         ],
       ),
     );
@@ -623,209 +624,46 @@ class _GoalCreationScreenState extends State<GoalCreationScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final requiredDailySavings = goalAmount != null && durationDays != null ? goalAmount! / durationDays! : 0.0;
-    final requiredWeeklySavings = requiredDailySavings * 7;
-    final requiredMonthlySavings = requiredDailySavings * 30;
-    final progress = goalAmount != null && goalAmount! > 0 ? (currentSavings / goalAmount!).clamp(0.0, 1.0) : 0.0;
 
-    return Material(
-      color: const Color(0xFF1F2937),
-      child: Theme(
-        data: Theme.of(context).copyWith(
-          dropdownMenuTheme: DropdownMenuThemeData(
-            textStyle: const TextStyle(color: Colors.white),
-            menuStyle: MenuStyle(
-              backgroundColor: WidgetStatePropertyAll(const Color(0xFF374151)),
-              elevation: WidgetStatePropertyAll(4),
-              shape: WidgetStatePropertyAll(RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
-            ),
-          ),
-        ),
-        child: Scaffold(
-          backgroundColor: Colors.transparent,
+    return Scaffold(
+          backgroundColor: AppTheme.backgroundLight,
           appBar: AppBar(
-            backgroundColor: const Color(0xFF374151),
-            elevation: 4,
-            title: const Text('Create a Savings Goal', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+            backgroundColor: AppTheme.primaryColor,
+            elevation: 0,
+            title: const Text('Savings Goals', style: TextStyle(color: AppTheme.textLight, fontWeight: FontWeight.bold)),
             leading: IconButton(
-              icon: const Icon(Icons.arrow_back, color: Colors.white),
-              onPressed: () {
-                Navigator.pop(context);
-              },
+              icon: const Icon(Icons.arrow_back, color: AppTheme.textLight),
+              onPressed: () => Navigator.pop(context),
             ),
+            actions: [
+              IconButton(
+                icon: const Icon(Icons.add, color: AppTheme.textLight),
+                tooltip: 'Create Goal',
+                onPressed: () => _showCreateGoalSheet(context),
+              ),
+            ],
+          ),
+          floatingActionButton: FloatingActionButton.extended(
+            onPressed: () => _showCreateGoalSheet(context),
+            backgroundColor: AppColors.financeGreenV3,
+            foregroundColor: AppTheme.textLight,
+            icon: const Icon(Icons.add),
+            label: const Text('New Goal', style: TextStyle(fontWeight: FontWeight.bold)),
           ),
           body: isLoading
-              ? const Center(child: CircularProgressIndicator(color: Color(0xFFF5BB1B)))
+              ? const Center(child: CircularProgressIndicator(color: AppColors.financeGreenV3))
               : SingleChildScrollView(
                   child: Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 20.0),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        // Goal Creation Form
-                        Card(
-                          color: const Color(0xFF374151),
-                          elevation: 4,
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                          child: Padding(
-                            padding: const EdgeInsets.all(16.0),
-                            child: Form(
-                              key: _formKey,
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  const Text('Goal Type', style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w500)),
-                                  const SizedBox(height: 8),
-                                  DropdownButtonFormField<String>(
-                                    decoration: InputDecoration(
-                                      filled: true,
-                                      fillColor: const Color(0xFF1F2937),
-                                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide.none),
-                                    ),
-                                    value: selectedGoalType,
-                                    hint: const Text('Select Goal Type', style: TextStyle(color: Colors.white70)),
-                                    dropdownColor: const Color(0xFF374151),
-                                    iconEnabledColor: const Color(0xFFF5BB1B),
-                                    style: const TextStyle(color: Color(0xFFF5BB1B), fontSize: 16),
-                                    items: goalTypes.map((type) {
-                                      return DropdownMenuItem(value: type, child: Text(type, style: const TextStyle(color: Colors.white)));
-                                    }).toList(),
-                                    onChanged: (value) {
-                                      setState(() {
-                                        selectedGoalType = value;
-                                        selectedOption = null;
-                                        goalName = null;
-                                        goalAmount = null;
-                                        durationDays = null;
-                                      });
-                                      if (value == 'Pay Loan' || value == 'Pay for Event' || value == 'Save to Invest') {
-                                        showCatalogueDialog(value!);
-                                      }
-                                    },
-                                    validator: (value) => value == null ? 'Please select a goal type' : null,
-                                  ),
-                                  if (selectedGoalType == 'Pay Loan' || selectedGoalType == 'Pay for Event' || selectedGoalType == 'Save to Invest') ...[
-                                    const SizedBox(height: 16),
-                                    const Text('Selected Option', style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w500)),
-                                    const SizedBox(height: 8),
-                                    Text(selectedOption ?? 'None selected', style: const TextStyle(color: Colors.white70, fontSize: 14)),
-                                  ],
-                                  const SizedBox(height: 16),
-                                  const Text('Goal Name', style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w500)),
-                                  const SizedBox(height: 8),
-                                  TextFormField(
-                                    decoration: InputDecoration(
-                                      filled: true,
-                                      fillColor: const Color(0xFF1F2937),
-                                      hintText: 'e.g., Vacation Fund',
-                                      hintStyle: const TextStyle(color: Colors.white70),
-                                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide.none),
-                                    ),
-                                    style: const TextStyle(color: Colors.white),
-                                    initialValue: goalName,
-                                    validator: (value) => value == null || value.isEmpty ? 'Please enter a goal name' : null,
-                                    onSaved: (value) => goalName = value,
-                                  ),
-                                  const SizedBox(height: 16),
-                                  const Text('Goal Amount (KSh)', style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w500)),
-                                  const SizedBox(height: 8),
-                                  TextFormField(
-                                    decoration: InputDecoration(
-                                      filled: true,
-                                      fillColor: const Color(0xFF1F2937),
-                                      hintText: 'e.g., 10000',
-                                      hintStyle: const TextStyle(color: Colors.white70),
-                                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide.none),
-                                    ),
-                                    style: const TextStyle(color: Colors.white),
-                                    keyboardType: TextInputType.number,
-                                    initialValue: goalAmount?.toString(),
-                                    validator: (value) {
-                                      if (value == null || value.isEmpty) return 'Please enter amount';
-                                      final num = double.tryParse(value);
-                                      if (num == null || num <= 0) return 'Invalid amount';
-                                      return null;
-                                    },
-                                    onSaved: (value) => goalAmount = double.parse(value!),
-                                  ),
-                                  const SizedBox(height: 16),
-                                  const Text('Duration (Days)', style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w500)),
-                                  const SizedBox(height: 8),
-                                  TextFormField(
-                                    decoration: InputDecoration(
-                                      filled: true,
-                                      fillColor: const Color(0xFF1F2937),
-                                      hintText: 'e.g., 30',
-                                      hintStyle: const TextStyle(color: Colors.white70),
-                                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide.none),
-                                    ),
-                                    style: const TextStyle(color: Colors.white),
-                                    keyboardType: TextInputType.number,
-                                    initialValue: durationDays?.toString(),
-                                    validator: (value) {
-                                      if (value == null || value.isEmpty) return 'Please enter duration';
-                                      final num = int.tryParse(value);
-                                      if (num == null || num <= 0) return 'Invalid number of days';
-                                      return null;
-                                    },
-                                    onSaved: (value) => durationDays = int.parse(value!),
-                                    onChanged: (value) {
-                                      if (int.tryParse(value) != null && mounted) {
-                                        setState(() => durationDays = int.parse(value));
-                                      }
-                                    },
-                                  ),
-                                  if (goalAmount != null && durationDays != null) ...[
-                                    const SizedBox(height: 16),
-                                    Card(
-                                      color: const Color(0xFF374151),
-                                      child: Padding(
-                                        padding: const EdgeInsets.all(16.0),
-                                        child: Column(
-                                          crossAxisAlignment: CrossAxisAlignment.start,
-                                          children: [
-                                            const Text('Savings Plan', style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
-                                            const SizedBox(height: 8),
-                                            Text('Daily: KSh ${requiredDailySavings.toStringAsFixed(2)}', style: const TextStyle(color: Colors.white70)),
-                                            Text('Weekly: KSh ${requiredWeeklySavings.toStringAsFixed(2)}', style: const TextStyle(color: Colors.white70)),
-                                            Text('Monthly: KSh ${requiredMonthlySavings.toStringAsFixed(2)}', style: const TextStyle(color: Colors.white70)),
-                                            const SizedBox(height: 16),
-                                            const Text('Progress', style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
-                                            LinearProgressIndicator(value: progress, backgroundColor: Colors.grey[700], valueColor: const AlwaysStoppedAnimation(Color(0xFFF5BB1B))),
-                                            const SizedBox(height: 8),
-                                            Text('${(progress * 100).toStringAsFixed(1)}% complete', style: const TextStyle(color: Colors.white70)),
-                                          ],
-                                        ),
-                                      ),
-                                    ),
-                                  ],
-                                  const SizedBox(height: 24),
-                                  SizedBox(
-                                    width: double.infinity,
-                                    child: ElevatedButton(
-                                      onPressed: isLoading ? null : createGoal,
-                                      style: ElevatedButton.styleFrom(
-                                        backgroundColor: const Color(0xFFF5BB1B),
-                                        padding: const EdgeInsets.symmetric(vertical: 16),
-                                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                                      ),
-                                      child: isLoading
-                                          ? const CircularProgressIndicator(color: Colors.black)
-                                          : const Text('Create Goal', style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold)),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ),
-                        ),
-
                         // Badges
                         const SizedBox(height: 32),
-                        const Text('Your Badges', style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
+                        const Text('Your Badges', style: TextStyle(color: AppTheme.textPrimary, fontSize: 18, fontWeight: FontWeight.bold)),
                         const SizedBox(height: 16),
                         badges.isEmpty
-                            ? const Text('No badges earned yet', style: TextStyle(color: Colors.white70))
+                            ? const Text('No badges earned yet', style: TextStyle(color: AppTheme.textSecondary))
                             : SizedBox(
                                 height: 70,
                                 child: ListView(
@@ -835,7 +673,7 @@ class _GoalCreationScreenState extends State<GoalCreationScreen> {
                                       padding: const EdgeInsets.only(right: 12),
                                       child: Chip(
                                         label: Text(badge, style: const TextStyle(color: Colors.black, fontWeight: FontWeight.bold)),
-                                        backgroundColor: const Color(0xFFF5BB1B),
+                                        backgroundColor: AppColors.financeGreenV3,
                                         avatar: Icon(
                                           badge == 'Goal Starter' ? Icons.star : badge == 'Consistent Saver' ? Icons.savings : Icons.trending_up,
                                           color: Colors.black,
@@ -848,12 +686,12 @@ class _GoalCreationScreenState extends State<GoalCreationScreen> {
 
                         // Leaderboard
                         const SizedBox(height: 32),
-                        const Text('Weekly Top 10 Savers', style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
+                        const Text('Weekly Top 10 Savers', style: TextStyle(color: AppTheme.textPrimary, fontSize: 18, fontWeight: FontWeight.bold)),
                         const SizedBox(height: 16),
                         leaderboard.isEmpty
-                            ? const Text('No leaderboard data', style: TextStyle(color: Colors.white70))
+                            ? const Text('No leaderboard data', style: TextStyle(color: AppTheme.textSecondary))
                             : Card(
-                                color: const Color(0xFF374151),
+                                color: AppTheme.cardLight,
                                 child: Padding(
                                   padding: const EdgeInsets.all(16),
                                   child: Column(
@@ -869,10 +707,10 @@ class _GoalCreationScreenState extends State<GoalCreationScreen> {
                                               children: [
                                                 CircleAvatar(radius: 16, child: Text('${index + 1}', style: const TextStyle(fontSize: 12))),
                                                 const SizedBox(width: 10),
-                                                Text(saver['user_name'], style: const TextStyle(color: Colors.white)),
+                                                Text(saver['user_name'], style: const TextStyle(color: AppTheme.cardLight)),
                                               ],
                                             ),
-                                            Text('KSh ${saver['total_savings'].toStringAsFixed(0)}', style: const TextStyle(color: Color(0xFFF5BB1B), fontWeight: FontWeight.bold)),
+                                            Text('KSh ${saver['total_savings'].toStringAsFixed(0)}', style: const TextStyle(color: AppColors.financeGreenV3, fontWeight: FontWeight.bold)),
                                           ],
                                         ),
                                       );
@@ -883,10 +721,10 @@ class _GoalCreationScreenState extends State<GoalCreationScreen> {
 
                         // Active Challenges
                         const SizedBox(height: 40),
-                        const Text('Active Challenges', style: TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold)),
+                        const Text('Active Challenges', style: TextStyle(color: AppTheme.textPrimary, fontSize: 22, fontWeight: FontWeight.bold)),
                         const SizedBox(height: 16),
                         activeChallenges.isEmpty
-                            ? const Text('No active challenges. Join one below!', style: TextStyle(color: Colors.white70))
+                            ? const Text('No active challenges. Join one below!', style: TextStyle(color: AppTheme.textSecondary))
                             : Column(
                                 children: activeChallenges.keys.map((id) {
                                   final challenge = challenges.firstWhere((c) => c['id'] == id);
@@ -894,18 +732,18 @@ class _GoalCreationScreenState extends State<GoalCreationScreen> {
                                   final week = data['current_week'] ?? 0;
                                   final saved = data['total_saved']?.toDouble() ?? 0.0;
                                   return Card(
-                                    color: const Color(0xFF374151),
+                                    color: AppTheme.cardLight,
                                     margin: const EdgeInsets.only(bottom: 12),
                                     child: ListTile(
-                                      leading: CircleAvatar(backgroundColor: challenge['color'], child: Icon(challenge['icon'], color: Colors.white)),
-                                      title: Text(challenge['title'], style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                                      leading: CircleAvatar(backgroundColor: challenge['color'], child: Icon(challenge['icon'], color: AppTheme.cardLight)),
+                                      title: Text(challenge['title'], style: const TextStyle(color: AppTheme.textPrimary, fontWeight: FontWeight.bold)),
                                       subtitle: Text(
                                         id == '52_week'
-                                            ? 'Week $week • KSh ${saved.toStringAsFixed(0)} saved'
+                                            ? 'Week $week â€¢ KSh ${saved.toStringAsFixed(0)} saved'
                                             : 'KSh ${saved.toStringAsFixed(0)} saved',
-                                        style: const TextStyle(color: Colors.white70),
+                                        style: const TextStyle(color: AppTheme.textSecondary),
                                       ),
-                                      trailing: const Icon(Icons.arrow_forward_ios, color: Colors.white54),
+                                      trailing: const Icon(Icons.arrow_forward_ios, color: AppTheme.textSecondary),
                                       onTap: () => _showChallengeProgress(id),
                                     ),
                                   );
@@ -914,29 +752,29 @@ class _GoalCreationScreenState extends State<GoalCreationScreen> {
 
                         // Join New Challenge Section
                         const SizedBox(height: 30),
-                        const Text('Join a New Challenge', style: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold)),
+                        const Text('Join a New Challenge', style: TextStyle(color: AppTheme.textPrimary, fontSize: 20, fontWeight: FontWeight.bold)),
                         const SizedBox(height: 16),
 
                         // Reminder Frequency
                         Card(
-                          color: const Color(0xFF374151),
+                          color: AppTheme.cardLight,
                           child: Padding(
                             padding: const EdgeInsets.all(16),
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                const Text('Reminder Frequency', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                                const Text('Reminder Frequency', style: TextStyle(color: AppTheme.textPrimary, fontWeight: FontWeight.bold)),
                                 const SizedBox(height: 8),
                                 DropdownButtonFormField<String>(
                                   value: selectedReminderFrequency,
-                                  hint: const Text('Choose reminder', style: TextStyle(color: Colors.white70)),
-                                  dropdownColor: const Color(0xFF374151),
-                                  style: const TextStyle(color: Colors.white),
+                                  hint: const Text('Choose reminder', style: TextStyle(color: AppTheme.textSecondary)),
+                                  dropdownColor: AppTheme.cardLight,
+                                  style: const TextStyle(color: AppTheme.cardLight),
                                   items: reminderOptions.map((opt) => DropdownMenuItem(value: opt, child: Text(opt))).toList(),
                                   onChanged: (val) => setState(() => selectedReminderFrequency = val),
                                   decoration: InputDecoration(
                                     filled: true,
-                                    fillColor: const Color(0xFF1F2937),
+                                    fillColor: AppColors.coreDark,
                                     border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide.none),
                                   ),
                                 ),
@@ -949,24 +787,24 @@ class _GoalCreationScreenState extends State<GoalCreationScreen> {
 
                         // 52-Week Starting Amount
                         Card(
-                          color: const Color(0xFF374151),
+                          color: AppTheme.cardLight,
                           child: Padding(
                             padding: const EdgeInsets.all(16),
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                const Text('52-Week Challenge Starting Amount', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                                const Text('52-Week Challenge Starting Amount', style: TextStyle(color: AppTheme.textPrimary, fontWeight: FontWeight.bold)),
                                 const SizedBox(height: 8),
                                 DropdownButtonFormField<int>(
                                   value: selected52WeekStart,
                                   items: startingAmounts.map((amt) {
                                     final total = amt * (52 * 53) / 2;
-                                    return DropdownMenuItem(value: amt, child: Text('KSh $amt/week → Total KSh ${total.toStringAsFixed(0)}'));
+                                    return DropdownMenuItem(value: amt, child: Text('KSh $amt/week â†’ Total KSh ${total.toStringAsFixed(0)}'));
                                   }).toList(),
                                   onChanged: (val) => setState(() => selected52WeekStart = val!),
                                   decoration: InputDecoration(
                                     filled: true,
-                                    fillColor: const Color(0xFF1F2937),
+                                    fillColor: AppColors.coreDark,
                                     border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide.none),
                                   ),
                                 ),
@@ -983,7 +821,7 @@ class _GoalCreationScreenState extends State<GoalCreationScreen> {
                           return Padding(
                             padding: const EdgeInsets.only(bottom: 16),
                             child: Card(
-                              color: const Color(0xFF374151),
+                              color: AppTheme.cardLight,
                               elevation: 6,
                               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                               child: Padding(
@@ -993,14 +831,14 @@ class _GoalCreationScreenState extends State<GoalCreationScreen> {
                                   children: [
                                     Row(
                                       children: [
-                                        CircleAvatar(backgroundColor: challenge['color'], child: Icon(challenge['icon'], color: Colors.white)),
+                                        CircleAvatar(backgroundColor: challenge['color'], child: Icon(challenge['icon'], color: AppTheme.cardLight)),
                                         const SizedBox(width: 12),
                                         Expanded(
                                           child: Column(
                                             crossAxisAlignment: CrossAxisAlignment.start,
                                             children: [
-                                              Text(challenge['title'], style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
-                                              Text(challenge['description'], style: const TextStyle(color: Colors.white70, fontSize: 14)),
+                                              Text(challenge['title'], style: const TextStyle(color: AppTheme.textPrimary, fontSize: 18, fontWeight: FontWeight.bold)),
+                                              Text(challenge['description'], style: const TextStyle(color: AppTheme.textSecondary, fontSize: 14)),
                                             ],
                                           ),
                                         ),
@@ -1011,7 +849,7 @@ class _GoalCreationScreenState extends State<GoalCreationScreen> {
                                     const SizedBox(height: 12),
                                     Text(
                                       challenge['id'] == '52_week'
-                                          ? 'Week 1: KSh $selected52WeekStart → Week 52: KSh ${selected52WeekStart * 52}\nTotal after 52 weeks: KSh ${(selected52WeekStart * (52 * 53) / 2).toStringAsFixed(0)}'
+                                          ? 'Week 1: KSh $selected52WeekStart â†’ Week 52: KSh ${selected52WeekStart * 52}\nTotal after 52 weeks: KSh ${(selected52WeekStart * (52 * 53) / 2).toStringAsFixed(0)}'
                                           : challenge['description'],
                                       style: const TextStyle(color: Colors.white60, fontSize: 13),
                                     ),
@@ -1021,7 +859,7 @@ class _GoalCreationScreenState extends State<GoalCreationScreen> {
                                       child: ElevatedButton(
                                         onPressed: isJoined ? null : () => _joinChallenge(challenge['id']),
                                         style: ElevatedButton.styleFrom(
-                                          backgroundColor: isJoined ? Colors.grey : const Color(0xFFF5BB1B),
+                                          backgroundColor: isJoined ? Colors.grey : AppColors.financeGreenV3,
                                           foregroundColor: Colors.black,
                                         ),
                                         child: Text(isJoined ? 'Joined' : 'Join Challenge'),
@@ -1037,8 +875,235 @@ class _GoalCreationScreenState extends State<GoalCreationScreen> {
                     ),
                   ),
                 ),
-        ),
+    );
+  }
+
+  void _showCreateGoalSheet(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => GoalFormSheet(
+        userId: widget.userId,
+        goalTypes: goalTypes,
+        onGoalCreated: () {
+          fetchLeaderboard();
+          fetchRecentSavings();
+        },
+        onShowCatalogue: showCatalogueDialog,
       ),
     );
   }
 }
+
+class GoalFormSheet extends StatefulWidget {
+  final String userId;
+  final List<String> goalTypes;
+  final VoidCallback onGoalCreated;
+  final void Function(String) onShowCatalogue;
+
+  const GoalFormSheet({
+    super.key,
+    required this.userId,
+    required this.goalTypes,
+    required this.onGoalCreated,
+    required this.onShowCatalogue,
+  });
+
+  @override
+  State<GoalFormSheet> createState() => _GoalFormSheetState();
+}
+
+class _GoalFormSheetState extends State<GoalFormSheet> {
+  final _formKey = GlobalKey<FormState>();
+  String? selectedGoalType;
+  String? goalName;
+  double? goalAmount;
+  int? durationDays;
+  bool isLoading = false;
+
+  Future<void> _createGoal() async {
+    if (!_formKey.currentState!.validate()) return;
+    _formKey.currentState!.save();
+    setState(() => isLoading = true);
+    try {
+      final response = await http.post(
+        Uri.parse('${AppConstants.apiBaseUrl}/goalscreate'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({
+          'user_id': widget.userId,
+          'title': goalName?.trim() ?? 'Untitled Goal',
+          'target_amount': goalAmount,
+          'duration_days': durationDays ?? 30,
+          'goal_type': selectedGoalType ?? 'Save',
+        }),
+      );
+      if (!mounted) return;
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        Navigator.pop(context);
+        widget.onGoalCreated();
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Goal created successfully!')),
+        );
+      } else {
+        final error = jsonDecode(response.body);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(error['message'] ?? 'Server error')),
+        );
+      }
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e')));
+    } finally {
+      if (mounted) setState(() => isLoading = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return DraggableScrollableSheet(
+      initialChildSize: 0.85,
+      minChildSize: 0.5,
+      maxChildSize: 0.95,
+      builder: (_, controller) => Container(
+        decoration: const BoxDecoration(
+          color: AppTheme.backgroundLight,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        ),
+        child: Column(
+          children: [
+            const SizedBox(height: 12),
+            Container(
+              width: 40,
+              height: 4,
+              decoration: BoxDecoration(
+                color: AppColors.coreWhiteW2,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+              decoration: const BoxDecoration(
+                gradient: AppTheme.heroGradient,
+                borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+              ),
+              child: Row(
+                children: [
+                  const Expanded(
+                    child: Text(
+                      'Create a Savings Goal',
+                      style: TextStyle(color: AppTheme.textLight, fontSize: 18, fontWeight: FontWeight.bold),
+                    ),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.close, color: AppTheme.textLight),
+                    onPressed: () => Navigator.pop(context),
+                  ),
+                ],
+              ),
+            ),
+            Expanded(
+              child: SingleChildScrollView(
+                controller: controller,
+                padding: const EdgeInsets.all(20),
+                child: Form(
+                  key: _formKey,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _fieldLabel('Goal Type'),
+                      DropdownButtonFormField<String>(
+                        decoration: _inputDecoration(),
+                        initialValue: selectedGoalType,
+                        hint: const Text('Select Goal Type', style: TextStyle(color: AppTheme.textSecondary)),
+                        dropdownColor: AppTheme.cardLight,
+                        iconEnabledColor: AppColors.financeGreen,
+                        style: const TextStyle(color: AppTheme.textPrimary, fontSize: 15),
+                        items: widget.goalTypes.map((t) => DropdownMenuItem(value: t, child: Text(t))).toList(),
+                        onChanged: (v) {
+                          setState(() => selectedGoalType = v);
+                          if (v == 'Pay Loan' || v == 'Pay for Event' || v == 'Save to Invest') {
+                            widget.onShowCatalogue(v!);
+                          }
+                        },
+                        validator: (v) => v == null ? 'Please select a goal type' : null,
+                      ),
+                      const SizedBox(height: 16),
+                      _fieldLabel('Goal Name'),
+                      TextFormField(
+                        decoration: _inputDecoration(hint: 'e.g., Vacation Fund'),
+                        style: const TextStyle(color: AppTheme.textPrimary),
+                        validator: (v) => (v == null || v.isEmpty) ? 'Please enter a goal name' : null,
+                        onSaved: (v) => goalName = v,
+                      ),
+                      const SizedBox(height: 16),
+                      _fieldLabel('Goal Amount (KSh)'),
+                      TextFormField(
+                        decoration: _inputDecoration(hint: 'e.g., 10000'),
+                        style: const TextStyle(color: AppTheme.textPrimary),
+                        keyboardType: TextInputType.number,
+                        validator: (v) {
+                          if (v == null || v.isEmpty) return 'Please enter amount';
+                          if (double.tryParse(v) == null || double.parse(v) <= 0) return 'Invalid amount';
+                          return null;
+                        },
+                        onSaved: (v) => goalAmount = double.parse(v!),
+                      ),
+                      const SizedBox(height: 16),
+                      _fieldLabel('Duration (Days)'),
+                      TextFormField(
+                        decoration: _inputDecoration(hint: 'e.g., 30'),
+                        style: const TextStyle(color: AppTheme.textPrimary),
+                        keyboardType: TextInputType.number,
+                        validator: (v) {
+                          if (v == null || v.isEmpty) return 'Please enter duration';
+                          if (int.tryParse(v) == null || int.parse(v) <= 0) return 'Invalid number of days';
+                          return null;
+                        },
+                        onSaved: (v) => durationDays = int.parse(v!),
+                      ),
+                      const SizedBox(height: 32),
+                      SizedBox(
+                        width: double.infinity,
+                        child: ElevatedButton(
+                          onPressed: isLoading ? null : _createGoal,
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: AppColors.financeGreenV3,
+                            foregroundColor: AppTheme.textLight,
+                            padding: const EdgeInsets.symmetric(vertical: 16),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                          ),
+                          child: isLoading
+                              ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(color: AppTheme.textLight, strokeWidth: 2))
+                              : const Text('Create Goal', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                        ),
+                      ),
+                      const SizedBox(height: 20),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _fieldLabel(String text) => Padding(
+        padding: const EdgeInsets.only(bottom: 8),
+        child: Text(text, style: const TextStyle(color: AppTheme.textPrimary, fontSize: 14, fontWeight: FontWeight.w600)),
+      );
+
+  InputDecoration _inputDecoration({String? hint}) => InputDecoration(
+        hintText: hint,
+        hintStyle: const TextStyle(color: AppTheme.textSecondary),
+        filled: true,
+        fillColor: AppTheme.cardLight,
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide(color: AppColors.financeGreen.withValues(alpha: 0.3))),
+        enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide(color: AppColors.financeGreen.withValues(alpha: 0.3))),
+        focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: AppColors.financeGreen, width: 1.5)),
+        errorBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: AppTheme.errorColor)),
+        focusedErrorBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: AppTheme.errorColor, width: 1.5)),
+      );
+}
+

@@ -1,4 +1,5 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
+import '../constants/app_theme.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import '../constants/app_constants.dart';
@@ -368,7 +369,7 @@ class _JobsPageState extends State<JobsPage> {
         );
         if (distance <= 300) {
           await _showNotification(
-            'New jobs near you – 300m away',
+            'New jobs near you â€“ 300m away',
             'Check out ${job['title']} in ${job['location']}!',
           );
         }
@@ -514,10 +515,10 @@ class _JobsPageState extends State<JobsPage> {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        backgroundColor: const Color(0xFF374151),
+        backgroundColor: AppTheme.cardLight,
         title: const Text(
           'Submit Premium Profile',
-          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+          style: TextStyle(color: AppTheme.textPrimary, fontWeight: FontWeight.bold),
         ),
         content: SingleChildScrollView(
           child: Form(
@@ -529,15 +530,15 @@ class _JobsPageState extends State<JobsPage> {
                   controller: _cvController,
                   decoration: const InputDecoration(
                     labelText: 'CV URL',
-                    labelStyle: TextStyle(color: Colors.white70),
+                    labelStyle: TextStyle(color: AppTheme.textSecondary),
                     enabledBorder: OutlineInputBorder(
-                      borderSide: BorderSide(color: Colors.white54),
+                      borderSide: BorderSide(color: AppTheme.textSecondary),
                     ),
                     focusedBorder: OutlineInputBorder(
-                      borderSide: BorderSide(color: Color(0xFFF5BB1B)),
+                      borderSide: BorderSide(color: AppColors.financeGreenV3),
                     ),
                   ),
-                  style: const TextStyle(color: Colors.white),
+                  style: const TextStyle(color: AppTheme.cardLight),
                   validator: (value) {
                     if (value == null || value.isEmpty) {
                       return 'Please enter CV URL';
@@ -550,15 +551,15 @@ class _JobsPageState extends State<JobsPage> {
                   controller: _portfolioController,
                   decoration: const InputDecoration(
                     labelText: 'Portfolio URL',
-                    labelStyle: TextStyle(color: Colors.white70),
+                    labelStyle: TextStyle(color: AppTheme.textSecondary),
                     enabledBorder: OutlineInputBorder(
-                      borderSide: BorderSide(color: Colors.white54),
+                      borderSide: BorderSide(color: AppTheme.textSecondary),
                     ),
                     focusedBorder: OutlineInputBorder(
-                      borderSide: BorderSide(color: Color(0xFFF5BB1B)),
+                      borderSide: BorderSide(color: AppColors.financeGreenV3),
                     ),
                   ),
-                  style: const TextStyle(color: Colors.white),
+                  style: const TextStyle(color: AppTheme.cardLight),
                   validator: (value) {
                     if (value == null || value.isEmpty) {
                       return 'Please enter portfolio URL';
@@ -571,15 +572,15 @@ class _JobsPageState extends State<JobsPage> {
                   controller: _referencesController,
                   decoration: const InputDecoration(
                     labelText: 'References',
-                    labelStyle: TextStyle(color: Colors.white70),
+                    labelStyle: TextStyle(color: AppTheme.textSecondary),
                     enabledBorder: OutlineInputBorder(
-                      borderSide: BorderSide(color: Colors.white54),
+                      borderSide: BorderSide(color: AppTheme.textSecondary),
                     ),
                     focusedBorder: OutlineInputBorder(
-                      borderSide: BorderSide(color: Color(0xFFF5BB1B)),
+                      borderSide: BorderSide(color: AppColors.financeGreenV3),
                     ),
                   ),
-                  style: const TextStyle(color: Colors.white),
+                  style: const TextStyle(color: AppTheme.cardLight),
                   maxLines: 3,
                   validator: (value) {
                     if (value == null || value.isEmpty) {
@@ -595,12 +596,12 @@ class _JobsPageState extends State<JobsPage> {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel', style: TextStyle(color: Colors.white70)),
+            child: const Text('Cancel', style: TextStyle(color: AppTheme.textSecondary)),
           ),
           ElevatedButton(
             onPressed: submitPremiumProfile,
             style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFFF5BB1B),
+              backgroundColor: AppColors.financeGreenV3,
               foregroundColor: Colors.black,
             ),
             child: const Text('Submit'),
@@ -614,10 +615,10 @@ class _JobsPageState extends State<JobsPage> {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        backgroundColor: const Color(0xFF374151),
+        backgroundColor: AppTheme.cardLight,
         title: const Text(
           'Filter Jobs',
-          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+          style: TextStyle(color: AppTheme.textPrimary, fontWeight: FontWeight.bold),
         ),
         content: SingleChildScrollView(
           child: Column(
@@ -627,16 +628,16 @@ class _JobsPageState extends State<JobsPage> {
                 value: _selectedCategory,
                 decoration: const InputDecoration(
                   labelText: 'Category',
-                  labelStyle: TextStyle(color: Colors.white70),
+                  labelStyle: TextStyle(color: AppTheme.textSecondary),
                   enabledBorder: OutlineInputBorder(
-                    borderSide: BorderSide(color: Colors.white54),
+                    borderSide: BorderSide(color: AppTheme.textSecondary),
                   ),
                   focusedBorder: OutlineInputBorder(
-                    borderSide: BorderSide(color: Color(0xFFF5BB1B)),
+                    borderSide: BorderSide(color: AppColors.financeGreenV3),
                   ),
                 ),
-                dropdownColor: const Color(0xFF2D3748),
-                style: const TextStyle(color: Colors.white),
+                dropdownColor: AppColors.coreWhiteW1,
+                style: const TextStyle(color: AppTheme.cardLight),
                 items: const [
                   DropdownMenuItem(value: 'all', child: Text('All Jobs')),
                   DropdownMenuItem(value: 'office', child: Text('Office Jobs')),
@@ -664,15 +665,15 @@ class _JobsPageState extends State<JobsPage> {
                 controller: _salaryController,
                 decoration: const InputDecoration(
                   labelText: 'Minimum Salary (KSh)',
-                  labelStyle: TextStyle(color: Colors.white70),
+                  labelStyle: TextStyle(color: AppTheme.textSecondary),
                   enabledBorder: OutlineInputBorder(
-                    borderSide: BorderSide(color: Colors.white54),
+                    borderSide: BorderSide(color: AppTheme.textSecondary),
                   ),
                   focusedBorder: OutlineInputBorder(
-                    borderSide: BorderSide(color: Color(0xFFF5BB1B)),
+                    borderSide: BorderSide(color: AppColors.financeGreenV3),
                   ),
                 ),
-                style: const TextStyle(color: Colors.white),
+                style: const TextStyle(color: AppTheme.cardLight),
                 keyboardType: TextInputType.number,
                 validator: (value) {
                   if (value != null && value.isNotEmpty) {
@@ -699,7 +700,7 @@ class _JobsPageState extends State<JobsPage> {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel', style: TextStyle(color: Colors.white70)),
+            child: const Text('Cancel', style: TextStyle(color: AppTheme.textSecondary)),
           ),
           ElevatedButton(
             onPressed: () {
@@ -707,7 +708,7 @@ class _JobsPageState extends State<JobsPage> {
               fetchJobs();
             },
             style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFFF5BB1B),
+              backgroundColor: AppColors.financeGreenV3,
               foregroundColor: Colors.black,
             ),
             child: const Text('Apply Filters'),
@@ -725,10 +726,10 @@ class _JobsPageState extends State<JobsPage> {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        backgroundColor: const Color(0xFF374151),
+        backgroundColor: AppTheme.cardLight,
         title: const Text(
           'Subscribe to Job Alerts',
-          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+          style: TextStyle(color: AppTheme.textPrimary, fontWeight: FontWeight.bold),
         ),
         content: SingleChildScrollView(
           child: StatefulBuilder(
@@ -738,13 +739,13 @@ class _JobsPageState extends State<JobsPage> {
               children: [
                 const Text(
                   'Receive notifications for new job postings.',
-                  style: TextStyle(color: Colors.white70),
+                  style: TextStyle(color: AppTheme.textSecondary),
                 ),
                 const SizedBox(height: 16),
                 SwitchListTile(
-                  title: const Text('Enable Job Alerts', style: TextStyle(color: Colors.white)),
+                  title: const Text('Enable Job Alerts', style: TextStyle(color: AppTheme.cardLight)),
                   value: tempSubscribed,
-                  activeColor: const Color(0xFFF5BB1B),
+                  activeColor: AppColors.financeGreenV3,
                   onChanged: (value) {
                     setState(() {
                       tempSubscribed = value;
@@ -754,21 +755,21 @@ class _JobsPageState extends State<JobsPage> {
                 const SizedBox(height: 16),
                 const Text(
                   'Notification Frequency',
-                  style: TextStyle(color: Colors.white70, fontSize: 14),
+                  style: TextStyle(color: AppTheme.textSecondary, fontSize: 14),
                 ),
                 DropdownButtonFormField<String>(
                   value: selectedFrequency,
                   decoration: const InputDecoration(
-                    labelStyle: TextStyle(color: Colors.white70),
+                    labelStyle: TextStyle(color: AppTheme.textSecondary),
                     enabledBorder: OutlineInputBorder(
-                      borderSide: BorderSide(color: Colors.white54),
+                      borderSide: BorderSide(color: AppTheme.textSecondary),
                     ),
                     focusedBorder: OutlineInputBorder(
-                      borderSide: BorderSide(color: Color(0xFFF5BB1B)),
+                      borderSide: BorderSide(color: AppColors.financeGreenV3),
                     ),
                   ),
-                  dropdownColor: const Color(0xFF2D3748),
-                  style: const TextStyle(color: Colors.white),
+                  dropdownColor: AppColors.coreWhiteW1,
+                  style: const TextStyle(color: AppTheme.cardLight),
                   items: const [
                     DropdownMenuItem(value: 'daily', child: Text('Daily')),
                     DropdownMenuItem(value: 'weekly', child: Text('Weekly')),
@@ -785,7 +786,7 @@ class _JobsPageState extends State<JobsPage> {
                 const SizedBox(height: 16),
                 const Text(
                   'Preferred Categories',
-                  style: TextStyle(color: Colors.white70, fontSize: 14),
+                  style: TextStyle(color: AppTheme.textSecondary, fontSize: 14),
                 ),
                 Wrap(
                   spacing: 8,
@@ -803,9 +804,9 @@ class _JobsPageState extends State<JobsPage> {
                     return ChoiceChip(
                       label: Text(category == 'all' ? 'All Jobs' : category.replaceAll('_', ' ').capitalize()),
                       selected: selectedCategories.contains(category),
-                      selectedColor: const Color(0xFFF5BB1B),
+                      selectedColor: AppColors.financeGreenV3,
                       labelStyle: TextStyle(
-                        color: selectedCategories.contains(category) ? Colors.black : Colors.white70,
+                        color: selectedCategories.contains(category) ? Colors.black : AppTheme.textSecondary,
                       ),
                       onSelected: (selected) {
                         setState(() {
@@ -836,7 +837,7 @@ class _JobsPageState extends State<JobsPage> {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel', style: TextStyle(color: Colors.white70)),
+            child: const Text('Cancel', style: TextStyle(color: AppTheme.textSecondary)),
           ),
           ElevatedButton(
             onPressed: () {
@@ -853,7 +854,7 @@ class _JobsPageState extends State<JobsPage> {
               Navigator.pop(context);
             },
             style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFFF5BB1B),
+              backgroundColor: AppColors.financeGreenV3,
               foregroundColor: Colors.black,
             ),
             child: const Text('Save'),
@@ -867,12 +868,12 @@ class _JobsPageState extends State<JobsPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       key: _scaffoldKey,
-      backgroundColor: const Color(0xFF1F2937),
+      backgroundColor: AppColors.coreDark,
       appBar: PreferredSize(
         preferredSize: const Size.fromHeight(70.0),
         child: Container(
           decoration: const BoxDecoration(
-            color: Color(0xFF374151),
+            color: AppTheme.cardLight,
             boxShadow: [
               BoxShadow(
                 color: Colors.black26,
@@ -886,7 +887,7 @@ class _JobsPageState extends State<JobsPage> {
             child: Row(
               children: [
                 IconButton(
-                  icon: const Icon(Icons.menu, color: Colors.white),
+                  icon: const Icon(Icons.menu, color: AppTheme.cardLight),
                   onPressed: () {
                     _scaffoldKey.currentState?.openDrawer();
                   },
@@ -899,7 +900,7 @@ class _JobsPageState extends State<JobsPage> {
                       Text(
                         userDetails != null ? userDetails!['full_name'] ?? 'User' : 'Loading...',
                         style: const TextStyle(
-                          color: Colors.white,
+                          color: AppTheme.textPrimary,
                           fontSize: 18,
                           fontWeight: FontWeight.bold,
                         ),
@@ -907,7 +908,7 @@ class _JobsPageState extends State<JobsPage> {
                       const Text(
                         'Member since 2022',
                         style: TextStyle(
-                          color: Colors.white70,
+                          color: AppTheme.textSecondary,
                           fontSize: 12,
                         ),
                       ),
@@ -915,7 +916,7 @@ class _JobsPageState extends State<JobsPage> {
                   ),
                 ),
                 IconButton(
-                  icon: const Icon(Icons.notifications, color: Colors.white),
+                  icon: const Icon(Icons.notifications, color: AppTheme.cardLight),
                   onPressed: () {},
                 ),
               ],
@@ -924,7 +925,7 @@ class _JobsPageState extends State<JobsPage> {
         ),
       ),
       drawer: Drawer(
-        backgroundColor: const Color(0xFF374151),
+        backgroundColor: AppTheme.cardLight,
         width: 250,
         child: ListView(
           padding: EdgeInsets.zero,
@@ -938,7 +939,7 @@ class _JobsPageState extends State<JobsPage> {
                 children: [
                   CircleAvatar(
                     radius: 28,
-                    backgroundColor: Colors.grey[300],
+                    backgroundColor: AppColors.coreWhiteW2,
                     child: userDetails != null && userDetails!['selfie_path'] != null
                         ? CachedNetworkImage(
                             imageUrl: userDetails!['selfie_path'],
@@ -946,20 +947,20 @@ class _JobsPageState extends State<JobsPage> {
                             width: 56,
                             height: 56,
                           )
-                        : const Icon(Icons.person, size: 28, color: Colors.white),
+                        : const Icon(Icons.person, size: 28, color: AppTheme.cardLight),
                   ),
                   const SizedBox(height: 12),
                   Text(
                     userDetails != null ? userDetails!['full_name'] ?? 'User' : 'Loading...',
                     style: const TextStyle(
-                      color: Colors.white,
+                      color: AppTheme.textPrimary,
                       fontSize: 18,
                       fontWeight: FontWeight.bold),
                   ),
                   Text(
                     userDetails != null ? userDetails!['email'] ?? '' : '',
                     style: const TextStyle(
-                      color: Colors.white70,
+                      color: AppTheme.textSecondary,
                       fontSize: 14,
                     ),
                   ),
@@ -967,56 +968,56 @@ class _JobsPageState extends State<JobsPage> {
               ),
             ),
             ListTile(
-              leading: const Icon(Icons.account_balance_wallet, color: Color(0xFFF5BB1B)),
-              title: const Text('Wallet', style: TextStyle(color: Colors.white)),
+              leading: const Icon(Icons.account_balance_wallet, color: AppColors.financeGreenV3),
+              title: const Text('Wallet', style: TextStyle(color: AppTheme.cardLight)),
               onTap: () {
                 Navigator.pop(context);
                 // TODO: Navigate to Wallet page
               },
             ),
             ListTile(
-              leading: const Icon(Icons.work, color: Color(0xFFF5BB1B)),
-              title: const Text('Jobs', style: TextStyle(color: Colors.white)),
+              leading: const Icon(Icons.work, color: AppColors.financeGreenV3),
+              title: const Text('Jobs', style: TextStyle(color: AppTheme.cardLight)),
               onTap: () {
                 Navigator.pop(context);
                 // Already on Jobs page
               },
             ),
             ListTile(
-              leading: const Icon(Icons.school, color: Color(0xFFF5BB1B)),
-              title: const Text('Scholarships & Funding', style: TextStyle(color: Colors.white)),
+              leading: const Icon(Icons.school, color: AppColors.financeGreenV3),
+              title: const Text('Scholarships & Funding', style: TextStyle(color: AppTheme.cardLight)),
               onTap: () {
                 Navigator.pop(context);
                 // TODO: Navigate to Scholarships page
               },
             ),
             ListTile(
-              leading: const Icon(Icons.chat, color: Color(0xFFF5BB1B)),
-              title: const Text('Chat', style: TextStyle(color: Colors.white)),
+              leading: const Icon(Icons.chat, color: AppColors.financeGreenV3),
+              title: const Text('Chat', style: TextStyle(color: AppTheme.cardLight)),
               onTap: () {
                 Navigator.pop(context);
                 // TODO: Navigate to Chat page
               },
             ),
             ListTile(
-              leading: const Icon(Icons.leaderboard, color: Color(0xFFF5BB1B)),
-              title: const Text('Leaderboard', style: TextStyle(color: Colors.white)),
+              leading: const Icon(Icons.leaderboard, color: AppColors.financeGreenV3),
+              title: const Text('Leaderboard', style: TextStyle(color: AppTheme.cardLight)),
               onTap: () {
                 Navigator.pop(context);
                 // TODO: Navigate to Leaderboard page
               },
             ),
             ListTile(
-              leading: const Icon(Icons.class_, color: Color(0xFFF5BB1B)),
-              title: const Text('Classes', style: TextStyle(color: Colors.white)),
+              leading: const Icon(Icons.class_, color: AppColors.financeGreenV3),
+              title: const Text('Classes', style: TextStyle(color: AppTheme.cardLight)),
               onTap: () {
                 Navigator.pop(context);
                 // TODO: Navigate to Classes page
               },
             ),
             ListTile(
-              leading: const Icon(Icons.account_balance, color: Color(0xFFF5BB1B)),
-              title: const Text('Loans & Credit', style: TextStyle(color: Colors.white)),
+              leading: const Icon(Icons.account_balance, color: AppColors.financeGreenV3),
+              title: const Text('Loans & Credit', style: TextStyle(color: AppTheme.cardLight)),
               onTap: () {
                 Navigator.pop(context);
                 Navigator.pushReplacement(
@@ -1032,7 +1033,7 @@ class _JobsPageState extends State<JobsPage> {
       body: isLoading
           ? const Center(
               child: SpinKitFadingCircle(
-                color: Color(0xFFF5BB1B),
+                color: AppColors.financeGreenV3,
                 size: 50.0,
               ),
             )
@@ -1047,7 +1048,7 @@ class _JobsPageState extends State<JobsPage> {
                       const Text(
                         'Jobs & Opportunities',
                         style: TextStyle(
-                          color: Colors.white,
+                          color: AppTheme.textPrimary,
                           fontSize: 18,
                           fontWeight: FontWeight.bold,
                         ),
@@ -1058,7 +1059,7 @@ class _JobsPageState extends State<JobsPage> {
                             onPressed: userDetails?['premium_status'] == true ? _showPremiumProfileDialog : null,
                             style: ElevatedButton.styleFrom(
                               backgroundColor: userDetails?['premium_status'] == true
-                                  ? const Color(0xFFF5BB1B)
+                                  ? AppColors.financeGreenV3
                                   : Colors.grey,
                               foregroundColor: Colors.black,
                               shape: RoundedRectangleBorder(
@@ -1069,7 +1070,7 @@ class _JobsPageState extends State<JobsPage> {
                           ),
                           const SizedBox(width: 8),
                           IconButton(
-                            icon: const Icon(Icons.filter_list, color: Color(0xFFF5BB1B)),
+                            icon: const Icon(Icons.filter_list, color: AppColors.financeGreenV3),
                             onPressed: _showFilterDialog,
                           ),
                         ],
@@ -1078,7 +1079,7 @@ class _JobsPageState extends State<JobsPage> {
                   ),
                   const SizedBox(height: 16),
                   Card(
-                    color: const Color(0xFF374151),
+                    color: AppTheme.cardLight,
                     elevation: 4,
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(12),
@@ -1091,7 +1092,7 @@ class _JobsPageState extends State<JobsPage> {
                           Text(
                             'Location: ${_currentPosition != null ? 'Westlands, Nairobi' : 'All Locations'}',
                             style: const TextStyle(
-                              color: Colors.white,
+                              color: AppTheme.textPrimary,
                               fontSize: 16,
                               fontWeight: FontWeight.bold,
                             ),
@@ -1100,7 +1101,7 @@ class _JobsPageState extends State<JobsPage> {
                           Text(
                             'Total Jobs: ${jobs?.length ?? 0}',
                             style: const TextStyle(
-                              color: Colors.white70,
+                              color: AppTheme.textSecondary,
                               fontSize: 14,
                             ),
                           ),
@@ -1113,29 +1114,29 @@ class _JobsPageState extends State<JobsPage> {
                     title: const Text(
                       'Job Alerts Subscription',
                       style: TextStyle(
-                        color: Colors.white,
+                        color: AppTheme.textPrimary,
                         fontWeight: FontWeight.bold,
                       ),
                     ),
                     subtitle: Text(
                       isSubscribedToAlerts ? 'Subscribed' : 'Not Subscribed',
-                      style: const TextStyle(color: Colors.white70),
+                      style: const TextStyle(color: AppTheme.textSecondary),
                     ),
                     leading: Icon(
                       isSubscribedToAlerts ? Icons.notifications_active : Icons.notifications_off,
-                      color: const Color(0xFFF5BB1B),
+                      color: AppColors.financeGreenV3,
                     ),
-                    backgroundColor: const Color(0xFF2D3748),
-                    collapsedBackgroundColor: const Color(0xFF2D3748),
+                    backgroundColor: AppColors.coreWhiteW1,
+                    collapsedBackgroundColor: AppColors.coreWhiteW1,
                     children: [
                       ListTile(
                         title: const Text(
                           'Manage Job Alerts',
-                          style: TextStyle(color: Colors.white),
+                          style: TextStyle(color: AppTheme.cardLight),
                         ),
                         subtitle: const Text(
                           'Configure notifications for new job postings.',
-                          style: TextStyle(color: Colors.white70),
+                          style: TextStyle(color: AppTheme.textSecondary),
                         ),
                         onTap: _showJobAlertsDialog,
                       ),
@@ -1146,7 +1147,7 @@ class _JobsPageState extends State<JobsPage> {
                       ? const Center(
                           child: Text(
                             'No jobs found',
-                            style: TextStyle(color: Colors.white70),
+                            style: TextStyle(color: AppTheme.textSecondary),
                           ),
                         )
                       : ListView.builder(
@@ -1156,7 +1157,7 @@ class _JobsPageState extends State<JobsPage> {
                           itemBuilder: (context, index) {
                             final job = jobs![index];
                             return Card(
-                              color: const Color(0xFF2D3748),
+                              color: AppColors.coreWhiteW1,
                               margin: const EdgeInsets.symmetric(vertical: 8.0),
                               shape: RoundedRectangleBorder(
                                 borderRadius: BorderRadius.circular(12),
@@ -1165,13 +1166,13 @@ class _JobsPageState extends State<JobsPage> {
                                 title: Text(
                                   '${job['title']} - KSh ${job['salary']?.toStringAsFixed(2) ?? 'N/A'}',
                                   style: const TextStyle(
-                                    color: Colors.white,
+                                    color: AppTheme.textPrimary,
                                     fontWeight: FontWeight.bold,
                                   ),
                                 ),
                                 subtitle: Text(
                                   'Location: ${job['location'] ?? 'N/A'}',
-                                  style: const TextStyle(color: Colors.white70),
+                                  style: const TextStyle(color: AppTheme.textSecondary),
                                 ),
                                 children: [
                                   Padding(
@@ -1181,26 +1182,26 @@ class _JobsPageState extends State<JobsPage> {
                                       children: [
                                         Text(
                                           'Description: ${job['description'] ?? 'N/A'}',
-                                          style: const TextStyle(color: Colors.white70),
+                                          style: const TextStyle(color: AppTheme.textSecondary),
                                         ),
                                         const SizedBox(height: 8),
                                         Text(
                                           'Posted: ${job['date_posted'] ?? 'N/A'} at ${job['time_posted'] ?? 'N/A'}',
-                                          style: const TextStyle(color: Colors.white70),
+                                          style: const TextStyle(color: AppTheme.textSecondary),
                                         ),
                                         const SizedBox(height: 8),
                                         Text(
                                           'Category: ${job['category'] ?? 'N/A'}',
-                                          style: const TextStyle(color: Colors.white70),
+                                          style: const TextStyle(color: AppTheme.textSecondary),
                                         ),
                                         Text(
                                           'Urgency: ${job['urgency'] ?? 'Standard'}',
-                                          style: const TextStyle(color: Colors.white70),
+                                          style: const TextStyle(color: AppTheme.textSecondary),
                                         ),
                                         if (job['duration'] != null)
                                           Text(
                                             'Gig Duration: ${job['duration']}',
-                                            style: const TextStyle(color: Colors.white70),
+                                            style: const TextStyle(color: AppTheme.textSecondary),
                                           ),
                                         const SizedBox(height: 16),
                                         Row(
@@ -1212,7 +1213,7 @@ class _JobsPageState extends State<JobsPage> {
                                               ElevatedButton(
                                                 onPressed: () => applyForJob(job['id'].toString()),
                                                 style: ElevatedButton.styleFrom(
-                                                  backgroundColor: const Color(0xFFF5BB1B),
+                                                  backgroundColor: AppColors.financeGreenV3,
                                                   foregroundColor: Colors.black,
                                                   shape: RoundedRectangleBorder(
                                                     borderRadius: BorderRadius.circular(8),
@@ -1228,7 +1229,7 @@ class _JobsPageState extends State<JobsPage> {
                                                   job['location'] ?? 'N/A',
                                                 ),
                                                 style: ElevatedButton.styleFrom(
-                                                  backgroundColor: Colors.white54,
+                                                  backgroundColor: AppTheme.textSecondary,
                                                   foregroundColor: Colors.black,
                                                   shape: RoundedRectangleBorder(
                                                     borderRadius: BorderRadius.circular(8),
@@ -1250,14 +1251,10 @@ class _JobsPageState extends State<JobsPage> {
                 ],
               ),
             ),
-      bottomNavigationBar: Container(
-        color: const Color(0xFF374151),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
-          child: BottomNavigationBar(
-            backgroundColor: Colors.transparent,
-            selectedItemColor: const Color(0xFFF5BB1B),
-            unselectedItemColor: Colors.white54,
+      bottomNavigationBar: BottomNavigationBar(
+        backgroundColor: AppTheme.cardLight,
+            selectedItemColor: AppColors.financeGreenV3,
+            unselectedItemColor: AppTheme.textSecondary,
             currentIndex: _selectedIndex,
             onTap: _onItemTapped,
             type: BottomNavigationBarType.fixed,
@@ -1284,8 +1281,6 @@ class _JobsPageState extends State<JobsPage> {
               ),
             ],
           ),
-        ),
-      ),
     );
   }
 }
@@ -1296,3 +1291,5 @@ extension StringExtension on String {
     return "${this[0].toUpperCase()}${substring(1)}";
   }
 }
+
+

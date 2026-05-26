@@ -1,8 +1,9 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
+import '../constants/app_theme.dart';
 import 'package:http/http.dart' as http;
 import 'package:smartsave/screens/modern_login_screen.dart';
 import 'dart:convert';
-import '../constants/app_constants.dart';
+import '../config/api_config.dart';
 import 'dart:typed_data';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter_contacts/flutter_contacts.dart';
@@ -24,9 +25,9 @@ const Map<String, Color> _kStatusColors = {
 };
 
 const Map<String, String> _kStatusTexts = {
-  'submitting': 'Submitting…',
+  'submitting': 'Submittingâ€¦',
   'pending': 'Pending',
-  'reviewing': 'Reviewing…',
+  'reviewing': 'Reviewingâ€¦',
   'approved': 'Approved!',
   'rejected': 'Rejected',
 };
@@ -43,7 +44,6 @@ class _LoanProductsState extends State<LoanProducts> with TickerProviderStateMix
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
   Map<String, dynamic>? userDetails;
   bool isLoading = true;
-  String get baseUrl => AppConstants.apiBaseUrl;
   late AnimationController _knobController;
   late AnimationController _fadeController;
   late Animation<double> _fadeAnimation;
@@ -75,7 +75,7 @@ class _LoanProductsState extends State<LoanProducts> with TickerProviderStateMix
       width: double.infinity,
       child: ElevatedButton(
         style: ElevatedButton.styleFrom(
-          backgroundColor: const Color(0xFFF5BB1B),
+          backgroundColor: AppColors.financeGreenV3,
           foregroundColor: Colors.black,
           padding: const EdgeInsets.symmetric(vertical: 14),
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
@@ -89,13 +89,13 @@ class _LoanProductsState extends State<LoanProducts> with TickerProviderStateMix
   InputDecoration _inputDec(String label) {
     return InputDecoration(
       labelText: label,
-      labelStyle: const TextStyle(color: Colors.white70),
+      labelStyle: const TextStyle(color: AppTheme.textSecondary),
       border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
       enabledBorder: OutlineInputBorder(
-        borderSide: const BorderSide(color: Colors.white54),
+        borderSide: const BorderSide(color: AppTheme.textSecondary),
         borderRadius: BorderRadius.circular(8)),
       focusedBorder: OutlineInputBorder(
-        borderSide: const BorderSide(color: Color(0xFFF5BB1B)),
+        borderSide: const BorderSide(color: AppColors.financeGreenV3),
         borderRadius: BorderRadius.circular(8)),
     );
   }
@@ -110,12 +110,12 @@ class _LoanProductsState extends State<LoanProducts> with TickerProviderStateMix
             max: max,
             divisions: (max - min).toInt(),
             label: '${controller.text} months',
-            activeColor: const Color(0xFFF5BB1B),
+            activeColor: AppColors.financeGreenV3,
             onChanged: (v) {
               setStateSlider(() => controller.text = v.toInt().toString());
             },
           ),
-          Text('Duration: ${controller.text} months', style: const TextStyle(color: Colors.white70, fontSize: 12)),
+          Text('Duration: ${controller.text} months', style: const TextStyle(color: AppTheme.textSecondary, fontSize: 12)),
         ],
       ),
     );
@@ -133,9 +133,9 @@ class _LoanProductsState extends State<LoanProducts> with TickerProviderStateMix
       context: context,
       barrierDismissible: false,
       builder: (_) => AlertDialog(
-        backgroundColor: const Color(0xFF374151),
+        backgroundColor: AppTheme.cardLight,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: const Text('Post Public P2P Loan Request', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+        title: const Text('Post Public P2P Loan Request', style: TextStyle(color: AppTheme.textPrimary, fontWeight: FontWeight.bold)),
         content: Form(
           key: formKey,
           child: SingleChildScrollView(
@@ -143,7 +143,7 @@ class _LoanProductsState extends State<LoanProducts> with TickerProviderStateMix
               TextFormField(
                 controller: amountCtrl,
                 keyboardType: TextInputType.number,
-                style: const TextStyle(color: Colors.white),
+                style: const TextStyle(color: AppTheme.cardLight),
                 decoration: _inputDec('Loan Amount (KES)'),
                 validator: (v) {
                   final val = double.tryParse(v ?? '');
@@ -155,7 +155,7 @@ class _LoanProductsState extends State<LoanProducts> with TickerProviderStateMix
               const SizedBox(height: 12),
               _monthsSlider(monthsCtrl, min: 1, max: 36),
               const SizedBox(height: 20),
-              const Text('Maximum Interest Rate You\'ll Accept (%)', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+              const Text('Maximum Interest Rate You\'ll Accept (%)', style: TextStyle(color: AppTheme.textPrimary, fontWeight: FontWeight.bold)),
               const SizedBox(height: 8),
               StatefulBuilder(
                 builder: (context, setState) => Column(
@@ -166,12 +166,12 @@ class _LoanProductsState extends State<LoanProducts> with TickerProviderStateMix
                       max: 225.0,
                       divisions: 134,
                       label: '${interestCtrl.text}%',
-                      activeColor: const Color(0xFFF5BB1B),
+                      activeColor: AppColors.financeGreenV3,
                       onChanged: (value) {
                         setState(() => interestCtrl.text = value.toStringAsFixed(1));
                       },
                     ),
-                    Text('You will accept offers up to ${interestCtrl.text}% p.a.', style: const TextStyle(color: Colors.white70, fontSize: 13), textAlign: TextAlign.center),
+                    Text('You will accept offers up to ${interestCtrl.text}% p.a.', style: const TextStyle(color: AppTheme.textSecondary, fontSize: 13), textAlign: TextAlign.center),
                     const SizedBox(height: 6),
                     const Text('Lower rate = faster funding, but fewer offers', style: TextStyle(color: Colors.orangeAccent, fontSize: 12)),
                   ],
@@ -181,25 +181,25 @@ class _LoanProductsState extends State<LoanProducts> with TickerProviderStateMix
               TextFormField(
                 controller: descCtrl,
                 maxLines: 3,
-                style: const TextStyle(color: Colors.white),
+                style: const TextStyle(color: AppTheme.cardLight),
                 decoration: _inputDec('Loan Purpose (optional)'),
               ),
               const SizedBox(height: 12),
               Container(
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                  color: const Color(0xFF2D3748),
+                  color: AppColors.coreWhiteW1,
                   borderRadius: BorderRadius.circular(8),
                   border: Border.all(color: Colors.white24),
                 ),
                 child: const Row(
                   children: [
-                    Icon(Icons.info_outline, color: Colors.white54, size: 20),
+                    Icon(Icons.info_outline, color: AppTheme.textSecondary, size: 20),
                     SizedBox(width: 10),
                     Expanded(
                       child: Text(
-                        'Lenders will see your max rate and offer at or below it.\nCurrent market: 10–20% p.a. (avg ~15%)',
-                        style: TextStyle(color: Colors.white70, fontSize: 13),
+                        'Lenders will see your max rate and offer at or below it.\nCurrent market: 10â€“20% p.a. (avg ~15%)',
+                        style: TextStyle(color: AppTheme.textSecondary, fontSize: 13),
                       ),
                     ),
                   ],
@@ -209,9 +209,9 @@ class _LoanProductsState extends State<LoanProducts> with TickerProviderStateMix
           ),
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel', style: TextStyle(color: Colors.white70))),
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel', style: TextStyle(color: AppTheme.textSecondary))),
           ElevatedButton(
-            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFF5BB1B)),
+            style: ElevatedButton.styleFrom(backgroundColor: AppColors.financeGreenV3),
             onPressed: () {
               if (formKey.currentState!.validate()) {
                 Navigator.pop(context);
@@ -241,14 +241,14 @@ class _LoanProductsState extends State<LoanProducts> with TickerProviderStateMix
       context: context,
       barrierDismissible: false,
       builder: (_) => const AlertDialog(
-        backgroundColor: Color(0xFF374151),
+        backgroundColor: AppTheme.cardLight,
         content: Column(mainAxisSize: MainAxisSize.min, children: [LoanStatusKnob(status: 'submitting')]),
       ),
     );
 
     try {
       final response = await http.post(
-        Uri.parse('$baseUrl/request'),
+        Uri.parse(ApiConfig.loanRequest),
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({
           'user_id': widget.userId,
@@ -270,18 +270,18 @@ class _LoanProductsState extends State<LoanProducts> with TickerProviderStateMix
         showDialog(
           context: context,
           builder: (_) => AlertDialog(
-            backgroundColor: const Color(0xFF374151),
-            title: const Text('Request Posted!', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+            backgroundColor: AppTheme.cardLight,
+            title: const Text('Request Posted!', style: TextStyle(color: AppTheme.textPrimary, fontWeight: FontWeight.bold)),
             content: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
                 const Icon(Icons.check_circle, color: Colors.green, size: 60),
                 const SizedBox(height: 16),
-                Text('KES ${amount.toStringAsFixed(0)}', style: const TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold)),
+                Text('KES ${amount.toStringAsFixed(0)}', style: const TextStyle(color: AppTheme.textPrimary, fontSize: 22, fontWeight: FontWeight.bold)),
                 const SizedBox(height: 8),
-                Text('Max ${interestRate.toStringAsFixed(1)}% p.a. • $tenureMonths months', style: const TextStyle(color: Colors.white70)),
+                Text('Max ${interestRate.toStringAsFixed(1)}% p.a. â€¢ $tenureMonths months', style: const TextStyle(color: AppTheme.textSecondary)),
                 const SizedBox(height: 16),
-                Text('Loan ID: $loanId', style: const TextStyle(color: Colors.white70)),
+                Text('Loan ID: $loanId', style: const TextStyle(color: AppTheme.textSecondary)),
               ],
             ),
             actions: [TextButton(onPressed: () => Navigator.pop(context), child: const Text('OK'))],
@@ -329,16 +329,16 @@ class _LoanProductsState extends State<LoanProducts> with TickerProviderStateMix
       showDialog(
         context: context,
         builder: (_) => AlertDialog(
-          backgroundColor: const Color(0xFF374151),
+          backgroundColor: AppTheme.cardLight,
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-          title: Text('Deal with $name', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+          title: Text('Deal with $name', style: const TextStyle(color: AppTheme.textPrimary, fontWeight: FontWeight.bold)),
           content: Column(mainAxisSize: MainAxisSize.min, children: [
             _p2pBigButton('I want to BORROW from $name', () => _friendLoanFlow(name, phone, true)),
             const SizedBox(height: 16),
             _p2pBigButton('I am LENDING to $name', () => _friendLoanFlow(name, phone, false)),
           ]),
           actions: [
-            TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel', style: TextStyle(color: Colors.white70))),
+            TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel', style: TextStyle(color: AppTheme.textSecondary))),
           ],
         ),
       );
@@ -353,33 +353,33 @@ class _LoanProductsState extends State<LoanProducts> with TickerProviderStateMix
     final amountCtrl = TextEditingController();
     final monthsCtrl = TextEditingController(text: '1');
     final reasonCtrl = TextEditingController();
-    final sigCtrl = SignatureController(penStrokeWidth: 5, penColor: Colors.white);
+    final sigCtrl = SignatureController(penStrokeWidth: 5, penColor: AppTheme.cardLight);
 
     showDialog(
       context: context,
       barrierDismissible: false,
       builder: (_) => StatefulBuilder(
         builder: (ctx, setStateDialog) => AlertDialog(
-          backgroundColor: const Color(0xFF374151),
+          backgroundColor: AppTheme.cardLight,
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-          title: Text(isBorrowing ? 'Borrow from $name' : 'Lend to $name', style: const TextStyle(color: Colors.white)),
+          title: Text(isBorrowing ? 'Borrow from $name' : 'Lend to $name', style: const TextStyle(color: AppTheme.cardLight)),
           content: SingleChildScrollView(
             child: Column(mainAxisSize: MainAxisSize.min, children: [
-              CircleAvatar(radius: 35, child: Text(name[0].toUpperCase(), style: const TextStyle(fontSize: 30, color: Colors.white))),
+              CircleAvatar(radius: 35, child: Text(name[0].toUpperCase(), style: const TextStyle(fontSize: 30, color: AppTheme.cardLight))),
               const SizedBox(height: 8),
-              Text(phone, style: const TextStyle(color: Colors.white70)),
+              Text(phone, style: const TextStyle(color: AppTheme.textSecondary)),
               const SizedBox(height: 20),
-              TextField(controller: amountCtrl, keyboardType: TextInputType.number, decoration: _inputDec('Amount (KES)'), style: const TextStyle(color: Colors.white)),
+              TextField(controller: amountCtrl, keyboardType: TextInputType.number, decoration: _inputDec('Amount (KES)'), style: const TextStyle(color: AppTheme.cardLight)),
               const SizedBox(height: 12),
               _monthsSlider(monthsCtrl, min: 1, max: 36),
               const SizedBox(height: 12),
-              TextField(controller: reasonCtrl, decoration: _inputDec('Reason (optional)'), style: const TextStyle(color: Colors.white)),
+              TextField(controller: reasonCtrl, decoration: _inputDec('Reason (optional)'), style: const TextStyle(color: AppTheme.cardLight)),
               const SizedBox(height: 20),
-              const Text('E-Signature', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+              const Text('E-Signature', style: TextStyle(color: AppTheme.textPrimary, fontWeight: FontWeight.bold)),
               Container(
                 height: 180,
-                decoration: BoxDecoration(border: Border.all(color: Colors.white54), borderRadius: BorderRadius.circular(12)),
-                child: Signature(controller: sigCtrl, backgroundColor: const Color(0xFF2D3748)),
+                decoration: BoxDecoration(border: Border.all(color: AppTheme.textSecondary), borderRadius: BorderRadius.circular(12)),
+                child: Signature(controller: sigCtrl, backgroundColor: AppColors.coreWhiteW1),
               ),
               TextButton(onPressed: () => sigCtrl.clear(), child: const Text('Clear Signature', style: TextStyle(color: Colors.red))),
             ]),
@@ -387,7 +387,7 @@ class _LoanProductsState extends State<LoanProducts> with TickerProviderStateMix
           actions: [
             TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
             ElevatedButton(
-              style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFF5BB1B)),
+              style: ElevatedButton.styleFrom(backgroundColor: AppColors.financeGreenV3),
               onPressed: () async {
                 final amount = double.tryParse(amountCtrl.text);
                 if (amount == null || amount <= 0) {
@@ -458,10 +458,10 @@ class _LoanProductsState extends State<LoanProducts> with TickerProviderStateMix
       showDialog(
         context: context,
         builder: (_) => AlertDialog(
-          backgroundColor: const Color(0xFF374151),
-          title: const Text('Agreement Sent!', style: TextStyle(color: Colors.white)),
+          backgroundColor: AppTheme.cardLight,
+          title: const Text('Agreement Sent!', style: TextStyle(color: AppTheme.cardLight)),
           content: Column(mainAxisSize: MainAxisSize.min, children: [
-            Text('KES ${amount.toStringAsFixed(0)} • $months months', style: const TextStyle(color: Colors.white70)),
+            Text('KES ${amount.toStringAsFixed(0)} â€¢ $months months', style: const TextStyle(color: AppTheme.textSecondary)),
             const SizedBox(height: 16),
             Image.memory(signature, height: 140),
           ]),
@@ -482,14 +482,14 @@ class _LoanProductsState extends State<LoanProducts> with TickerProviderStateMix
       context: context,
       barrierDismissible: false,
       builder: (_) => const AlertDialog(
-        backgroundColor: Color(0xFF374151),
+        backgroundColor: AppTheme.cardLight,
         content: Column(mainAxisSize: MainAxisSize.min, children: [LoanStatusKnob(status: 'submitting')]),
       ),
     );
 
     try {
       final response = await http.post(
-        Uri.parse('$baseUrl/bank-loan-request'), // Change if your endpoint is different
+        Uri.parse(ApiConfig.bankLoanRequest),
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({
           'user_id': widget.userId,
@@ -510,18 +510,18 @@ class _LoanProductsState extends State<LoanProducts> with TickerProviderStateMix
         showDialog(
           context: context,
           builder: (_) => AlertDialog(
-            backgroundColor: const Color(0xFF374151),
-            title: const Text('Bank Loan Submitted!', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+            backgroundColor: AppTheme.cardLight,
+            title: const Text('Bank Loan Submitted!', style: TextStyle(color: AppTheme.textPrimary, fontWeight: FontWeight.bold)),
             content: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
                 const Icon(Icons.check_circle, color: Colors.green, size: 60),
                 const SizedBox(height: 16),
-                Text('KES ${amount.toStringAsFixed(0)}', style: const TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold)),
+                Text('KES ${amount.toStringAsFixed(0)}', style: const TextStyle(color: AppTheme.textPrimary, fontSize: 22, fontWeight: FontWeight.bold)),
                 const SizedBox(height: 8),
-                Text('$months months • ${loanType.replaceAll('_', ' ').toUpperCase()}', style: const TextStyle(color: Colors.white70)),
+                Text('$months months â€¢ ${loanType.replaceAll('_', ' ').toUpperCase()}', style: const TextStyle(color: AppTheme.textSecondary)),
                 const SizedBox(height: 16),
-                Text('Request ID: $loanId', style: const TextStyle(color: Colors.white70)),
+                Text('Request ID: $loanId', style: const TextStyle(color: AppTheme.textSecondary)),
               ],
             ),
             actions: [TextButton(onPressed: () => Navigator.pop(context), child: const Text('OK'))],
@@ -558,9 +558,9 @@ class _LoanProductsState extends State<LoanProducts> with TickerProviderStateMix
     showDialog(
       context: context,
       builder: (c) => AlertDialog(
-        backgroundColor: const Color(0xFF374151),
+        backgroundColor: AppTheme.cardLight,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        title: Text('Select $category Offer', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+        title: Text('Select $category Offer', style: const TextStyle(color: AppTheme.textPrimary, fontWeight: FontWeight.bold)),
         content: SizedBox(
           width: double.maxFinite,
           child: ListView.builder(
@@ -569,12 +569,12 @@ class _LoanProductsState extends State<LoanProducts> with TickerProviderStateMix
             itemBuilder: (ctx, i) {
               final offer = offers[i];
               return Card(
-                color: const Color(0xFF2D3748),
+                color: AppColors.coreWhiteW1,
                 child: ListTile(
-                  title: Text(offer['title'] as String, style: const TextStyle(color: Colors.white)),
-                  subtitle: Text('Max: KES ${(offer['max_amount'] as num).toStringAsFixed(0)} • ${(offer['interest'] as num).toStringAsFixed(1)}% • ${offer['max_months']} mo',
-                      style: const TextStyle(color: Colors.white70, fontSize: 12)),
-                  trailing: const Icon(Icons.arrow_forward_ios, color: Colors.white54, size: 16),
+                  title: Text(offer['title'] as String, style: const TextStyle(color: AppTheme.cardLight)),
+                  subtitle: Text('Max: KES ${(offer['max_amount'] as num).toStringAsFixed(0)} â€¢ ${(offer['interest'] as num).toStringAsFixed(1)}% â€¢ ${offer['max_months']} mo',
+                      style: const TextStyle(color: AppTheme.textSecondary, fontSize: 12)),
+                  trailing: const Icon(Icons.arrow_forward_ios, color: AppTheme.textSecondary, size: 16),
                   onTap: () {
                     Navigator.pop(c);
                     _showAmountAndTermDialog(offer, category);
@@ -584,7 +584,7 @@ class _LoanProductsState extends State<LoanProducts> with TickerProviderStateMix
             },
           ),
         ),
-        actions: [TextButton(onPressed: () => Navigator.pop(c), child: const Text('Cancel', style: TextStyle(color: Colors.white70)))],
+        actions: [TextButton(onPressed: () => Navigator.pop(c), child: const Text('Cancel', style: TextStyle(color: AppTheme.textSecondary)))],
       ),
     );
   }
@@ -604,38 +604,38 @@ class _LoanProductsState extends State<LoanProducts> with TickerProviderStateMix
     showDialog(
       context: context,
       builder: (c) => AlertDialog(
-        backgroundColor: const Color(0xFF374151),
+        backgroundColor: AppTheme.cardLight,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        title: Text('Request ${offer['title'] as String}', style: const TextStyle(color: Colors.white)),
+        title: Text('Request ${offer['title'] as String}', style: const TextStyle(color: AppTheme.cardLight)),
         content: Form(
           key: formKey,
           child: SingleChildScrollView(
             child: Column(mainAxisSize: MainAxisSize.min, children: [
               Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-                const Text('Max Offer:', style: TextStyle(color: Colors.white70, fontSize: 12)),
+                const Text('Max Offer:', style: TextStyle(color: AppTheme.textSecondary, fontSize: 12)),
                 Text('KES ${(offer['max_amount'] as num).toStringAsFixed(0)}', style: const TextStyle(color: Colors.green, fontSize: 14, fontWeight: FontWeight.bold)),
               ]),
               const SizedBox(height: 8),
               Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-                const Text('Your Savings:', style: TextStyle(color: Colors.white70, fontSize: 12)),
+                const Text('Your Savings:', style: TextStyle(color: AppTheme.textSecondary, fontSize: 12)),
                 Text('KES ${userSavings.toStringAsFixed(0)}', style: const TextStyle(color: Colors.green, fontSize: 14, fontWeight: FontWeight.bold)),
               ]),
               const SizedBox(height: 8),
               Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-                const Text('Max Loan (2×):', style: TextStyle(color: Colors.white70, fontSize: 12)),
+                const Text('Max Loan (2Ã—):', style: TextStyle(color: AppTheme.textSecondary, fontSize: 12)),
                 Text('KES ${maxAllowed.toStringAsFixed(0)}', style: const TextStyle(color: Colors.green, fontSize: 14, fontWeight: FontWeight.bold)),
               ]),
               const SizedBox(height: 16),
               TextFormField(
                 controller: amountCtrl,
                 keyboardType: TextInputType.number,
-                style: const TextStyle(color: Colors.white),
+                style: const TextStyle(color: AppTheme.cardLight),
                 decoration: _inputDec('Amount (KES)'),
                 validator: (v) {
                   final val = double.tryParse(v ?? '');
                   if (val == null || val <= 0) return 'Invalid amount';
                   if (val > (offer['max_amount'] as num).toDouble()) return 'Exceeds max';
-                  if (val > maxAllowed) return 'Max 2× savings';
+                  if (val > maxAllowed) return 'Max 2Ã— savings';
                   return null;
                 },
               ),
@@ -645,9 +645,9 @@ class _LoanProductsState extends State<LoanProducts> with TickerProviderStateMix
           ),
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(c), child: const Text('Cancel', style: TextStyle(color: Colors.white70))),
+          TextButton(onPressed: () => Navigator.pop(c), child: const Text('Cancel', style: TextStyle(color: AppTheme.textSecondary))),
           ElevatedButton(
-            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFF5BB1B)),
+            style: ElevatedButton.styleFrom(backgroundColor: AppColors.financeGreenV3),
             onPressed: () {
               if (formKey.currentState!.validate()) {
                 Navigator.pop(c);
@@ -668,7 +668,7 @@ class _LoanProductsState extends State<LoanProducts> with TickerProviderStateMix
   // ----------------- API Methods -----------------
   Future<List<Map<String, dynamic>>> _fetchPendingLoans() async {
     try {
-      final response = await http.get(Uri.parse('$baseUrl/pending-loans'));
+      final response = await http.get(Uri.parse(ApiConfig.pendingLoans));
       if (response.statusCode == 200) {
         final dynamic json = jsonDecode(response.body);
         if (json is List) return List<Map<String, dynamic>>.from(json);
@@ -682,7 +682,7 @@ class _LoanProductsState extends State<LoanProducts> with TickerProviderStateMix
 
   Future<List<Map<String, dynamic>>> _fetchP2PPortfolio() async {
     try {
-      final response = await http.get(Uri.parse('$baseUrl/p2p-portfolio/${widget.userId}'));
+      final response = await http.get(Uri.parse(ApiConfig.p2pPortfolio(widget.userId)));
       if (response.statusCode == 200) {
         final dynamic json = jsonDecode(response.body);
         if (json is List) return List<Map<String, dynamic>>.from(json);
@@ -696,7 +696,7 @@ class _LoanProductsState extends State<LoanProducts> with TickerProviderStateMix
 
   Future<List<Map<String, dynamic>>> _fetchMyLoanRequests() async {
     try {
-      final response = await http.get(Uri.parse('$baseUrl/pending-loans'));
+      final response = await http.get(Uri.parse(ApiConfig.pendingLoans));
       if (response.statusCode == 200) {
         final dynamic json = jsonDecode(response.body);
         List<dynamic> allRequests = [];
@@ -716,7 +716,7 @@ class _LoanProductsState extends State<LoanProducts> with TickerProviderStateMix
   Future<void> _makeManualLend({required String loanRequestId, required double amount}) async {
     try {
       final response = await http.post(
-        Uri.parse('$baseUrl/manual-lend'),
+        Uri.parse(ApiConfig.manualLend),
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({'lender_id': widget.userId, 'loan_request_id': loanRequestId, 'amount': amount}),
       );
@@ -746,7 +746,7 @@ class _LoanProductsState extends State<LoanProducts> with TickerProviderStateMix
     showDialog(
       context: context,
       builder: (_) => AlertDialog(
-        backgroundColor: const Color(0xFF374151),
+        backgroundColor: AppTheme.cardLight,
         title: const Text('Activate Auto-Lend'),
         content: Column(mainAxisSize: MainAxisSize.min, children: [
           TextField(controller: totalCtrl, keyboardType: TextInputType.number, decoration: _inputDec('Total Amount (KES)')),
@@ -756,7 +756,7 @@ class _LoanProductsState extends State<LoanProducts> with TickerProviderStateMix
         actions: [
           TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
           ElevatedButton(
-            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFF5BB1B)),
+            style: ElevatedButton.styleFrom(backgroundColor: AppColors.financeGreenV3),
             onPressed: () async {
               final total = double.tryParse(totalCtrl.text) ?? 0;
               final maxPer = double.tryParse(maxPerCtrl.text);
@@ -764,7 +764,7 @@ class _LoanProductsState extends State<LoanProducts> with TickerProviderStateMix
               Navigator.pop(context);
               try {
                 final response = await http.post(
-                  Uri.parse('$baseUrl/auto-lend'),
+                  Uri.parse(ApiConfig.autoLend),
                   headers: {'Content-Type': 'application/json'},
                   body: jsonEncode({
                     'lender_id': widget.userId,
@@ -805,7 +805,7 @@ class _LoanProductsState extends State<LoanProducts> with TickerProviderStateMix
     showDialog(
       context: context,
       builder: (ctx) => Dialog(
-        backgroundColor: const Color(0xFF374151),
+        backgroundColor: AppTheme.cardLight,
         insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
         child: DefaultTabController(
           length: 3,
@@ -815,19 +815,19 @@ class _LoanProductsState extends State<LoanProducts> with TickerProviderStateMix
               children: [
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                  decoration: const BoxDecoration(color: Color(0xFF2D3748), borderRadius: BorderRadius.vertical(top: Radius.circular(12))),
+                  decoration: const BoxDecoration(color: AppColors.coreWhiteW1, borderRadius: BorderRadius.vertical(top: Radius.circular(12))),
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      const Text('Public P2P', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 18)),
-                      IconButton(icon: const Icon(Icons.close, color: Colors.white70), onPressed: () => Navigator.pop(ctx)),
+                      const Text('Public P2P', style: TextStyle(color: AppTheme.textPrimary, fontWeight: FontWeight.bold, fontSize: 18)),
+                      IconButton(icon: const Icon(Icons.close, color: AppTheme.textSecondary), onPressed: () => Navigator.pop(ctx)),
                     ],
                   ),
                 ),
                 const TabBar(
-                  labelColor: Color(0xFFF5BB1B),
-                  unselectedLabelColor: Colors.white70,
-                  indicatorColor: Color(0xFFF5BB1B),
+                  labelColor: AppColors.financeGreenV3,
+                  unselectedLabelColor: AppTheme.textSecondary,
+                  indicatorColor: AppColors.financeGreenV3,
                   tabs: [Tab(text: 'Portfolio'), Tab(text: 'My Requests'), Tab(text: 'Lend')],
                 ),
                 Expanded(
@@ -837,9 +837,9 @@ class _LoanProductsState extends State<LoanProducts> with TickerProviderStateMix
                       FutureBuilder<List<Map<String, dynamic>>>(
                         future: _fetchP2PPortfolio(),
                         builder: (c, snap) {
-                          if (snap.connectionState != ConnectionState.done) return const Center(child: CircularProgressIndicator(color: Color(0xFFF5BB1B)));
+                          if (snap.connectionState != ConnectionState.done) return const Center(child: CircularProgressIndicator(color: AppColors.financeGreenV3));
                           final loans = snap.data ?? [];
-                          if (loans.isEmpty) return const Center(child: Text('No active investments yet', style: TextStyle(color: Colors.white70, fontSize: 16)));
+                          if (loans.isEmpty) return const Center(child: Text('No active investments yet', style: TextStyle(color: AppTheme.textSecondary, fontSize: 16)));
 
                           final totalLent = loans.fold<double>(0.0, (s, l) => s + (l['amount'] as num).toDouble());
                           final totalReturn = loans.fold<double>(0.0, (sum, l) => sum + ((l['expected_return'] as num?)?.toDouble() ?? 0.0));
@@ -849,19 +849,19 @@ class _LoanProductsState extends State<LoanProducts> with TickerProviderStateMix
                             children: [
                               Row(mainAxisAlignment: MainAxisAlignment.spaceEvenly, children: [
                                 Column(children: [
-                                  const Text('Total Lent', style: TextStyle(color: Colors.white70, fontSize: 14)),
+                                  const Text('Total Lent', style: TextStyle(color: AppTheme.textSecondary, fontSize: 14)),
                                   const SizedBox(height: 4),
                                   Text('KES ${totalLent.toStringAsFixed(0)}', style: const TextStyle(color: Colors.green, fontSize: 20, fontWeight: FontWeight.bold)),
                                 ]),
                                 Column(children: [
-                                  const Text('Expected Return', style: TextStyle(color: Colors.white70, fontSize: 14)),
+                                  const Text('Expected Return', style: TextStyle(color: AppTheme.textSecondary, fontSize: 14)),
                                   const SizedBox(height: 4),
                                   Text('KES ${totalReturn.toStringAsFixed(0)}', style: const TextStyle(color: Colors.greenAccent, fontSize: 20, fontWeight: FontWeight.bold)),
                                 ]),
                               ]),
                               const SizedBox(height: 20),
                               ...loans.map((l) => Card(
-                                color: const Color(0xFF2D3748),
+                                color: AppColors.coreWhiteW1,
                                 margin: const EdgeInsets.only(bottom: 12),
                                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                                 child: Padding(
@@ -870,43 +870,43 @@ class _LoanProductsState extends State<LoanProducts> with TickerProviderStateMix
                                     crossAxisAlignment: CrossAxisAlignment.start,
                                     children: [
                                       Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-                                        Expanded(child: Text((l['borrower_name'] ?? l['full_name'] ?? 'Unknown') as String, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 18))),
+                                        Expanded(child: Text((l['borrower_name'] ?? l['full_name'] ?? 'Unknown') as String, style: const TextStyle(color: AppTheme.textPrimary, fontWeight: FontWeight.bold, fontSize: 18))),
                                         Container(
                                           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                                           decoration: BoxDecoration(color: _getRiskColor(l['risk_level'] as String?), borderRadius: BorderRadius.circular(20)),
-                                          child: Text(l['risk_level'] ?? 'N/A', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12)),
+                                          child: Text(l['risk_level'] ?? 'N/A', style: const TextStyle(color: AppTheme.textPrimary, fontWeight: FontWeight.bold, fontSize: 12)),
                                         ),
                                       ]),
                                       const SizedBox(height: 12),
                                       Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
                                         Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                                          const Text('Lent Amount', style: TextStyle(color: Colors.white70, fontSize: 13)),
-                                          Text('KES ${(l['amount'] as num).toStringAsFixed(0)}', style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
+                                          const Text('Lent Amount', style: TextStyle(color: AppTheme.textSecondary, fontSize: 13)),
+                                          Text('KES ${(l['amount'] as num).toStringAsFixed(0)}', style: const TextStyle(color: AppTheme.textPrimary, fontSize: 16, fontWeight: FontWeight.bold)),
                                         ]),
                                         Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                                          const Text('Interest Rate', style: TextStyle(color: Colors.white70, fontSize: 13)),
-                                          Text('${l['interest_rate'] ?? l['interest'] ?? 'N/A'}%', style: const TextStyle(color: Colors.white, fontSize: 16)),
+                                          const Text('Interest Rate', style: TextStyle(color: AppTheme.textSecondary, fontSize: 13)),
+                                          Text('${l['interest_rate'] ?? l['interest'] ?? 'N/A'}%', style: const TextStyle(color: AppTheme.textPrimary, fontSize: 16)),
                                         ]),
                                       ]),
                                       const SizedBox(height: 12),
                                       Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
                                         Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                                          const Text('Tenure', style: TextStyle(color: Colors.white70, fontSize: 13)),
-                                          Text('${l['tenure_months'] ?? 'N/A'} months', style: const TextStyle(color: Colors.white, fontSize: 16)),
+                                          const Text('Tenure', style: TextStyle(color: AppTheme.textSecondary, fontSize: 13)),
+                                          Text('${l['tenure_months'] ?? 'N/A'} months', style: const TextStyle(color: AppTheme.textPrimary, fontSize: 16)),
                                         ]),
                                         Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                                          const Text('Due Date', style: TextStyle(color: Colors.white70, fontSize: 13)),
+                                          const Text('Due Date', style: TextStyle(color: AppTheme.textSecondary, fontSize: 13)),
                                           Text(l['due_date'] ?? 'N/A', style: const TextStyle(color: Colors.orangeAccent, fontSize: 16, fontWeight: FontWeight.bold)),
                                         ]),
                                       ]),
                                       const SizedBox(height: 12),
                                       Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
                                         Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                                          const Text('Status', style: TextStyle(color: Colors.white70, fontSize: 13)),
+                                          const Text('Status', style: TextStyle(color: AppTheme.textSecondary, fontSize: 13)),
                                           Text(l['status'] ?? 'Unknown', style: TextStyle(color: _kStatusColors[(l['status'] as String?)?.toLowerCase()] ?? Colors.grey, fontWeight: FontWeight.bold, fontSize: 15)),
                                         ]),
                                         Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
-                                          const Text('Expected Return', style: TextStyle(color: Colors.white70, fontSize: 13)),
+                                          const Text('Expected Return', style: TextStyle(color: AppTheme.textSecondary, fontSize: 13)),
                                           Text('KES ${(l['expected_return'] as num?)?.toStringAsFixed(0) ?? '0'}', style: const TextStyle(color: Colors.greenAccent, fontSize: 18, fontWeight: FontWeight.bold)),
                                         ]),
                                       ]),
@@ -925,16 +925,16 @@ class _LoanProductsState extends State<LoanProducts> with TickerProviderStateMix
                           FutureBuilder<List<Map<String, dynamic>>>(
                             future: _fetchMyLoanRequests(),
                             builder: (c, snap) {
-                              if (snap.connectionState != ConnectionState.done) return const Center(child: CircularProgressIndicator(color: Color(0xFFF5BB1B)));
+                              if (snap.connectionState != ConnectionState.done) return const Center(child: CircularProgressIndicator(color: AppColors.financeGreenV3));
                               final requests = snap.data ?? [];
-                              if (requests.isEmpty) return const Center(child: Text('No active requests\nTap + to create one', textAlign: TextAlign.center, style: TextStyle(color: Colors.white70, fontSize: 16)));
+                              if (requests.isEmpty) return const Center(child: Text('No active requests\nTap + to create one', textAlign: TextAlign.center, style: TextStyle(color: AppTheme.textSecondary, fontSize: 16)));
                               return ListView.builder(
                                 padding: const EdgeInsets.all(16),
                                 itemCount: requests.length,
                                 itemBuilder: (_, i) {
                                   final r = requests[i];
                                   return Card(
-                                    color: const Color(0xFF2D3748),
+                                    color: AppColors.coreWhiteW1,
                                     margin: const EdgeInsets.only(bottom: 12),
                                     child: Padding(
                                       padding: const EdgeInsets.all(16),
@@ -942,13 +942,13 @@ class _LoanProductsState extends State<LoanProducts> with TickerProviderStateMix
                                         crossAxisAlignment: CrossAxisAlignment.start,
                                         children: [
                                           Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-                                            Text('Request #${r['id']}', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 18)),
+                                            Text('Request #${r['id']}', style: const TextStyle(color: AppTheme.textPrimary, fontWeight: FontWeight.bold, fontSize: 18)),
                                             Text(r['status'] ?? 'Pending', style: TextStyle(color: _kStatusColors[(r['status'] as String?)?.toLowerCase()] ?? Colors.grey)),
                                           ]),
                                           const SizedBox(height: 12),
-                                          Text('Amount: KES ${(r['amount'] ?? r['amount_requested'])?.toStringAsFixed(0)}', style: const TextStyle(color: Colors.white, fontSize: 16)),
-                                          Text('Max Rate: ${r['interest_rate'] ?? 'N/A'}% • ${r['tenure_months']} months', style: const TextStyle(color: Colors.white70)),
-                                          Text('Created: ${r['created_at'] ?? 'N/A'}', style: const TextStyle(color: Colors.white54)),
+                                          Text('Amount: KES ${(r['amount'] ?? r['amount_requested'])?.toStringAsFixed(0)}', style: const TextStyle(color: AppTheme.textPrimary, fontSize: 16)),
+                                          Text('Max Rate: ${r['interest_rate'] ?? 'N/A'}% â€¢ ${r['tenure_months']} months', style: const TextStyle(color: AppTheme.textSecondary)),
+                                          Text('Created: ${r['created_at'] ?? 'N/A'}', style: const TextStyle(color: AppTheme.textSecondary)),
                                         ],
                                       ),
                                     ),
@@ -961,7 +961,7 @@ class _LoanProductsState extends State<LoanProducts> with TickerProviderStateMix
                             bottom: 20,
                             right: 20,
                             child: FloatingActionButton(
-                              backgroundColor: const Color(0xFFF5BB1B),
+                              backgroundColor: AppColors.financeGreenV3,
                               onPressed: () {
                                 Navigator.pop(context);
                                 _showPublicP2PFlow();
@@ -979,15 +979,15 @@ class _LoanProductsState extends State<LoanProducts> with TickerProviderStateMix
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              const Text('Available Loan Requests', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 18)),
+                              const Text('Available Loan Requests', style: TextStyle(color: AppTheme.textPrimary, fontWeight: FontWeight.bold, fontSize: 18)),
                               const SizedBox(height: 12),
                               Expanded(
                                 child: FutureBuilder<List<Map<String, dynamic>>>(
                                   future: _fetchPendingLoans(),
                                   builder: (c, snap) {
-                                    if (snap.connectionState != ConnectionState.done) return const Center(child: CircularProgressIndicator(color: Color(0xFFF5BB1B)));
+                                    if (snap.connectionState != ConnectionState.done) return const Center(child: CircularProgressIndicator(color: AppColors.financeGreenV3));
                                     final requests = snap.data ?? [];
-                                    if (requests.isEmpty) return const Center(child: Text('No open requests at the moment', style: TextStyle(color: Colors.white70, fontSize: 16)));
+                                    if (requests.isEmpty) return const Center(child: Text('No open requests at the moment', style: TextStyle(color: AppTheme.textSecondary, fontSize: 16)));
 
                                     return ListView.builder(
                                       itemCount: requests.length,
@@ -995,30 +995,30 @@ class _LoanProductsState extends State<LoanProducts> with TickerProviderStateMix
                                         final r = requests[i];
                                         final maxRate = r['interest_rate'] ?? 'N/A';
                                         return Card(
-                                          color: const Color(0xFF2D3748),
+                                          color: AppColors.coreWhiteW1,
                                           margin: const EdgeInsets.only(bottom: 12),
                                           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                                           child: ListTile(
                                             contentPadding: const EdgeInsets.all(16),
-                                            title: Text('KES ${(r['amount'] ?? r['amount_requested'])}', style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold)),
+                                            title: Text('KES ${(r['amount'] ?? r['amount_requested'])}', style: const TextStyle(color: AppTheme.textPrimary, fontSize: 20, fontWeight: FontWeight.bold)),
                                             subtitle: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                                              Text('Max Rate: $maxRate% • ${r['tenure_months']} months', style: const TextStyle(color: Colors.white70)),
-                                              Text('Borrower: ${r['full_name'] ?? 'Anonymous'}', style: const TextStyle(color: Colors.white70)),
+                                              Text('Max Rate: $maxRate% â€¢ ${r['tenure_months']} months', style: const TextStyle(color: AppTheme.textSecondary)),
+                                              Text('Borrower: ${r['full_name'] ?? 'Anonymous'}', style: const TextStyle(color: AppTheme.textSecondary)),
                                             ]),
                                             trailing: ElevatedButton(
-                                              style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFF5BB1B)),
+                                              style: ElevatedButton.styleFrom(backgroundColor: AppColors.financeGreenV3),
                                               onPressed: () {
                                                 final ctrl = TextEditingController(text: (r['amount'] ?? r['amount_requested']).toString());
                                                 showDialog(
                                                   context: context,
                                                   builder: (_) => AlertDialog(
-                                                    backgroundColor: const Color(0xFF374151),
-                                                    title: const Text('How much to lend?', style: TextStyle(color: Colors.white)),
+                                                    backgroundColor: AppTheme.cardLight,
+                                                    title: const Text('How much to lend?', style: TextStyle(color: AppTheme.cardLight)),
                                                     content: TextField(controller: ctrl, keyboardType: TextInputType.number, decoration: _inputDec('Amount (KES)')),
                                                     actions: [
-                                                      TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel', style: TextStyle(color: Colors.white70))),
+                                                      TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel', style: TextStyle(color: AppTheme.textSecondary))),
                                                       ElevatedButton(
-                                                        style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFF5BB1B)),
+                                                        style: ElevatedButton.styleFrom(backgroundColor: AppColors.financeGreenV3),
                                                         onPressed: () {
                                                           final amt = double.tryParse(ctrl.text) ?? 0;
                                                           if (amt > 0) {
@@ -1043,14 +1043,14 @@ class _LoanProductsState extends State<LoanProducts> with TickerProviderStateMix
                               ),
                               const Divider(color: Colors.white24),
                               SwitchListTile(
-                                title: const Text('Auto-Lending', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-                                subtitle: const Text('Automatically lend to qualified requests', style: TextStyle(color: Colors.white70)),
+                                title: const Text('Auto-Lending', style: TextStyle(color: AppTheme.textPrimary, fontWeight: FontWeight.bold)),
+                                subtitle: const Text('Automatically lend to qualified requests', style: TextStyle(color: AppTheme.textSecondary)),
                                 value: _autoLendEnabled,
                                 onChanged: (v) {
                                   setLendState(() => _autoLendEnabled = v);
                                   _toggleAutoLend(v);
                                 },
-                                activeColor: const Color(0xFFF5BB1B),
+                                activeColor: AppColors.financeGreenV3,
                               ),
                             ],
                           ),
@@ -1070,26 +1070,26 @@ class _LoanProductsState extends State<LoanProducts> with TickerProviderStateMix
   // ----------------- UI Build Methods -----------------
   PreferredSizeWidget _buildAppBar() {
     return AppBar(
-      backgroundColor: const Color(0xFF374151),
+      backgroundColor: AppTheme.cardLight,
       elevation: 0,
-      title: const Text('Loan Products', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 20)),
-      leading: IconButton(icon: const Icon(Icons.menu, color: Colors.white), onPressed: () => _scaffoldKey.currentState?.openDrawer()),
+      title: const Text('Loan Products', style: TextStyle(color: AppTheme.textPrimary, fontWeight: FontWeight.bold, fontSize: 20)),
+      leading: IconButton(icon: const Icon(Icons.menu, color: AppTheme.cardLight), onPressed: () => _scaffoldKey.currentState?.openDrawer()),
     );
   }
 
   Widget _buildDrawer() {
     return Drawer(
-      backgroundColor: const Color(0xFF374151),
+      backgroundColor: AppTheme.cardLight,
       child: ListView(
         padding: EdgeInsets.zero,
         children: [
           DrawerHeader(
-            decoration: const BoxDecoration(color: Color(0xFF2D3748)),
-            child: Text(userDetails?['name'] as String? ?? 'User', style: const TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.bold)),
+            decoration: const BoxDecoration(color: AppColors.coreWhiteW1),
+            child: Text(userDetails?['name'] as String? ?? 'User', style: const TextStyle(color: AppTheme.textPrimary, fontSize: 24, fontWeight: FontWeight.bold)),
           ),
           ListTile(
-            leading: const Icon(Icons.logout, color: Colors.white70),
-            title: const Text('Logout', style: TextStyle(color: Colors.white)),
+            leading: const Icon(Icons.logout, color: AppTheme.textSecondary),
+            title: const Text('Logout', style: TextStyle(color: AppTheme.cardLight)),
             onTap: _logout,
           ),
         ],
@@ -1105,7 +1105,7 @@ class _LoanProductsState extends State<LoanProducts> with TickerProviderStateMix
           FadeTransition(
             opacity: _fadeAnimation,
             child: Card(
-              color: const Color(0xFF374151),
+              color: AppTheme.cardLight,
               elevation: 4,
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
               child: Padding(
@@ -1113,11 +1113,11 @@ class _LoanProductsState extends State<LoanProducts> with TickerProviderStateMix
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('Welcome}!', style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold)),
+                    Text('Welcome}!', style: const TextStyle(color: AppTheme.textPrimary, fontSize: 20, fontWeight: FontWeight.bold)),
                     const SizedBox(height: 12),
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                      decoration: BoxDecoration(color: const Color(0xFF2D3748), borderRadius: BorderRadius.circular(8)),
+                      decoration: BoxDecoration(color: AppColors.coreWhiteW1, borderRadius: BorderRadius.circular(8)),
                       child: Text('Your Savings: KES ${(userDetails?['savings'] as num?)?.toStringAsFixed(0) ?? '0'}', style: const TextStyle(color: Colors.green, fontSize: 16, fontWeight: FontWeight.bold)),
                     ),
                   ],
@@ -1126,47 +1126,47 @@ class _LoanProductsState extends State<LoanProducts> with TickerProviderStateMix
             ),
           ),
           const SizedBox(height: 24),
-          const Text('Bank Loans', style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
+          const Text('Bank Loans', style: TextStyle(color: AppTheme.textPrimary, fontSize: 18, fontWeight: FontWeight.bold)),
           const SizedBox(height: 12),
           Card(
-            color: const Color(0xFF374151),
+            color: AppTheme.cardLight,
             elevation: 3,
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
             child: Padding(
               padding: const EdgeInsets.all(16),
               child: Column(
                 children: [
-                  SizedBox(width: double.infinity, child: ElevatedButton(style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFF5BB1B), foregroundColor: Colors.black, padding: const EdgeInsets.symmetric(vertical: 12), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8))), onPressed: () => _showLoanOffersDialog('Salary'), child: const Text('💼 Salary Advance', style: TextStyle(fontWeight: FontWeight.bold)))),
+                  SizedBox(width: double.infinity, child: ElevatedButton(style: ElevatedButton.styleFrom(backgroundColor: AppColors.financeGreenV3, foregroundColor: Colors.black, padding: const EdgeInsets.symmetric(vertical: 12), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8))), onPressed: () => _showLoanOffersDialog('Salary'), child: const Text('ðŸ’¼ Salary Advance', style: TextStyle(fontWeight: FontWeight.bold)))),
                   const SizedBox(height: 10),
-                  SizedBox(width: double.infinity, child: ElevatedButton(style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFF5BB1B), foregroundColor: Colors.black, padding: const EdgeInsets.symmetric(vertical: 12), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8))), onPressed: () => _showLoanOffersDialog('Emergency'), child: const Text('🚨 Emergency Loan', style: TextStyle(fontWeight: FontWeight.bold)))),
+                  SizedBox(width: double.infinity, child: ElevatedButton(style: ElevatedButton.styleFrom(backgroundColor: AppColors.financeGreenV3, foregroundColor: Colors.black, padding: const EdgeInsets.symmetric(vertical: 12), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8))), onPressed: () => _showLoanOffersDialog('Emergency'), child: const Text('ðŸš¨ Emergency Loan', style: TextStyle(fontWeight: FontWeight.bold)))),
                   const SizedBox(height: 10),
-                  SizedBox(width: double.infinity, child: ElevatedButton(style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFF5BB1B), foregroundColor: Colors.black, padding: const EdgeInsets.symmetric(vertical: 12), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8))), onPressed: () => _showLoanOffersDialog('Business'), child: const Text('📊 Business Loan', style: TextStyle(fontWeight: FontWeight.bold)))),
+                  SizedBox(width: double.infinity, child: ElevatedButton(style: ElevatedButton.styleFrom(backgroundColor: AppColors.financeGreenV3, foregroundColor: Colors.black, padding: const EdgeInsets.symmetric(vertical: 12), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8))), onPressed: () => _showLoanOffersDialog('Business'), child: const Text('ðŸ“Š Business Loan', style: TextStyle(fontWeight: FontWeight.bold)))),
                 ],
               ),
             ),
           ),
           const SizedBox(height: 24),
-          const Text('P2P & Friends/Family', style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
+          const Text('P2P & Friends/Family', style: TextStyle(color: AppTheme.textPrimary, fontSize: 18, fontWeight: FontWeight.bold)),
           const SizedBox(height: 12),
           Card(
-            color: const Color(0xFF374151),
+            color: AppTheme.cardLight,
             elevation: 3,
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
             child: Column(
               children: [
                 ListTile(
-                  leading: const Icon(Icons.public, color: Color(0xFFF5BB1B)),
-                  title: const Text('Public P2P', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-                  subtitle: const Text('Portfolio • Borrowers • Lenders', style: TextStyle(color: Colors.white70, fontSize: 12)),
-                  trailing: const Icon(Icons.arrow_forward_ios, color: Colors.white54, size: 16),
+                  leading: const Icon(Icons.public, color: AppColors.financeGreenV3),
+                  title: const Text('Public P2P', style: TextStyle(color: AppTheme.textPrimary, fontWeight: FontWeight.bold)),
+                  subtitle: const Text('Portfolio â€¢ Borrowers â€¢ Lenders', style: TextStyle(color: AppTheme.textSecondary, fontSize: 12)),
+                  trailing: const Icon(Icons.arrow_forward_ios, color: AppTheme.textSecondary, size: 16),
                   onTap: _openPublicP2PPanel,
                 ),
                 const Divider(color: Colors.white24, height: 1),
                 ListTile(
-                  leading: const Icon(Icons.contacts, color: Color(0xFFF5BB1B)),
-                  title: const Text('Friends & Family', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-                  subtitle: const Text('Connect with known contacts', style: TextStyle(color: Colors.white70, fontSize: 12)),
-                  trailing: const Icon(Icons.arrow_forward_ios, color: Colors.white54, size: 16),
+                  leading: const Icon(Icons.contacts, color: AppColors.financeGreenV3),
+                  title: const Text('Friends & Family', style: TextStyle(color: AppTheme.textPrimary, fontWeight: FontWeight.bold)),
+                  subtitle: const Text('Connect with known contacts', style: TextStyle(color: AppTheme.textSecondary, fontSize: 12)),
+                  trailing: const Icon(Icons.arrow_forward_ios, color: AppTheme.textSecondary, size: 16),
                   onTap: _showFriendsFamilyFlow,
                 ),
               ],
@@ -1180,9 +1180,9 @@ class _LoanProductsState extends State<LoanProducts> with TickerProviderStateMix
 
   Widget _buildBottomNav() {
     return BottomNavigationBar(
-      backgroundColor: const Color(0xFF374151),
-      selectedItemColor: const Color(0xFFF5BB1B),
-      unselectedItemColor: Colors.white54,
+      backgroundColor: AppTheme.cardLight,
+      selectedItemColor: AppColors.financeGreenV3,
+      unselectedItemColor: AppTheme.textSecondary,
       currentIndex: 1,
       onTap: _onItemTapped,
       type: BottomNavigationBarType.fixed,
@@ -1208,7 +1208,7 @@ class _LoanProductsState extends State<LoanProducts> with TickerProviderStateMix
   Future<void> fetchUserDetails() async {
     setState(() => isLoading = true);
     try {
-      final response = await http.get(Uri.parse('$baseUrl/user-details/${widget.userId}'));
+      final response = await http.get(Uri.parse(ApiConfig.userDetailsById(widget.userId)));
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
         if (data['status'] == 'success') {
@@ -1253,11 +1253,11 @@ class _LoanProductsState extends State<LoanProducts> with TickerProviderStateMix
   Widget build(BuildContext context) {
     return Scaffold(
       key: _scaffoldKey,
-      backgroundColor: const Color(0xFF1F2937),
+      backgroundColor: AppColors.coreDark,
       appBar: _buildAppBar(),
       drawer: _buildDrawer(),
       body: isLoading
-          ? Center(child: RotationTransition(turns: _knobController, child: const Icon(Icons.autorenew, size: 80, color: Color(0xFFF5BB1B))))
+          ? Center(child: RotationTransition(turns: _knobController, child: const Icon(Icons.autorenew, size: 80, color: AppColors.financeGreenV3)))
           : _buildBody(),
       bottomNavigationBar: _buildBottomNav(),
     );

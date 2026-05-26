@@ -1,4 +1,5 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
+import '../constants/app_theme.dart';
 import '../constants/app_theme.dart';
 
 /// Feature card for dashboard
@@ -104,7 +105,7 @@ class _FeatureCardState extends State<FeatureCard>
                       ),
                       child: Icon(
                         widget.icon,
-                        color: Colors.white,
+                        color: AppTheme.textPrimary,
                         size: 32,
                       ),
                     ),
@@ -135,7 +136,7 @@ class _FeatureCardState extends State<FeatureCard>
                     child: Text(
                       widget.badge!,
                       style: const TextStyle(
-                        color: Colors.white,
+                        color: AppTheme.textPrimary,
                         fontSize: 10,
                         fontWeight: FontWeight.bold,
                       ),
@@ -149,3 +150,4 @@ class _FeatureCardState extends State<FeatureCard>
     );
   }
 }
+

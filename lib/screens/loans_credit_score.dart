@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import '../constants/app_constants.dart';
+import '../constants/app_theme.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 
 import 'package:shared_preferences/shared_preferences.dart';
@@ -230,163 +231,87 @@ class _LoansCreditScoreState extends State<LoansCreditScore> with SingleTickerPr
   Widget build(BuildContext context) {
     return Scaffold(
       key: _scaffoldKey,
-      backgroundColor: const Color(0xFF1F2937),
       appBar: PreferredSize(
         preferredSize: const Size.fromHeight(70.0),
         child: Container(
-          decoration: const BoxDecoration(
-            color: Color(0xFF374151),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black26,
-                blurRadius: 4,
-                offset: Offset(0, 2),
-              ),
-            ],
+          decoration: BoxDecoration(
+            color: AppTheme.primaryColor,
+            boxShadow: [BoxShadow(color: AppColors.financeGreen.withValues(alpha: 0.3), blurRadius: 4, offset: const Offset(0, 2))],
           ),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
-            child: Row(
-              children: [
-                IconButton(
-                  icon: const Icon(Icons.menu, color: Colors.white),
-                  onPressed: () {
-                    _scaffoldKey.currentState?.openDrawer();
-                  },
-                ),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Text(
-                        userDetails != null ? userDetails!['full_name'] ?? 'User' : 'Loading...',
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      const Text(
-                        'Member since 2022',
-                        style: TextStyle(
-                          color: Colors.white70,
-                          fontSize: 12,
-                        ),
-                      ),
-                    ],
+          child: SafeArea(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+              child: Row(
+                children: [
+                  IconButton(
+                    icon: const Icon(Icons.menu, color: AppTheme.textLight),
+                    onPressed: () => _scaffoldKey.currentState?.openDrawer(),
                   ),
-                ),
-                IconButton(
-                  icon: const Icon(Icons.notifications, color: Colors.white),
-                  onPressed: () {},
-                ),
-              ],
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Text(
+                          userDetails != null ? userDetails!['full_name'] ?? 'User' : 'Loading...',
+                          style: const TextStyle(color: AppTheme.textLight, fontSize: 18, fontWeight: FontWeight.bold),
+                        ),
+                        const Text('Member since 2022', style: TextStyle(color: AppTheme.textLight)),
+                      ],
+                    ),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.notifications, color: AppTheme.textLight),
+                    onPressed: () {},
+                  ),
+                ],
+              ),
             ),
           ),
         ),
       ),
       drawer: Drawer(
-        backgroundColor: const Color(0xFF374151),
+        backgroundColor: AppTheme.cardLight,
         width: 250,
         child: ListView(
           padding: EdgeInsets.zero,
           children: [
             DrawerHeader(
-              decoration: const BoxDecoration(
-                color: Color(0xFF1F2937),
-              ),
+              decoration: const BoxDecoration(gradient: AppTheme.heroGradient),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   CircleAvatar(
                     radius: 28,
-                    backgroundColor: Colors.grey[300],
+                    backgroundColor: AppColors.financeGreenV2,
                     child: userDetails != null && userDetails!['selfie_path'] != null
-                        ? CachedNetworkImage(
-                            imageUrl: userDetails!['selfie_path'],
-                            fit: BoxFit.cover,
-                            width: 56,
-                            height: 56,
-                          )
-                        : const Icon(Icons.person, size: 28, color: Colors.white),
+                        ? ClipOval(child: CachedNetworkImage(imageUrl: userDetails!['selfie_path'], fit: BoxFit.cover, width: 56, height: 56))
+                        : const Icon(Icons.person, size: 28, color: AppTheme.textLight),
                   ),
                   const SizedBox(height: 12),
                   Text(
                     userDetails != null ? userDetails!['full_name'] ?? 'User' : 'Loading...',
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                    ),
+                    style: const TextStyle(color: AppTheme.textLight, fontSize: 18, fontWeight: FontWeight.bold),
                   ),
                   Text(
                     userDetails != null ? userDetails!['email'] ?? '' : '',
-                    style: const TextStyle(
-                      color: Colors.white70,
-                      fontSize: 14,
-                    ),
+                    style: const TextStyle(color: AppTheme.textLight),
                   ),
                 ],
               ),
             ),
+            ListTile(leading: const Icon(Icons.account_balance_wallet, color: AppColors.financeGreenV3), title: const Text('Wallet'), onTap: () => Navigator.pop(context)),
+            ListTile(leading: const Icon(Icons.work, color: AppColors.financeGreenV3), title: const Text('Jobs'), onTap: () => Navigator.pop(context)),
+            ListTile(leading: const Icon(Icons.school, color: AppColors.financeGreenV3), title: const Text('Scholarships & Funding'), onTap: () => Navigator.pop(context)),
+            ListTile(leading: const Icon(Icons.chat, color: AppColors.financeGreenV3), title: const Text('Chat'), onTap: () => Navigator.pop(context)),
+            ListTile(leading: const Icon(Icons.leaderboard, color: AppColors.financeGreenV3), title: const Text('Leaderboard'), onTap: () => Navigator.pop(context)),
+            ListTile(leading: const Icon(Icons.class_, color: AppColors.financeGreenV3), title: const Text('Classes'), onTap: () => Navigator.pop(context)),
             ListTile(
-              leading: const Icon(Icons.account_balance_wallet, color: Color(0xFFF5BB1B)),
-              title: const Text('Wallet', style: TextStyle(color: Colors.white)),
+              leading: const Icon(Icons.account_balance, color: AppColors.financeGreenV3),
+              title: const Text('Loans & Credit'),
               onTap: () {
                 Navigator.pop(context);
-                // TODO: Navigate to Wallet page
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.work, color: Color(0xFFF5BB1B)),
-              title: const Text('Jobs', style: TextStyle(color: Colors.white)),
-              onTap: () {
-                Navigator.pop(context);
-                // TODO: Navigate to Jobs page
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.school, color: Color(0xFFF5BB1B)),
-              title: const Text('Scholarships & Funding', style: TextStyle(color: Colors.white)),
-              onTap: () {
-                Navigator.pop(context);
-                // TODO: Navigate to Scholarships page
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.chat, color: Color(0xFFF5BB1B)),
-              title: const Text('Chat', style: TextStyle(color: Colors.white)),
-              onTap: () {
-                Navigator.pop(context);
-                // TODO: Navigate to Chat page
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.leaderboard, color: Color(0xFFF5BB1B)),
-              title: const Text('Leaderboard', style: TextStyle(color: Colors.white)),
-              onTap: () {
-                Navigator.pop(context);
-                // TODO: Navigate to Leaderboard page
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.class_, color: Color(0xFFF5BB1B)),
-              title: const Text('Classes', style: TextStyle(color: Colors.white)),
-              onTap: () {
-                Navigator.pop(context);
-                // TODO: Navigate to Classes page
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.account_balance, color: Color(0xFFF5BB1B)),
-              title: const Text('Loans & Credit', style: TextStyle(color: Colors.white)),
-              onTap: () {
-                Navigator.pop(context);
-                Navigator.pushReplacement(
-                  context,
-                  MaterialPageRoute(builder: (context) => LoansCreditScore(userId: widget.userId)),
-                );
+                Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => LoansCreditScore(userId: widget.userId)));
               },
             ),
           ],
@@ -394,32 +319,18 @@ class _LoansCreditScoreState extends State<LoansCreditScore> with SingleTickerPr
       ),
       drawerEnableOpenDragGesture: true,
       body: isLoading
-          ? const Center(
-              child: SpinKitFadingCircle(
-                color: Color(0xFFF5BB1B),
-                size: 50.0,
-              ),
-            )
+          ? Center(child: SpinKitFadingCircle(color: AppColors.financeGreenV3, size: 50.0))
           : SingleChildScrollView(
               padding: const EdgeInsets.all(16.0),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text(
-                    'Credit Score Lookup',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 20,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
+                  const Text('Credit Score Lookup', style: TextStyle(color: AppTheme.textPrimary, fontSize: 20, fontWeight: FontWeight.bold)),
                   const SizedBox(height: 16),
                   Card(
-                    color: const Color(0xFF374151),
+                    color: AppTheme.cardLight,
                     elevation: 4,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                     child: Padding(
                       padding: const EdgeInsets.all(16.0),
                       child: Form(
@@ -428,119 +339,44 @@ class _LoansCreditScoreState extends State<LoansCreditScore> with SingleTickerPr
                           children: [
                             DropdownButtonFormField<String>(
                               value: _idTypeController.text,
-                              decoration: InputDecoration(
-                                labelText: 'ID Type',
-                                labelStyle: const TextStyle(color: Colors.white70),
-                                filled: true,
-                                fillColor: const Color(0xFF2D3748),
-                                border: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(12),
-                                  borderSide: BorderSide.none,
-                                ),
-                              ),
-                              style: const TextStyle(color: Colors.white),
-                              dropdownColor: const Color(0xFF374151),
-                              items: ['national_id', 'passport'].map((String value) {
-                                return DropdownMenuItem<String>(
-                                  value: value,
-                                  child: Text(value),
-                                );
-                              }).toList(),
-                              onChanged: (value) {
-                                setState(() {
-                                  _idTypeController.text = value!;
-                                });
-                              },
+                              decoration: const InputDecoration(labelText: 'ID Type'),
+                              items: ['national_id', 'passport'].map((v) => DropdownMenuItem(value: v, child: Text(v))).toList(),
+                              onChanged: (value) => setState(() => _idTypeController.text = value!),
                             ),
                             const SizedBox(height: 12),
                             TextFormField(
                               controller: _idNumberController,
-                              decoration: InputDecoration(
-                                labelText: 'ID Number',
-                                labelStyle: const TextStyle(color: Colors.white70),
-                                filled: true,
-                                fillColor: const Color(0xFF2D3748),
-                                border: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(12),
-                                  borderSide: BorderSide.none,
-                                ),
-                              ),
-                              style: const TextStyle(color: Colors.white),
-                              validator: (value) {
-                                if (value == null || value.isEmpty) {
-                                  return 'Please enter ID number';
-                                }
-                                return null;
-                              },
+                              decoration: const InputDecoration(labelText: 'ID Number'),
+                              validator: (value) => (value == null || value.isEmpty) ? 'Please enter ID number' : null,
                             ),
                             const SizedBox(height: 12),
                             TextFormField(
                               controller: _loanAmountController,
-                              decoration: InputDecoration(
-                                labelText: 'Loan Amount',
-                                labelStyle: const TextStyle(color: Colors.white70),
-                                filled: true,
-                                fillColor: const Color(0xFF2D3748),
-                                border: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(12),
-                                  borderSide: BorderSide.none,
-                                ),
-                              ),
-                              style: const TextStyle(color: Colors.white),
+                              decoration: const InputDecoration(labelText: 'Loan Amount'),
                               keyboardType: TextInputType.number,
                               validator: (value) {
-                                if (value == null || value.isEmpty) {
-                                  return 'Please enter loan amount';
-                                }
-                                if (int.tryParse(value) == null) {
-                                  return 'Please enter a valid number';
-                                }
+                                if (value == null || value.isEmpty) return 'Please enter loan amount';
+                                if (int.tryParse(value) == null) return 'Please enter a valid number';
                                 return null;
                               },
                             ),
                             const SizedBox(height: 12),
                             DropdownButtonFormField<String>(
                               value: _reportReasonController.text,
-                              decoration: InputDecoration(
-                                labelText: 'Report Reason',
-                                labelStyle: const TextStyle(color: Colors.white70),
-                                filled: true,
-                                fillColor: const Color(0xFF2D3748),
-                                border: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(12),
-                                  borderSide: BorderSide.none,
-                                ),
-                              ),
-                              style: const TextStyle(color: Colors.white),
-                              dropdownColor: const Color(0xFF374151),
-                              items: ['new_credit_app', 'loan_history'].map((String value) {
-                                return DropdownMenuItem<String>(
-                                  value: value,
-                                  child: Text(value),
-                                );
-                              }).toList(),
-                              onChanged: (value) {
-                                setState(() {
-                                  _reportReasonController.text = value!;
-                                });
-                              },
+                              decoration: const InputDecoration(labelText: 'Report Reason'),
+                              items: ['new_credit_app', 'loan_history'].map((v) => DropdownMenuItem(value: v, child: Text(v))).toList(),
+                              onChanged: (value) => setState(() => _reportReasonController.text = value!),
                             ),
                             const SizedBox(height: 16),
                             ElevatedButton(
                               onPressed: fetchMetropolCreditData,
                               style: ElevatedButton.styleFrom(
-                                backgroundColor: const Color(0xFFF5BB1B),
-                                foregroundColor: Colors.black,
+                                backgroundColor: AppColors.financeGreenV3,
+                                foregroundColor: AppTheme.textLight,
                                 padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 15),
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(12),
-                                ),
-                                elevation: 2,
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                               ),
-                              child: const Text(
-                                'Search Credit Score',
-                                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                              ),
+                              child: const Text('Search Credit Score', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
                             ),
                           ],
                         ),
@@ -548,20 +384,11 @@ class _LoansCreditScoreState extends State<LoansCreditScore> with SingleTickerPr
                     ),
                   ),
                   const SizedBox(height: 24),
-                  const Text(
-                    'Your Credit Score',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 20,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
+                  const Text('Your Credit Score', style: TextStyle(color: AppTheme.textPrimary, fontSize: 20, fontWeight: FontWeight.bold)),
                   const SizedBox(height: 16),
                   Center(
                     child: CreditScoreCircle(
-                      score: metropolCreditData != null
-                          ? (metropolCreditData!['metropol_credit_score'] as num).toDouble()
-                          : 0,
+                      score: metropolCreditData != null ? (metropolCreditData!['metropol_credit_score'] as num).toDouble() : 0,
                       animation: _scoreAnimation,
                     ),
                   ),
@@ -569,10 +396,7 @@ class _LoansCreditScoreState extends State<LoansCreditScore> with SingleTickerPr
                   Center(
                     child: Text(
                       'Credit Status: ${metropolCreditData != null ? metropolCreditData!['credit_status'] : 'Unknown'}',
-                      style: const TextStyle(
-                        color: Colors.white70,
-                        fontSize: 16,
-                      ),
+                      style: const TextStyle(color: AppTheme.textSecondary, fontSize: 16),
                     ),
                   ),
                 ],
@@ -582,92 +406,54 @@ class _LoansCreditScoreState extends State<LoansCreditScore> with SingleTickerPr
         mainAxisSize: MainAxisSize.min,
         children: [
           Container(
-            color: const Color(0xFF374151),
+            color: AppTheme.backgroundLight,
             padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
             child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
               children: [
                 Expanded(
                   child: ElevatedButton(
                     onPressed: () {
                       if (!mounted) return;
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => LoansPage(userId: widget.userId),
-                        ),
-                      );
+                      Navigator.push(context, MaterialPageRoute(builder: (context) => LoansPage(userId: widget.userId)));
                     },
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFFF5BB1B),
-                      foregroundColor: Colors.black,
+                      backgroundColor: AppColors.financeGreenV3,
+                      foregroundColor: AppTheme.textLight,
                       padding: const EdgeInsets.symmetric(vertical: 15),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      elevation: 2,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                     ),
-                    child: const Text(
-                      'View Loans',
-                      style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                    ),
+                    child: const Text('View Loans', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
                   ),
                 ),
                 const SizedBox(width: 12),
                 Expanded(
                   child: ElevatedButton(
-                    onPressed: () {
-                      // TODO: Navigate to FinancialTipsPage
-                    },
+                    onPressed: () {},
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFF2D3748),
-                      foregroundColor: Colors.white,
+                      backgroundColor: AppColors.financeGreenV2,
+                      foregroundColor: AppTheme.textLight,
                       padding: const EdgeInsets.symmetric(vertical: 15),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      elevation: 2,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                     ),
-                    child: const Text(
-                      'Improve Score',
-                      style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                    ),
+                    child: const Text('Improve Score', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
                   ),
                 ),
               ],
             ),
           ),
-          Container(
-            color: const Color(0xFF374151),
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
-              child: BottomNavigationBar(
-                backgroundColor: Colors.transparent,
-                selectedItemColor: const Color(0xFFF5BB1B),
-                unselectedItemColor: Colors.white54,
-                currentIndex: _selectedIndex,
-                onTap: _onItemTapped,
-                type: BottomNavigationBarType.fixed,
-                items: const [
-                  BottomNavigationBarItem(
-                    icon: Icon(Icons.home),
-                    label: 'Home',
-                  ),
-                  BottomNavigationBarItem(
-                    icon: Icon(Icons.bar_chart),
-                    label: 'Trans...',
-                  ),
-                  BottomNavigationBarItem(
-                    icon: Icon(Icons.payment),
-                    label: 'Payments',
-                  ),
-                  BottomNavigationBarItem(
-                    icon: Icon(Icons.person),
-                    label: 'Profile',
-                  ),
-                ],
-              ),
-            ),
+          BottomNavigationBar(
+            backgroundColor: AppTheme.cardLight,
+            selectedItemColor: AppColors.financeGreenV3,
+            unselectedItemColor: AppTheme.textSecondary,
+            currentIndex: _selectedIndex,
+            onTap: _onItemTapped,
+            type: BottomNavigationBarType.fixed,
+            items: const [
+              BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Home'),
+              BottomNavigationBarItem(icon: Icon(Icons.bar_chart), label: 'Trans...'),
+              BottomNavigationBarItem(icon: Icon(Icons.payment), label: 'Payments'),
+              BottomNavigationBarItem(icon: Icon(Icons.person), label: 'Profile'),
+            ],
           ),
         ],
       ),
@@ -688,10 +474,7 @@ class CreditScoreCircle extends StatelessWidget {
       builder: (context, child) {
         return CustomPaint(
           size: const Size(200, 200),
-          painter: CreditScorePainter(
-            progress: animation.value,
-            score: score,
-          ),
+          painter: CreditScorePainter(progress: animation.value, score: score),
         );
       },
     );
@@ -709,10 +492,9 @@ class CreditScorePainter extends CustomPainter {
     final center = Offset(size.width / 2, size.height / 2);
     final radius = size.width / 2;
 
-    // Background circle with 3D effect
     final bgPaint = Paint()
-      ..shader = const LinearGradient(
-        colors: [Color(0xFF2D3748), Color(0xFF374151)],
+      ..shader = LinearGradient(
+        colors: [AppColors.coreWhiteW2, AppColors.coreWhiteW1],
         begin: Alignment.topLeft,
         end: Alignment.bottomRight,
       ).createShader(Rect.fromCircle(center: center, radius: radius))
@@ -720,16 +502,14 @@ class CreditScorePainter extends CustomPainter {
       ..strokeWidth = 12;
     canvas.drawCircle(center, radius - 6, bgPaint);
 
-    // Shadow for 3D effect
     final shadowPaint = Paint()
-      ..color = Colors.black.withOpacity(0.3)
+      ..color = AppColors.financeGreen.withValues(alpha: 0.15)
       ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 8);
     canvas.drawCircle(center, radius - 6, shadowPaint);
 
-    // Progress arc
     final progressPaint = Paint()
-      ..shader = const LinearGradient(
-        colors: [Color(0xFFF5BB1B), Color(0xFFFFD700)],
+      ..shader = LinearGradient(
+        colors: [AppColors.financeGreen, AppColors.financeGreenV3],
         begin: Alignment.topLeft,
         end: Alignment.bottomRight,
       ).createShader(Rect.fromCircle(center: center, radius: radius))
@@ -744,40 +524,27 @@ class CreditScorePainter extends CustomPainter {
       progressPaint,
     );
 
-    // Inner circle for score
     final innerPaint = Paint()
-      ..shader = const LinearGradient(
-        colors: [Color(0xFF1F2937), Color(0xFF2D3748)],
+      ..shader = LinearGradient(
+        colors: [AppColors.coreWhite, AppColors.coreWhiteW1],
         begin: Alignment.topLeft,
         end: Alignment.bottomRight,
       ).createShader(Rect.fromCircle(center: center, radius: radius - 20));
     canvas.drawCircle(center, radius - 20, innerPaint);
 
-    // Score text
     final textPainter = TextPainter(
       text: TextSpan(
-        text: score.toStringAsFixed(2),
-        style: const TextStyle(
-          color: Colors.white,
-          fontSize: 32,
-          fontWeight: FontWeight.bold,
-        ),
+        text: score.toStringAsFixed(0),
+        style: const TextStyle(color: AppColors.financeGreen, fontSize: 32, fontWeight: FontWeight.bold),
       ),
       textAlign: TextAlign.center,
       textDirection: TextDirection.ltr,
     );
     textPainter.layout();
-    textPainter.paint(
-      canvas,
-      Offset(
-        center.dx - textPainter.width / 2,
-        center.dy - textPainter.height / 2,
-      ),
-    );
+    textPainter.paint(canvas, Offset(center.dx - textPainter.width / 2, center.dy - textPainter.height / 2));
   }
 
   @override
-  bool shouldRepaint(covariant CreditScorePainter oldDelegate) {
-    return oldDelegate.progress != progress || oldDelegate.score != score;
-  }
+  bool shouldRepaint(covariant CreditScorePainter oldDelegate) =>
+      oldDelegate.progress != progress || oldDelegate.score != score;
 }

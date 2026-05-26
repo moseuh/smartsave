@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import '../constants/app_constants.dart';
+import '../constants/app_theme.dart';
 import 'dart:async';
 import 'SetSavingsGoalScreen.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -201,255 +202,223 @@ Future<void> fetchGoals() async {
 
   @override
   Widget build(BuildContext context) {
-    return Material(
-      color: const Color(0xFF1F2937),
-      child: Theme(
-        data: Theme.of(context).copyWith(
-          scaffoldBackgroundColor: Colors.transparent,
+    return Scaffold(
+      appBar: AppBar(
+        backgroundColor: AppTheme.primaryColor,
+        elevation: 4,
+        title: const Text(
+          'Your Goals',
+          style: TextStyle(color: AppTheme.textLight, fontWeight: FontWeight.bold),
         ),
-        child: Scaffold(
-          appBar: AppBar(
-            backgroundColor: const Color(0xFF374151),
-            elevation: 4,
-            title: const Text(
-              'Your Goals',
-              style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
-            ),
-            leading: IconButton(
-              icon: const Icon(Icons.arrow_back, color: Colors.white),
-              onPressed: () {
-                Navigator.pushReplacement(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => SavingsDashboard(userId: widget.userId),
-                  ),
-                );
-              },
-            ),
-            actions: [
-              IconButton(
-                icon: const Icon(Icons.add, color: Colors.white),
-                onPressed: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => GoalCreationScreen(userId: widget.userId),
-                    ),
-                  );
-                },
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back, color: AppTheme.textLight),
+          onPressed: () {
+            Navigator.pushReplacement(
+              context,
+              MaterialPageRoute(
+                builder: (context) => SavingsDashboard(userId: widget.userId),
               ),
-            ],
+            );
+          },
+        ),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.add, color: AppTheme.textLight),
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => GoalCreationScreen(userId: widget.userId),
+                ),
+              );
+            },
           ),
-          body: isLoading
-              ? const Center(child: CircularProgressIndicator(color: Color(0xFFF5BB1B)))
-              : SingleChildScrollView(
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 20.0),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Text(
-                          'Your Badges',
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontSize: 18,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                        const SizedBox(height: 16),
-                        badges.isEmpty
-                            ? const Padding(
-                                padding: EdgeInsets.symmetric(vertical: 8.0),
-                                child: Text(
-                                  'No badges earned yet',
-                                  style: TextStyle(
-                                    color: Colors.white70,
-                                    fontSize: 14,
-                                  ),
-                                ),
-                              )
-                            : SizedBox(
-                                height: 70,
-                                child: ListView(
-                                  scrollDirection: Axis.horizontal,
-                                  children: badges.map((badge) {
-                                    return Padding(
-                                      padding: const EdgeInsets.only(right: 8.0),
-                                      child: AnimatedContainer(
-                                        duration: const Duration(milliseconds: 300),
-                                        curve: Curves.easeInOut,
-                                        child: Chip(
-                                          label: Text(
-                                            badge,
-                                            style: const TextStyle(
-                                              color: Colors.black,
-                                              fontWeight: FontWeight.w600,
-                                              fontSize: 14,
-                                            ),
-                                          ),
-                                          avatar: Icon(
-                                            badge == 'Goal Starter'
-                                                ? Icons.star
-                                                : badge == 'Consistent Saver'
-                                                    ? Icons.savings
-                                                    : badge == 'Super Saver'
-                                                        ? Icons.trending_up
-                                                        : Icons.flag,
-                                            color: Colors.black,
-                                            size: 18,
-                                          ),
-                                          backgroundColor: const Color(0xFFF5BB1B),
-                                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                                          shape: RoundedRectangleBorder(
-                                            borderRadius: BorderRadius.circular(12),
-                                          ),
-                                          elevation: 4,
-                                          shadowColor: Colors.black.withOpacity(0.3),
+        ],
+      ),
+      body: isLoading
+          ? Center(child: CircularProgressIndicator(color: AppColors.financeGreenV3))
+          : SingleChildScrollView(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 20.0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Your Badges',
+                      style: TextStyle(
+                        color: AppTheme.textPrimary,
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    badges.isEmpty
+                        ? const Padding(
+                            padding: EdgeInsets.symmetric(vertical: 8.0),
+                            child: Text(
+                              'No badges earned yet',
+                              style: TextStyle(color: AppTheme.textSecondary, fontSize: 14),
+                            ),
+                          )
+                        : SizedBox(
+                            height: 70,
+                            child: ListView(
+                              scrollDirection: Axis.horizontal,
+                              children: badges.map((badge) {
+                                return Padding(
+                                  padding: const EdgeInsets.only(right: 8.0),
+                                  child: AnimatedContainer(
+                                    duration: const Duration(milliseconds: 300),
+                                    curve: Curves.easeInOut,
+                                    child: Chip(
+                                      label: Text(
+                                        badge,
+                                        style: const TextStyle(
+                                          color: AppTheme.textLight,
+                                          fontWeight: FontWeight.w600,
+                                          fontSize: 14,
                                         ),
                                       ),
-                                    );
-                                  }).toList(),
-                                ),
-                              ),
-                        const SizedBox(height: 32),
-                        const Text(
-                          'Your Goals',
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontSize: 18,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                        const SizedBox(height: 16),
-                        goals.isEmpty
-                            ? const Padding(
-                                padding: EdgeInsets.symmetric(vertical: 8.0),
-                                child: Text(
-                                  'No goals created yet. Create one to start tracking!',
-                                  style: TextStyle(
-                                    color: Colors.white70,
-                                    fontSize: 14,
-                                  ),
-                                ),
-                              )
-                            : Column(
-                                children: goals.map((goal) {
-                                  final progress = calculateProgress(goal);
-                                  final probability = calculateProbability(goal);
-                                  final requiredDailySavings = goal['goal_amount'] / goal['duration_days'];
-                                  final daysLeft = (goal['duration_days'] -
-                                          DateTime.now().difference(DateTime.parse(goal['created_at'])).inDays)
-                                      .clamp(0, goal['duration_days']);
-
-                                  return Padding(
-                                    padding: const EdgeInsets.only(bottom: 16.0),
-                                    child: Card(
-                                      color: const Color(0xFF374151),
+                                      avatar: Icon(
+                                        badge == 'Goal Starter'
+                                            ? Icons.star
+                                            : badge == 'Consistent Saver'
+                                                ? Icons.savings
+                                                : badge == 'Super Saver'
+                                                    ? Icons.trending_up
+                                                    : Icons.flag,
+                                        color: AppTheme.textLight,
+                                        size: 18,
+                                      ),
+                                      backgroundColor: AppColors.financeGreenV3,
+                                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(12),
+                                      ),
                                       elevation: 4,
-                                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                                      child: Padding(
-                                        padding: const EdgeInsets.all(16.0),
-                                        child: Column(
-                                          crossAxisAlignment: CrossAxisAlignment.start,
+                                      shadowColor: AppColors.financeGreen.withValues(alpha: 0.3),
+                                    ),
+                                  ),
+                                );
+                              }).toList(),
+                            ),
+                          ),
+                    const SizedBox(height: 32),
+                    const Text(
+                      'Your Goals',
+                      style: TextStyle(
+                        color: AppTheme.textPrimary,
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    goals.isEmpty
+                        ? const Padding(
+                            padding: EdgeInsets.symmetric(vertical: 8.0),
+                            child: Text(
+                              'No goals created yet. Create one to start tracking!',
+                              style: TextStyle(color: AppTheme.textSecondary, fontSize: 14),
+                            ),
+                          )
+                        : Column(
+                            children: goals.map((goal) {
+                              final progress = calculateProgress(goal);
+                              final probability = calculateProbability(goal);
+                              final requiredDailySavings = goal['goal_amount'] / goal['duration_days'];
+                              final daysLeft = (goal['duration_days'] -
+                                      DateTime.now().difference(DateTime.parse(goal['created_at'])).inDays)
+                                  .clamp(0, goal['duration_days']);
+
+                              return Padding(
+                                padding: const EdgeInsets.only(bottom: 16.0),
+                                child: Card(
+                                  color: AppTheme.cardLight,
+                                  elevation: 4,
+                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                                  child: Padding(
+                                    padding: const EdgeInsets.all(16.0),
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Row(
+                                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
                                           children: [
-                                            Row(
-                                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                              children: [
-                                                Flexible(
-                                                  child: Text(
-                                                    goal['goal_name'],
-                                                    style: const TextStyle(
-                                                      color: Colors.white,
-                                                      fontSize: 16,
-                                                      fontWeight: FontWeight.bold,
-                                                    ),
-                                                    overflow: TextOverflow.ellipsis,
-                                                  ),
-                                                ),
-                                                Text(
-                                                  goal['goal_type'],
-                                                  style: const TextStyle(
-                                                    color: Color(0xFFF5BB1B),
-                                                    fontSize: 12,
-                                                    fontWeight: FontWeight.w500,
-                                                  ),
-                                                ),
-                                              ],
-                                            ),
-                                            const SizedBox(height: 8),
-                                            if (goal['selected_option'] != null)
-                                              Text(
-                                                'Option: ${goal['selected_option']}',
+                                            Flexible(
+                                              child: Text(
+                                                goal['goal_name'],
                                                 style: const TextStyle(
-                                                  color: Colors.white70,
-                                                  fontSize: 12,
+                                                  color: AppTheme.textPrimary,
+                                                  fontSize: 16,
+                                                  fontWeight: FontWeight.bold,
                                                 ),
+                                                overflow: TextOverflow.ellipsis,
                                               ),
-                                            const SizedBox(height: 8),
+                                            ),
                                             Text(
-                                              'Goal: KSh ${goal['goal_amount'].toStringAsFixed(2).replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (Match m) => '${m[1]},')}',
+                                              goal['goal_type'],
                                               style: const TextStyle(
-                                                color: Colors.white70,
-                                                fontSize: 14,
-                                              ),
-                                            ),
-                                            Text(
-                                              'Saved: KSh ${currentSavings.toStringAsFixed(2).replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (Match m) => '${m[1]},')}',
-                                              style: const TextStyle(
-                                                color: Colors.white70,
-                                                fontSize: 14,
-                                              ),
-                                            ),
-                                            Text(
-                                              'Days Left: $daysLeft',
-                                              style: const TextStyle(
-                                                color: Colors.white70,
-                                                fontSize: 14,
-                                              ),
-                                            ),
-                                            const SizedBox(height: 8),
-                                            LinearProgressIndicator(
-                                              value: progress,
-                                              backgroundColor: Colors.grey[700],
-                                              valueColor: const AlwaysStoppedAnimation<Color>(Color(0xFFF5BB1B)),
-                                              minHeight: 8,
-                                            ),
-                                            const SizedBox(height: 8),
-                                            Text(
-                                              'Progress: ${(progress * 100).toStringAsFixed(1)}%',
-                                              style: const TextStyle(
-                                                color: Colors.white70,
-                                                fontSize: 14,
-                                              ),
-                                            ),
-                                            Text(
-                                              'Probability of Success: ${probability.toStringAsFixed(1)}%',
-                                              style: TextStyle(
-                                                color: probability < 50 ? Colors.red : Colors.white70,
-                                                fontSize: 14,
-                                              ),
-                                            ),
-                                            const SizedBox(height: 8),
-                                            Text(
-                                              'Daily Savings Needed: KSh ${requiredDailySavings.toStringAsFixed(2).replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (Match m) => '${m[1]},')}',
-                                              style: const TextStyle(
-                                                color: Colors.white70,
-                                                fontSize: 14,
+                                                color: AppColors.financeGreenV3,
+                                                fontSize: 12,
+                                                fontWeight: FontWeight.w500,
                                               ),
                                             ),
                                           ],
                                         ),
-                                      ),
+                                        const SizedBox(height: 8),
+                                        if (goal['selected_option'] != null)
+                                          Text(
+                                            'Option: ${goal['selected_option']}',
+                                            style: const TextStyle(color: AppTheme.textSecondary, fontSize: 12),
+                                          ),
+                                        const SizedBox(height: 8),
+                                        Text(
+                                          'Goal: KSh ${goal['goal_amount'].toStringAsFixed(2).replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (Match m) => '${m[1]},')}',
+                                          style: const TextStyle(color: AppTheme.textSecondary, fontSize: 14),
+                                        ),
+                                        Text(
+                                          'Saved: KSh ${currentSavings.toStringAsFixed(2).replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (Match m) => '${m[1]},')}',
+                                          style: const TextStyle(color: AppTheme.textSecondary, fontSize: 14),
+                                        ),
+                                        Text(
+                                          'Days Left: $daysLeft',
+                                          style: const TextStyle(color: AppTheme.textSecondary, fontSize: 14),
+                                        ),
+                                        const SizedBox(height: 8),
+                                        LinearProgressIndicator(
+                                          value: progress,
+                                          backgroundColor: AppColors.coreWhiteW2,
+                                          valueColor: AlwaysStoppedAnimation<Color>(AppColors.financeGreenV3),
+                                          minHeight: 8,
+                                        ),
+                                        const SizedBox(height: 8),
+                                        Text(
+                                          'Progress: ${(progress * 100).toStringAsFixed(1)}%',
+                                          style: const TextStyle(color: AppTheme.textSecondary, fontSize: 14),
+                                        ),
+                                        Text(
+                                          'Probability of Success: ${probability.toStringAsFixed(1)}%',
+                                          style: TextStyle(
+                                            color: probability < 50 ? AppTheme.errorColor : AppTheme.textSecondary,
+                                            fontSize: 14,
+                                          ),
+                                        ),
+                                        const SizedBox(height: 8),
+                                        Text(
+                                          'Daily Savings Needed: KSh ${requiredDailySavings.toStringAsFixed(2).replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (Match m) => '${m[1]},')}',
+                                          style: const TextStyle(color: AppTheme.textSecondary, fontSize: 14),
+                                        ),
+                                      ],
                                     ),
-                                  );
-                                }).toList(),
-                              ),
-                      ],
-                    ),
-                  ),
+                                  ),
+                                ),
+                              );
+                            }).toList(),
+                          ),
+                  ],
                 ),
-        ),
-      ),
+              ),
+            ),
     );
   }
 }

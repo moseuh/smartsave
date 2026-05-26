@@ -1,5 +1,6 @@
-// scholarships_and_funding.dart
+﻿// scholarships_and_funding.dart
 import 'package:flutter/material.dart';
+import '../constants/app_theme.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:url_launcher/url_launcher.dart';
@@ -107,7 +108,7 @@ class _ScholarshipsAndFundingPageState extends State<ScholarshipsAndFundingPage>
     return Scaffold(
       backgroundColor: const Color(0xFF4B5563), // Fintech-themed dark grayish-blue
       appBar: AppBar(
-        title: const Text('Scholarships & Funding', style: TextStyle(color: Colors.white)),
+        title: const Text('Scholarships & Funding', style: TextStyle(color: AppTheme.cardLight)),
         backgroundColor: const Color(0xFF2A2F3A), // Darker header
         elevation: 2,
       ),
@@ -136,7 +137,7 @@ class _ScholarshipsAndFundingPageState extends State<ScholarshipsAndFundingPage>
                     title: Text(
                       opportunity['title']!,
                       style: const TextStyle(
-                        color: Colors.white,
+                        color: AppTheme.textPrimary,
                         fontSize: 18,
                         fontWeight: FontWeight.bold,
                       ),
@@ -148,7 +149,7 @@ class _ScholarshipsAndFundingPageState extends State<ScholarshipsAndFundingPage>
                         Text(
                           opportunity['description']!,
                           style: TextStyle(
-                            color: Colors.grey[300],
+                            color: AppColors.coreWhiteW2,
                             fontSize: 14,
                           ),
                         ),
@@ -224,11 +225,11 @@ class _WebViewPageState extends State<WebViewPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Apply Now', style: TextStyle(color: Colors.white)),
+        title: const Text('Apply Now', style: TextStyle(color: AppTheme.cardLight)),
         backgroundColor: const Color(0xFF2A2F3A),
         elevation: 2,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.white),
+          icon: const Icon(Icons.arrow_back, color: AppTheme.cardLight),
           onPressed: () => Navigator.of(context).pop(),
         ),
       ),
@@ -236,3 +237,4 @@ class _WebViewPageState extends State<WebViewPage> {
     );
   }
 }
+

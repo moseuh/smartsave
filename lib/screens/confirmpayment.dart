@@ -1,4 +1,5 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
+import '../constants/app_theme.dart';
 
 class ConfirmPayment extends StatefulWidget {
   const ConfirmPayment({super.key});
@@ -30,11 +31,11 @@ class _ConfirmPaymentState extends State<ConfirmPayment> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-       backgroundColor: const Color(0xFF1F2937),
+       backgroundColor: AppColors.coreDark,
         elevation: 0,
         title: const Text(
           'Payment',
-          style: TextStyle(color: Colors.white),
+          style: TextStyle(color: AppTheme.cardLight),
         ),
         actions: [
           Padding(
@@ -63,7 +64,7 @@ class _ConfirmPaymentState extends State<ConfirmPayment> {
                     },
                     style: ElevatedButton.styleFrom(
                       backgroundColor: isBuyGoods ? Colors.yellow : Colors.grey[900],
-                      foregroundColor: isBuyGoods ? Colors.black : Colors.white,
+                      foregroundColor: isBuyGoods ? Colors.black : AppTheme.cardLight,
                       padding: const EdgeInsets.symmetric(vertical: 12),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(8),
@@ -79,7 +80,7 @@ class _ConfirmPaymentState extends State<ConfirmPayment> {
                       setState(() => isBuyGoods = false);
                     },
                     style: OutlinedButton.styleFrom(
-                      foregroundColor: Colors.white,
+                      foregroundColor: AppTheme.textPrimary,
                       side: const BorderSide(color: Colors.grey),
                       padding: const EdgeInsets.symmetric(vertical: 12),
                       shape: RoundedRectangleBorder(
@@ -106,7 +107,7 @@ class _ConfirmPaymentState extends State<ConfirmPayment> {
                   children: [
                     const Text(
                       'Add Favourite\nSave current till number',
-                      style: TextStyle(color: Colors.white70, fontSize: 14),
+                      style: TextStyle(color: AppTheme.textSecondary, fontSize: 14),
                     ),
                     IconButton(
                       icon: const Icon(Icons.add, color: Colors.yellow),
@@ -123,7 +124,7 @@ class _ConfirmPaymentState extends State<ConfirmPayment> {
               controller: tillNumberController,
               decoration: InputDecoration(
                 hintText: 'Enter till number',
-                hintStyle: TextStyle(color: Colors.white70),
+                hintStyle: TextStyle(color: AppTheme.textSecondary),
                 filled: true,
                 fillColor: Colors.grey[900],
                 border: OutlineInputBorder(
@@ -131,7 +132,7 @@ class _ConfirmPaymentState extends State<ConfirmPayment> {
                   borderSide: BorderSide.none,
                 ),
               ),
-              style: const TextStyle(color: Colors.white),
+              style: const TextStyle(color: AppTheme.cardLight),
               keyboardType: TextInputType.number,
             ),
             const SizedBox(height: 20),
@@ -141,7 +142,7 @@ class _ConfirmPaymentState extends State<ConfirmPayment> {
               controller: amountController,
               decoration: InputDecoration(
                 hintText: 'Enter amount',
-                hintStyle: TextStyle(color: Colors.white70),
+                hintStyle: TextStyle(color: AppTheme.textSecondary),
                 filled: true,
                 fillColor: Colors.grey[900],
                 border: OutlineInputBorder(
@@ -149,7 +150,7 @@ class _ConfirmPaymentState extends State<ConfirmPayment> {
                   borderSide: BorderSide.none,
                 ),
               ),
-              style: const TextStyle(color: Colors.white),
+              style: const TextStyle(color: AppTheme.cardLight),
               keyboardType: TextInputType.number,
             ),
             const SizedBox(height: 20),
@@ -166,7 +167,7 @@ class _ConfirmPaymentState extends State<ConfirmPayment> {
                 children: [
                   const Text(
                     'Payment Summary',
-                    style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
+                    style: TextStyle(color: AppTheme.textPrimary, fontSize: 16, fontWeight: FontWeight.bold),
                   ),
                   const SizedBox(height: 10),
                   _buildSummaryItem('Round-up Savings', '0.50'),
@@ -209,12 +210,12 @@ class _ConfirmPaymentState extends State<ConfirmPayment> {
         children: [
           Text(
             label,
-            style: TextStyle(color: Colors.white70, fontSize: 14),
+            style: TextStyle(color: AppTheme.textSecondary, fontSize: 14),
           ),
           Text(
             value,
             style: TextStyle(
-              color: isBold ? Colors.yellow : Colors.white,
+              color: isBold ? Colors.yellow : AppTheme.cardLight,
               fontSize: 14,
               fontWeight: isBold ? FontWeight.bold : FontWeight.normal,
             ),
@@ -224,3 +225,4 @@ class _ConfirmPaymentState extends State<ConfirmPayment> {
     );
   }
 }
+

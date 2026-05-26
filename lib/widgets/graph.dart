@@ -12,7 +12,9 @@ import '../screens/roundup.dart';
 import '../screens/buygoodselect.dart';
 import '../screens/profile.dart';
 import '../screens/transactiohistory.dart';
+import '../screens/wallet_page.dart';
 import '../widgets/beautiful_app_bar.dart';
+import '../constants/app_theme.dart';
 
 class SavingsDashboard extends StatefulWidget {
   final String userId;
@@ -90,14 +92,16 @@ class SavingsDashboardState extends State<SavingsDashboard> {
       }
       String? storedUserName = prefs.getString('user_name');
       String? storedSelfiePath = prefs.getString('selfie_path');
-      if (storedUserName != null && storedSelfiePath != null) {
+      if (storedUserName != null && storedUserName.isNotEmpty) {
         if (mounted) {
           setState(() {
             userName = storedUserName;
-            selfiePath = storedSelfiePath;
+            if (storedSelfiePath != null && storedSelfiePath.isNotEmpty) {
+              selfiePath = storedSelfiePath;
+            }
           });
         }
-        return;
+        if (storedSelfiePath != null) return;
       }
 
       final response = await http
@@ -425,7 +429,7 @@ class SavingsDashboardState extends State<SavingsDashboard> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF1F2937),
+      // scaffoldBackgroundColor from theme
       appBar: BeautifulAppBar(
         userName: userName,
         profileImageUrl: selfiePath,
@@ -445,7 +449,7 @@ class SavingsDashboardState extends State<SavingsDashboard> {
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
             child: isLoading
-                ? const Center(child: CircularProgressIndicator(color: Color(0xFFF5BB1B)))
+                ? const Center(child: CircularProgressIndicator(color: AppColors.financeGreenV3))
                 : Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
@@ -453,12 +457,12 @@ class SavingsDashboardState extends State<SavingsDashboard> {
                       Container(
                         padding: const EdgeInsets.all(16),
                         decoration: BoxDecoration(
-                          color: const Color(0xFF374151),
+                          color: AppTheme.cardLight,
                           borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: const Color(0xFFF5BB1B).withOpacity(0.3), width: 1),
+                          border: Border.all(color: AppColors.financeGreenV3.withValues(alpha: 0.3), width: 1),
                           boxShadow: [
                             BoxShadow(
-                              color: Colors.black.withOpacity(0.2),
+                              color: Colors.black.withValues(alpha: 0.2),
                               blurRadius: 8,
                               offset: const Offset(0, 2),
                             ),
@@ -473,7 +477,7 @@ class SavingsDashboardState extends State<SavingsDashboard> {
                                 const Text(
                                   'TOTAL SAVINGS',
                                   style: TextStyle(
-                                    color: Colors.white70,
+                                    color: AppTheme.textSecondary,
                                     fontSize: 12,
                                     fontWeight: FontWeight.w600,
                                     letterSpacing: 1.2,
@@ -484,7 +488,7 @@ class SavingsDashboardState extends State<SavingsDashboard> {
                                       ? 'KSh ${totalSavings!.toStringAsFixed(0).replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (Match m) => '${m[1]},')}'
                                       : 'KSh 0',
                                   style: const TextStyle(
-                                    color: Color(0xFFF5BB1B),
+                                    color: AppColors.financeGreenV3,
                                     fontSize: 24,
                                     fontWeight: FontWeight.bold,
                                   ),
@@ -503,13 +507,13 @@ class SavingsDashboardState extends State<SavingsDashboard> {
                             const Row(
                               mainAxisAlignment: MainAxisAlignment.spaceAround,
                               children: [
-                                Text('Mon', style: TextStyle(color: Colors.white54, fontSize: 10)),
-                                Text('Tue', style: TextStyle(color: Colors.white54, fontSize: 10)),
-                                Text('Wed', style: TextStyle(color: Colors.white54, fontSize: 10)),
-                                Text('Thu', style: TextStyle(color: Colors.white54, fontSize: 10)),
-                                Text('Fri', style: TextStyle(color: Colors.white54, fontSize: 10)),
-                                Text('Sat', style: TextStyle(color: Colors.white54, fontSize: 10)),
-                                Text('Sun', style: TextStyle(color: Colors.white54, fontSize: 10)),
+                                Text('Mon', style: TextStyle(color: AppTheme.textSecondary, fontSize: 10)),
+                                Text('Tue', style: TextStyle(color: AppTheme.textSecondary, fontSize: 10)),
+                                Text('Wed', style: TextStyle(color: AppTheme.textSecondary, fontSize: 10)),
+                                Text('Thu', style: TextStyle(color: AppTheme.textSecondary, fontSize: 10)),
+                                Text('Fri', style: TextStyle(color: AppTheme.textSecondary, fontSize: 10)),
+                                Text('Sat', style: TextStyle(color: AppTheme.textSecondary, fontSize: 10)),
+                                Text('Sun', style: TextStyle(color: AppTheme.textSecondary, fontSize: 10)),
                               ],
                             ),
                           ],
@@ -524,7 +528,7 @@ class SavingsDashboardState extends State<SavingsDashboard> {
                               const Text(
                                 'DAILY SPEND',
                                 style: TextStyle(
-                                  color: Colors.white70,
+                                  color: AppTheme.textSecondary,
                                   fontSize: 10,
                                   fontWeight: FontWeight.w600,
                                   letterSpacing: 1.0,
@@ -537,7 +541,7 @@ class SavingsDashboardState extends State<SavingsDashboard> {
                                     ? 'KSh ${(mpesaData!['total_spent'] / 30).toStringAsFixed(0).replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (Match m) => '${m[1]},')}'
                                     : 'KSh 0',
                                 style: const TextStyle(
-                                  color: Color(0xFFF5BB1B),
+                                  color: AppColors.financeGreenV3,
                                   fontSize: 16,
                                   fontWeight: FontWeight.bold,
                                 ),
@@ -546,8 +550,8 @@ class SavingsDashboardState extends State<SavingsDashboard> {
                               const SizedBox(height: 8),
                               LinearProgressIndicator(
                                 value: mpesaData?['total_spent'] != null ? (mpesaData!['total_spent'] / 30) / 1000 : 0.0,
-                                backgroundColor: Colors.grey[700],
-                                valueColor: const AlwaysStoppedAnimation<Color>(Color(0xFFF5BB1B)),
+                                backgroundColor: AppColors.coreWhiteW2,
+                                valueColor: const AlwaysStoppedAnimation<Color>(AppColors.financeGreenV3),
                                 minHeight: 3,
                               ),
                             ],
@@ -557,7 +561,7 @@ class SavingsDashboardState extends State<SavingsDashboard> {
                               const Text(
                                 'WEEKLY SPEND',
                                 style: TextStyle(
-                                  color: Colors.white70,
+                                  color: AppTheme.textSecondary,
                                   fontSize: 10,
                                   fontWeight: FontWeight.w600,
                                   letterSpacing: 1.0,
@@ -570,7 +574,7 @@ class SavingsDashboardState extends State<SavingsDashboard> {
                                     ? 'KSh ${mpesaData!['weekly_avg'].toStringAsFixed(0).replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (Match m) => '${m[1]},')}'
                                     : 'KSh 0',
                                 style: const TextStyle(
-                                  color: Color(0xFFF5BB1B),
+                                  color: AppColors.financeGreenV3,
                                   fontSize: 16,
                                   fontWeight: FontWeight.bold,
                                 ),
@@ -579,8 +583,8 @@ class SavingsDashboardState extends State<SavingsDashboard> {
                               const SizedBox(height: 8),
                               LinearProgressIndicator(
                                 value: mpesaData?['weekly_avg'] != null ? mpesaData!['weekly_avg'] / 7000 : 0.0,
-                                backgroundColor: Colors.grey[700],
-                                valueColor: const AlwaysStoppedAnimation<Color>(Color(0xFFF5BB1B)),
+                                backgroundColor: AppColors.coreWhiteW2,
+                                valueColor: const AlwaysStoppedAnimation<Color>(AppColors.financeGreenV3),
                                 minHeight: 3,
                               ),
                             ],
@@ -590,7 +594,7 @@ class SavingsDashboardState extends State<SavingsDashboard> {
                               const Text(
                                 'MONTHLY SPEND',
                                 style: TextStyle(
-                                  color: Colors.white70,
+                                  color: AppTheme.textSecondary,
                                   fontSize: 10,
                                   fontWeight: FontWeight.w600,
                                   letterSpacing: 1.0,
@@ -603,7 +607,7 @@ class SavingsDashboardState extends State<SavingsDashboard> {
                                     ? 'KSh ${mpesaData!['monthly_avg'].toStringAsFixed(0).replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (Match m) => '${m[1]},')}'
                                     : 'KSh 0',
                                 style: const TextStyle(
-                                  color: Color(0xFFF5BB1B),
+                                  color: AppColors.financeGreenV3,
                                   fontSize: 16,
                                   fontWeight: FontWeight.bold,
                                 ),
@@ -612,8 +616,8 @@ class SavingsDashboardState extends State<SavingsDashboard> {
                               const SizedBox(height: 8),
                               LinearProgressIndicator(
                                 value: mpesaData?['monthly_avg'] != null ? mpesaData!['monthly_avg'] / 30000 : 0.0,
-                                backgroundColor: Colors.grey[700],
-                                valueColor: const AlwaysStoppedAnimation<Color>(Color(0xFFF5BB1B)),
+                                backgroundColor: AppColors.coreWhiteW2,
+                                valueColor: const AlwaysStoppedAnimation<Color>(AppColors.financeGreenV3),
                                 minHeight: 3,
                               ),
                             ],
@@ -627,7 +631,7 @@ class SavingsDashboardState extends State<SavingsDashboard> {
                           const Text(
                             'Recent Transactions',
                             style: TextStyle(
-                              color: Colors.white,
+                              color: AppTheme.textPrimary,
                               fontSize: 16,
                               fontWeight: FontWeight.bold,
                             ),
@@ -644,7 +648,7 @@ class SavingsDashboardState extends State<SavingsDashboard> {
                             child: const Text(
                               'See All',
                               style: TextStyle(
-                                color: Color(0xFFF5BB1B),
+                                color: AppColors.financeGreenV3,
                                 fontSize: 13,
                                 fontWeight: FontWeight.w500,
                               ),
@@ -658,7 +662,7 @@ class SavingsDashboardState extends State<SavingsDashboard> {
                           padding: EdgeInsets.symmetric(vertical: 8.0),
                           child: Text(
                             'No recent transactions available',
-                            style: TextStyle(color: Colors.white70, fontSize: 14),
+                            style: TextStyle(color: AppTheme.textSecondary, fontSize: 14),
                           ),
                         )
                       else
@@ -678,7 +682,7 @@ class SavingsDashboardState extends State<SavingsDashboard> {
                                 Flexible(
                                   child: Text(
                                     title,
-                                    style: const TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w500),
+                                    style: const TextStyle(color: AppTheme.textPrimary, fontSize: 14, fontWeight: FontWeight.w500),
                                     overflow: TextOverflow.ellipsis,
                                   ),
                                 ),
@@ -687,11 +691,11 @@ class SavingsDashboardState extends State<SavingsDashboard> {
                                   children: [
                                     Text(
                                       amount,
-                                      style: const TextStyle(color: Color(0xFFF5BB1B), fontSize: 14, fontWeight: FontWeight.w500),
+                                      style: const TextStyle(color: AppColors.financeGreenV3, fontSize: 14, fontWeight: FontWeight.w500),
                                     ),
                                     Text(
                                       time,
-                                      style: const TextStyle(color: Colors.white70, fontSize: 12),
+                                      style: const TextStyle(color: AppTheme.textSecondary, fontSize: 12),
                                     ),
                                   ],
                                 ),
@@ -703,7 +707,7 @@ class SavingsDashboardState extends State<SavingsDashboard> {
                       const Text(
                         'Round-Up Settings',
                         style: TextStyle(
-                          color: Colors.white,
+                          color: AppTheme.textPrimary,
                           fontSize: 16,
                           fontWeight: FontWeight.bold,
                         ),
@@ -712,9 +716,9 @@ class SavingsDashboardState extends State<SavingsDashboard> {
                       Container(
                         padding: const EdgeInsets.all(16),
                         decoration: BoxDecoration(
-                          color: const Color(0xFF374151),
+                          color: AppTheme.cardLight,
                           borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: const Color(0xFFF5BB1B).withOpacity(0.3), width: 1),
+                          border: Border.all(color: AppColors.financeGreenV3.withValues(alpha: 0.3), width: 1),
                         ),
                         child: Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -723,7 +727,7 @@ class SavingsDashboardState extends State<SavingsDashboard> {
                               child: Text(
                                 'Enable Round-Up Savings\nRound up transactions to nearest KSh and save the difference',
                                 style: TextStyle(
-                                  color: Colors.white,
+                                  color: AppTheme.textPrimary,
                                   fontSize: 13,
                                   height: 1.5,
                                 ),
@@ -739,10 +743,10 @@ class SavingsDashboardState extends State<SavingsDashboard> {
                                   ).then((_) => _loadRoundUpSettings());
                                 }
                               },
-                              activeColor: const Color(0xFFF5BB1B),
-                              activeTrackColor: const Color(0xFFF5BB1B).withValues(alpha: 0.5),
-                              inactiveThumbColor: Colors.grey,
-                              inactiveTrackColor: Colors.grey[700],
+                              activeColor: AppColors.financeGreenV3,
+                              activeTrackColor: AppColors.financeGreenV3.withValues(alpha: 0.5),
+                              inactiveThumbColor: AppColors.coreDarkD2,
+                              inactiveTrackColor: AppColors.coreWhiteW2,
                             ),
                           ],
                         ),
@@ -768,46 +772,39 @@ class SavingsDashboardState extends State<SavingsDashboard> {
         label: const Text(
           'Create Goal',
           style: TextStyle(
-            color: Colors.black,
+            color: AppTheme.textLight,
             fontWeight: FontWeight.bold,
             fontSize: 14,
           ),
         ),
-        icon: const Icon(Icons.add, color: Colors.black),
-        backgroundColor: const Color(0xFFF5BB1B),
+        icon: const Icon(Icons.add, color: AppTheme.textLight),
+        backgroundColor: AppColors.financeGreenV3,
         elevation: 4,
       ),
-      bottomNavigationBar: Container(
-        color: const Color(0xFF374151),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
-          child: BottomNavigationBar(
-            backgroundColor: Colors.transparent,
-            selectedItemColor: const Color(0xFFF5BB1B),
-            unselectedItemColor: Colors.white54,
-            currentIndex: 0,
-            onTap: (index) {
-              if (!mounted) return;
-              if (index == 0) return;
-              final routes = [
-                null,
-                MaterialPageRoute(builder: (context) => TransactionHistory(userId: widget.userId)),
-                MaterialPageRoute(builder: (context) => BuyGoodsSelect(userId: widget.userId)),
-                MaterialPageRoute(builder: (context) => Profile(userId: widget.userId)),
-              ];
-              if (index < routes.length && routes[index] != null) {
-                Navigator.push(context, routes[index]!);
-              }
-            },
-            type: BottomNavigationBarType.fixed,
-            items: const [
-              BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Home'),
-              BottomNavigationBarItem(icon: Icon(Icons.bar_chart), label: 'Trans...'),
-              BottomNavigationBarItem(icon: Icon(Icons.payment), label: 'Payments'),
-              BottomNavigationBarItem(icon: Icon(Icons.person), label: 'Profile'),
-            ],
-          ),
-        ),
+      bottomNavigationBar: BottomNavigationBar(
+        backgroundColor: AppTheme.cardLight,
+        selectedItemColor: AppColors.financeGreenV3,
+        unselectedItemColor: AppTheme.textSecondary,
+        currentIndex: 0,
+        onTap: (index) {
+          if (!mounted || index == 0) return;
+          final routes = [
+            null,
+            MaterialPageRoute(builder: (context) => WalletPage(userId: widget.userId)),
+            MaterialPageRoute(builder: (context) => BuyGoodsSelect(userId: widget.userId)),
+            MaterialPageRoute(builder: (context) => Profile(userId: widget.userId)),
+          ];
+          if (index < routes.length && routes[index] != null) {
+            Navigator.push(context, routes[index]!);
+          }
+        },
+        type: BottomNavigationBarType.fixed,
+        items: const [
+          BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Home'),
+          BottomNavigationBarItem(icon: Icon(Icons.account_balance_wallet_outlined), label: 'Wallet'),
+          BottomNavigationBarItem(icon: Icon(Icons.payment), label: 'Pay'),
+          BottomNavigationBarItem(icon: Icon(Icons.person), label: 'Profile'),
+        ],
       ),
     );
   }
@@ -818,9 +815,9 @@ class SavingsDashboardState extends State<SavingsDashboard> {
       height: 95,
       padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
       decoration: BoxDecoration(
-        color: const Color(0xFF374151),
+        color: AppTheme.cardLight,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: const Color(0xFFF5BB1B).withOpacity(0.3), width: 1),
+        border: Border.all(color: AppColors.financeGreenV3.withValues(alpha: 0.3), width: 1),
       ),
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
@@ -843,12 +840,12 @@ class SavingsGraphPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final paint = Paint()
-      ..color = const Color(0xFFF5BB1B)
+      ..color = AppColors.financeGreenV3
       ..strokeWidth = 2
       ..style = PaintingStyle.stroke;
 
     final fillPaint = Paint()
-      ..color = const Color(0xFFF5BB1B).withValues(alpha: 0.2)
+      ..color = AppColors.financeGreenV3.withValues(alpha: 0.2)
       ..style = PaintingStyle.fill;
 
     const leftPadding = 40.0;
@@ -899,7 +896,7 @@ class SavingsGraphPainter extends CustomPainter {
     canvas.drawPath(linePath, paint);
 
     final dotPaint = Paint()
-      ..color = const Color(0xFFF5BB1B)
+      ..color = AppColors.financeGreenV3
       ..style = PaintingStyle.fill;
     for (var point in points) {
       canvas.drawCircle(point, 3, dotPaint);
@@ -909,7 +906,7 @@ class SavingsGraphPainter extends CustomPainter {
     for (var i = 0; i < yLabels.length; i++) {
       textPainter.text = TextSpan(
         text: yLabels[i],
-        style: const TextStyle(color: Colors.white70, fontSize: 10),
+        style: const TextStyle(color: AppTheme.textSecondary, fontSize: 10),
       );
       textPainter.layout();
       final yPosition = (size.height / (yLabels.length - 1)) * i - (textPainter.height / 2);

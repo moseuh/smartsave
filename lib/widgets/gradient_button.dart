@@ -1,4 +1,5 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
+import '../constants/app_theme.dart';
 import '../constants/app_theme.dart';
 
 /// Beautiful gradient button with animation
@@ -103,7 +104,7 @@ class _GradientButtonState extends State<GradientButton>
                         child: CircularProgressIndicator(
                           strokeWidth: 2.5,
                           valueColor:
-                              AlwaysStoppedAnimation<Color>(Colors.white),
+                              AlwaysStoppedAnimation<Color>(AppTheme.cardLight),
                         ),
                       )
                     : Row(
@@ -113,7 +114,7 @@ class _GradientButtonState extends State<GradientButton>
                           if (widget.icon != null) ...[
                             Icon(
                               widget.icon,
-                              color: widget.textColor ?? Colors.white,
+                              color: widget.textColor ?? AppTheme.cardLight,
                               size: 22,
                             ),
                             const SizedBox(width: 12),
@@ -121,7 +122,7 @@ class _GradientButtonState extends State<GradientButton>
                           Text(
                             widget.text,
                             style: TextStyle(
-                              color: widget.textColor ?? Colors.white,
+                              color: widget.textColor ?? AppTheme.cardLight,
                               fontSize: 16,
                               fontWeight: FontWeight.w700,
                               letterSpacing: 0.5,
@@ -137,3 +138,4 @@ class _GradientButtonState extends State<GradientButton>
     );
   }
 }
+

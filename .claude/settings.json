@@ -1,0 +1,15 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(Copy-Item \"e:\\\\nebo\\\\backend\\\\.env.example\" \"e:\\\\nebo\\\\backend\\\\.env\")",
+      "PowerShell(Get-ChildItem -Path \"E:\\\\nebo\\\\www-new\\\\web\" -Force | ForEach-Object { $_.Name })",
+      "PowerShell(Get-Process -Name \"node\" -ErrorAction SilentlyContinue | Where-Object { $_.MainWindowTitle -eq \"\" } | Select-Object Id, CPU, StartTime | Format-Table)",
+      "PowerShell(Get-Process -Id 4460)",
+      "PowerShell(Get-WmiObject Win32_Process -Filter \"ProcessId=4460\")",
+      "PowerShell(Stop-Process -Id 4460 -Force)",
+      "PowerShell(Start-Process -FilePath \"node\" -ArgumentList \"index.js\" -WorkingDirectory \"E:\\\\nebo\\\\backend\" -WindowStyle Hidden)",
+      "PowerShell(Start-Sleep -Seconds 2; try { $r = Invoke-RestMethod -Uri \"http://localhost:3001/api/health\" -Method GET; $r | ConvertTo-Json } catch { \"Backend not responding: $_\" })",
+      "PowerShell($body = '{\"full_name\":\"nyabwari\",\"phone_number\":\"+254748285812\",\"kyc_status\":\"verified\"}'; try { $r = Invoke-RestMethod -Uri \"http://localhost:3001/api/admin/users/17\" -Method PUT -Body $body -ContentType \"application/json\"; $r | ConvertTo-Json } catch { \"Error: $_\" })"
+    ]
+  }
+}

@@ -1,4 +1,5 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
+import '../constants/app_theme.dart';
 
 class TillFavourites extends StatefulWidget {
   const TillFavourites({super.key});
@@ -21,12 +22,12 @@ class _TillFavouritesState extends State<TillFavourites> {
         backgroundColor: Colors.black,
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.white),
+          icon: const Icon(Icons.arrow_back, color: AppTheme.cardLight),
           onPressed: () => Navigator.pop(context),
         ),
         title: const Text(
           'Add to Favorites',
-          style: TextStyle(color: Colors.white),
+          style: TextStyle(color: AppTheme.cardLight),
         ),
       ),
       body: Padding(
@@ -36,7 +37,7 @@ class _TillFavouritesState extends State<TillFavourites> {
           children: [
             const Text(
               'Saved Till Numbers',
-              style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
+              style: TextStyle(color: AppTheme.textPrimary, fontSize: 18, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 10),
             Expanded(
@@ -59,12 +60,12 @@ class _TillFavouritesState extends State<TillFavourites> {
                           children: [
                             Text(
                               item['name']!,
-                              style: const TextStyle(color: Colors.white, fontSize: 16),
+                              style: const TextStyle(color: AppTheme.textPrimary, fontSize: 16),
                             ),
                             const SizedBox(height: 4),
                             Text(
                               item['till']!,
-                              style: TextStyle(color: Colors.white70, fontSize: 14),
+                              style: TextStyle(color: AppTheme.textSecondary, fontSize: 14),
                             ),
                           ],
                         ),
@@ -117,7 +118,7 @@ class _TillFavouritesState extends State<TillFavourites> {
                       Navigator.pop(context);
                     },
                     style: OutlinedButton.styleFrom(
-                      foregroundColor: Colors.white,
+                      foregroundColor: AppTheme.textPrimary,
                       side: const BorderSide(color: Colors.grey),
                       padding: const EdgeInsets.symmetric(vertical: 12),
                       shape: RoundedRectangleBorder(
@@ -138,3 +139,4 @@ class _TillFavouritesState extends State<TillFavourites> {
     );
   }
 }
+

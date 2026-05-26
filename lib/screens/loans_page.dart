@@ -1,4 +1,5 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
+import '../constants/app_theme.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import '../constants/app_constants.dart';
@@ -529,10 +530,10 @@ class _LoansPageState extends State<LoansPage> {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        backgroundColor: const Color(0xFF374151),
+        backgroundColor: AppTheme.cardLight,
         title: const Text(
           'Apply for a Loan',
-          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+          style: TextStyle(color: AppTheme.textPrimary, fontWeight: FontWeight.bold),
         ),
         content: SingleChildScrollView(
           child: Form(
@@ -544,16 +545,16 @@ class _LoansPageState extends State<LoansPage> {
                   value: _selectedLoanType,
                   decoration: const InputDecoration(
                     labelText: 'Loan Type',
-                    labelStyle: TextStyle(color: Colors.white70),
+                    labelStyle: TextStyle(color: AppTheme.textSecondary),
                     enabledBorder: OutlineInputBorder(
-                      borderSide: BorderSide(color: Colors.white54),
+                      borderSide: BorderSide(color: AppTheme.textSecondary),
                     ),
                     focusedBorder: OutlineInputBorder(
-                      borderSide: BorderSide(color: Color(0xFFF5BB1B)),
+                      borderSide: BorderSide(color: AppColors.financeGreenV3),
                     ),
                   ),
-                  dropdownColor: const Color(0xFF2D3748),
-                  style: const TextStyle(color: Colors.white),
+                  dropdownColor: AppColors.coreWhiteW1,
+                  style: const TextStyle(color: AppTheme.textPrimary),
                   items: const [
                     DropdownMenuItem(value: 'salary_advance', child: Text('Salary Advance')),
                     DropdownMenuItem(value: 'emergency', child: Text('Emergency')),
@@ -573,15 +574,15 @@ class _LoansPageState extends State<LoansPage> {
                   controller: _amountController,
                   decoration: const InputDecoration(
                     labelText: 'Amount (KSh)',
-                    labelStyle: TextStyle(color: Colors.white70),
+                    labelStyle: TextStyle(color: AppTheme.textSecondary),
                     enabledBorder: OutlineInputBorder(
-                      borderSide: BorderSide(color: Colors.white54),
+                      borderSide: BorderSide(color: AppTheme.textSecondary),
                     ),
                     focusedBorder: OutlineInputBorder(
-                      borderSide: BorderSide(color: Color(0xFFF5BB1B)),
+                      borderSide: BorderSide(color: AppColors.financeGreenV3),
                     ),
                   ),
-                  style: const TextStyle(color: Colors.white),
+                  style: const TextStyle(color: AppTheme.textPrimary),
                   keyboardType: TextInputType.number,
                   validator: (value) {
                     if (value == null || value.isEmpty) {
@@ -605,15 +606,15 @@ class _LoansPageState extends State<LoansPage> {
                   controller: _termController,
                   decoration: const InputDecoration(
                     labelText: 'Term (Months)',
-                    labelStyle: TextStyle(color: Colors.white70),
+                    labelStyle: TextStyle(color: AppTheme.textSecondary),
                     enabledBorder: OutlineInputBorder(
-                      borderSide: BorderSide(color: Colors.white54),
+                      borderSide: BorderSide(color: AppTheme.textSecondary),
                     ),
                     focusedBorder: OutlineInputBorder(
-                      borderSide: BorderSide(color: Color(0xFFF5BB1B)),
+                      borderSide: BorderSide(color: AppColors.financeGreenV3),
                     ),
                   ),
-                  style: const TextStyle(color: Colors.white),
+                  style: const TextStyle(color: AppTheme.textPrimary),
                   keyboardType: TextInputType.number,
                   validator: (value) {
                     if (value == null || value.isEmpty) {
@@ -642,12 +643,12 @@ class _LoansPageState extends State<LoansPage> {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel', style: TextStyle(color: Colors.white70)),
+            child: const Text('Cancel', style: TextStyle(color: AppTheme.textSecondary)),
           ),
           ElevatedButton(
             onPressed: applyForLoan,
             style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFFF5BB1B),
+              backgroundColor: AppColors.financeGreenV3,
               foregroundColor: Colors.black,
             ),
             child: const Text('Apply'),
@@ -661,32 +662,32 @@ class _LoansPageState extends State<LoansPage> {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        backgroundColor: const Color(0xFF374151),
+        backgroundColor: AppTheme.cardLight,
         title: const Text(
           'Repay Loan',
-          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+          style: TextStyle(color: AppTheme.textPrimary, fontWeight: FontWeight.bold),
         ),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             Text(
               'Total Repayable: KSh ${totalRepayable.toStringAsFixed(2)}',
-              style: const TextStyle(color: Colors.white70),
+              style: const TextStyle(color: AppTheme.textSecondary),
             ),
             const SizedBox(height: 16),
             TextFormField(
               controller: _repayAmountController,
               decoration: const InputDecoration(
                 labelText: 'Repayment Amount (KSh)',
-                labelStyle: TextStyle(color: Colors.white70),
+                labelStyle: TextStyle(color: AppTheme.textSecondary),
                 enabledBorder: OutlineInputBorder(
-                  borderSide: BorderSide(color: Colors.white54),
+                  borderSide: BorderSide(color: AppTheme.textSecondary),
                 ),
                 focusedBorder: OutlineInputBorder(
-                  borderSide: BorderSide(color: Color(0xFFF5BB1B)),
+                  borderSide: BorderSide(color: AppColors.financeGreenV3),
                 ),
               ),
-              style: const TextStyle(color: Colors.white),
+              style: const TextStyle(color: AppTheme.textPrimary),
               keyboardType: TextInputType.number,
               validator: (value) {
                 if (value == null || value.isEmpty) {
@@ -704,12 +705,12 @@ class _LoansPageState extends State<LoansPage> {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel', style: TextStyle(color: Colors.white70)),
+            child: const Text('Cancel', style: TextStyle(color: AppTheme.textSecondary)),
           ),
           ElevatedButton(
             onPressed: () => repayLoan(loanId),
             style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFFF5BB1B),
+              backgroundColor: AppColors.financeGreenV3,
               foregroundColor: Colors.black,
             ),
             child: const Text('Repay'),
@@ -727,12 +728,12 @@ class _LoansPageState extends State<LoansPage> {
 
     return Scaffold(
       key: _scaffoldKey,
-      backgroundColor: const Color(0xFF1F2937),
+      backgroundColor: AppColors.coreDark,
       appBar: PreferredSize(
         preferredSize: const Size.fromHeight(70.0),
         child: Container(
           decoration: const BoxDecoration(
-            color: Color(0xFF374151),
+            color: AppTheme.cardLight,
             boxShadow: [
               BoxShadow(
                 color: Colors.black26,
@@ -746,7 +747,7 @@ class _LoansPageState extends State<LoansPage> {
             child: Row(
               children: [
                 IconButton(
-                  icon: const Icon(Icons.menu, color: Colors.white),
+                  icon: const Icon(Icons.menu, color: AppTheme.cardLight),
                   onPressed: () {
                     _scaffoldKey.currentState?.openDrawer();
                   },
@@ -759,7 +760,7 @@ class _LoansPageState extends State<LoansPage> {
                       Text(
                         userDetails != null ? userDetails!['full_name'] ?? 'User' : 'Loading...',
                         style: const TextStyle(
-                          color: Colors.white,
+                          color: AppTheme.textPrimary,
                           fontSize: 18,
                           fontWeight: FontWeight.bold,
                         ),
@@ -767,7 +768,7 @@ class _LoansPageState extends State<LoansPage> {
                       const Text(
                         'Member since 2022',
                         style: TextStyle(
-                          color: Colors.white70,
+                          color: AppTheme.textSecondary,
                           fontSize: 12,
                         ),
                       ),
@@ -775,7 +776,7 @@ class _LoansPageState extends State<LoansPage> {
                   ),
                 ),
                 IconButton(
-                  icon: const Icon(Icons.notifications, color: Colors.white),
+                  icon: const Icon(Icons.notifications, color: AppTheme.cardLight),
                   onPressed: () {},
                 ),
               ],
@@ -784,7 +785,7 @@ class _LoansPageState extends State<LoansPage> {
         ),
       ),
       drawer: Drawer(
-        backgroundColor: const Color(0xFF374151),
+        backgroundColor: AppTheme.cardLight,
         width: 250,
         child: ListView(
           padding: EdgeInsets.zero,
@@ -798,7 +799,7 @@ class _LoansPageState extends State<LoansPage> {
                 children: [
                   CircleAvatar(
                     radius: 28,
-                    backgroundColor: Colors.grey[300],
+                    backgroundColor: AppColors.coreWhiteW2,
                     child: userDetails != null && userDetails!['selfie_path'] != null
                         ? CachedNetworkImage(
                             imageUrl: userDetails!['selfie_path'],
@@ -806,13 +807,13 @@ class _LoansPageState extends State<LoansPage> {
                             width: 56,
                             height: 56,
                           )
-                        : const Icon(Icons.person, size: 28, color: Colors.white),
+                        : const Icon(Icons.person, size: 28, color: AppTheme.cardLight),
                   ),
                   const SizedBox(height: 12),
                   Text(
                     userDetails != null ? userDetails!['full_name'] ?? 'User' : 'Loading...',
                     style: const TextStyle(
-                      color: Colors.white,
+                      color: AppTheme.textPrimary,
                       fontSize: 18,
                       fontWeight: FontWeight.bold,
                     ),
@@ -820,7 +821,7 @@ class _LoansPageState extends State<LoansPage> {
                   Text(
                     userDetails != null ? userDetails!['email'] ?? '' : '',
                     style: const TextStyle(
-                      color: Colors.white70,
+                      color: AppTheme.textSecondary,
                       fontSize: 14,
                     ),
                   ),
@@ -828,56 +829,56 @@ class _LoansPageState extends State<LoansPage> {
               ),
             ),
             ListTile(
-              leading: const Icon(Icons.account_balance_wallet, color: Color(0xFFF5BB1B)),
-              title: const Text('Wallet', style: TextStyle(color: Colors.white)),
+              leading: const Icon(Icons.account_balance_wallet, color: AppColors.financeGreenV3),
+              title: const Text('Wallet', style: TextStyle(color: AppTheme.cardLight)),
               onTap: () {
                 Navigator.pop(context);
                 // TODO: Navigate to Wallet page
               },
             ),
             ListTile(
-              leading: const Icon(Icons.work, color: Color(0xFFF5BB1B)),
-              title: const Text('Jobs', style: TextStyle(color: Colors.white)),
+              leading: const Icon(Icons.work, color: AppColors.financeGreenV3),
+              title: const Text('Jobs', style: TextStyle(color: AppTheme.cardLight)),
               onTap: () {
                 Navigator.pop(context);
                 // TODO: Navigate to Jobs page
               },
             ),
             ListTile(
-              leading: const Icon(Icons.school, color: Color(0xFFF5BB1B)),
-              title: const Text('Scholarships & Funding', style: TextStyle(color: Colors.white)),
+              leading: const Icon(Icons.school, color: AppColors.financeGreenV3),
+              title: const Text('Scholarships & Funding', style: TextStyle(color: AppTheme.cardLight)),
               onTap: () {
                 Navigator.pop(context);
                 // TODO: Navigate to Scholarships page
               },
             ),
             ListTile(
-              leading: const Icon(Icons.chat, color: Color(0xFFF5BB1B)),
-              title: const Text('Chat', style: TextStyle(color: Colors.white)),
+              leading: const Icon(Icons.chat, color: AppColors.financeGreenV3),
+              title: const Text('Chat', style: TextStyle(color: AppTheme.cardLight)),
               onTap: () {
                 Navigator.pop(context);
                 // TODO: Navigate to Chat page
               },
             ),
             ListTile(
-              leading: const Icon(Icons.leaderboard, color: Color(0xFFF5BB1B)),
-              title: const Text('Leaderboard', style: TextStyle(color: Colors.white)),
+              leading: const Icon(Icons.leaderboard, color: AppColors.financeGreenV3),
+              title: const Text('Leaderboard', style: TextStyle(color: AppTheme.cardLight)),
               onTap: () {
                 Navigator.pop(context);
                 // TODO: Navigate to Leaderboard page
               },
             ),
             ListTile(
-              leading: const Icon(Icons.class_, color: Color(0xFFF5BB1B)),
-              title: const Text('Classes', style: TextStyle(color: Colors.white)),
+              leading: const Icon(Icons.class_, color: AppColors.financeGreenV3),
+              title: const Text('Classes', style: TextStyle(color: AppTheme.cardLight)),
               onTap: () {
                 Navigator.pop(context);
                 // TODO: Navigate to Classes page
               },
             ),
             ListTile(
-              leading: const Icon(Icons.account_balance, color: Color(0xFFF5BB1B)),
-              title: const Text('Loans & Credit', style: TextStyle(color: Colors.white)),
+              leading: const Icon(Icons.account_balance, color: AppColors.financeGreenV3),
+              title: const Text('Loans & Credit', style: TextStyle(color: AppTheme.cardLight)),
               onTap: () {
                 Navigator.pop(context);
                 Navigator.pushReplacement(
@@ -893,7 +894,7 @@ class _LoansPageState extends State<LoansPage> {
       body: isLoading
           ? const Center(
               child: SpinKitFadingCircle(
-                color: Color(0xFFF5BB1B),
+                color: AppColors.financeGreenV3,
                 size: 50.0,
               ),
             )
@@ -908,7 +909,7 @@ class _LoansPageState extends State<LoansPage> {
                       const Text(
                         'Your Loans',
                         style: TextStyle(
-                          color: Colors.white,
+                          color: AppTheme.textPrimary,
                           fontSize: 20,
                           fontWeight: FontWeight.bold,
                         ),
@@ -917,7 +918,7 @@ class _LoansPageState extends State<LoansPage> {
                         onPressed: userDetails?['face_verified'] == true ? _showLoanApplicationDialog : null,
                         style: ElevatedButton.styleFrom(
                           backgroundColor: userDetails?['face_verified'] == true
-                              ? const Color(0xFFF5BB1B)
+                              ? AppColors.financeGreenV3
                               : Colors.grey,
                           foregroundColor: Colors.black,
                           shape: RoundedRectangleBorder(
@@ -930,7 +931,7 @@ class _LoansPageState extends State<LoansPage> {
                   ),
                   const SizedBox(height: 16),
                   Card(
-                    color: const Color(0xFF374151),
+                    color: AppTheme.cardLight,
                     elevation: 4,
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(12),
@@ -943,7 +944,7 @@ class _LoansPageState extends State<LoansPage> {
                           Text(
                             'Credit Score: ${loanEligibility?['credit_score']?.toString() ?? 'N/A'}',
                             style: const TextStyle(
-                              color: Colors.white,
+                              color: AppTheme.textPrimary,
                               fontSize: 16,
                               fontWeight: FontWeight.bold,
                             ),
@@ -952,7 +953,7 @@ class _LoansPageState extends State<LoansPage> {
                           Text(
                             'Total Loan Amount: KSh $totalLoanAmount',
                             style: const TextStyle(
-                              color: Colors.white,
+                              color: AppTheme.textPrimary,
                               fontSize: 16,
                               fontWeight: FontWeight.bold,
                             ),
@@ -961,7 +962,7 @@ class _LoansPageState extends State<LoansPage> {
                           Text(
                             'Number of Loans: ${loanDetails?.length ?? 0}',
                             style: const TextStyle(
-                              color: Colors.white70,
+                              color: AppTheme.textSecondary,
                               fontSize: 14,
                             ),
                           ),
@@ -969,7 +970,7 @@ class _LoansPageState extends State<LoansPage> {
                           Text(
                             'Outstanding Debt: KSh ${loanEligibility?['outstanding_debt']?.toStringAsFixed(2) ?? '0.00'}',
                             style: const TextStyle(
-                              color: Colors.white70,
+                              color: AppTheme.textSecondary,
                               fontSize: 14,
                             ),
                           ),
@@ -977,7 +978,7 @@ class _LoansPageState extends State<LoansPage> {
                           const Text(
                             'Loan Limits:',
                             style: TextStyle(
-                              color: Colors.white,
+                              color: AppTheme.textPrimary,
                               fontSize: 14,
                               fontWeight: FontWeight.bold,
                             ),
@@ -986,7 +987,7 @@ class _LoansPageState extends State<LoansPage> {
                             for (var entry in (loanEligibility!['loan_limits'] as Map<String, dynamic>).entries)
                               Text(
                                 '${entry.key}: KSh ${entry.value.toStringAsFixed(2)}',
-                                style: const TextStyle(color: Colors.white70, fontSize: 14),
+                                style: const TextStyle(color: AppTheme.textSecondary, fontSize: 14),
                               ),
                         ],
                       ),
@@ -997,7 +998,7 @@ class _LoansPageState extends State<LoansPage> {
                       ? const Center(
                           child: Text(
                             'No loans found',
-                            style: TextStyle(color: Colors.white70),
+                            style: TextStyle(color: AppTheme.textSecondary),
                           ),
                         )
                       : ListView.builder(
@@ -1007,7 +1008,7 @@ class _LoansPageState extends State<LoansPage> {
                           itemBuilder: (context, index) {
                             final loan = loanDetails![index];
                             return Card(
-                              color: const Color(0xFF2D3748),
+                              color: AppColors.coreWhiteW1,
                               margin: const EdgeInsets.symmetric(vertical: 8.0),
                               shape: RoundedRectangleBorder(
                                 borderRadius: BorderRadius.circular(12),
@@ -1017,7 +1018,7 @@ class _LoansPageState extends State<LoansPage> {
                                 title: Text(
                                   'Loan ${index + 1}: ${loan['loan_type']} - KSh ${loan['amount']?.toStringAsFixed(2) ?? 'N/A'}',
                                   style: const TextStyle(
-                                    color: Colors.white,
+                                    color: AppTheme.textPrimary,
                                     fontWeight: FontWeight.bold,
                                   ),
                                 ),
@@ -1026,21 +1027,21 @@ class _LoansPageState extends State<LoansPage> {
                                   children: [
                                     Text(
                                       'Status: ${loan['status'] ?? 'N/A'}',
-                                      style: const TextStyle(color: Colors.white70),
+                                      style: const TextStyle(color: AppTheme.textSecondary),
                                     ),
                                     Text(
                                       'Due Date: ${loan['repayment_due_date'] ?? 'N/A'}',
-                                      style: const TextStyle(color: Colors.white70),
+                                      style: const TextStyle(color: AppTheme.textSecondary),
                                     ),
                                     Text(
                                       'Total Repayable: KSh ${loan['total_repayable']?.toStringAsFixed(2) ?? 'N/A'}',
-                                      style: const TextStyle(color: Colors.white70),
+                                      style: const TextStyle(color: AppTheme.textSecondary),
                                     ),
                                   ],
                                 ),
                                 trailing: loan['status'] == 'disbursed'
                                     ? IconButton(
-                                        icon: const Icon(Icons.payment, color: Color(0xFFF5BB1B)),
+                                        icon: const Icon(Icons.payment, color: AppColors.financeGreenV3),
                                         onPressed: () => _showRepayLoanDialog(
                                           loan['id'].toString(),
                                           loan['total_repayable'].toDouble(),
@@ -1058,7 +1059,7 @@ class _LoansPageState extends State<LoansPage> {
         mainAxisSize: MainAxisSize.min,
         children: [
           Container(
-            color: const Color(0xFF374151),
+            color: AppTheme.cardLight,
             padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.center,
@@ -1067,7 +1068,7 @@ class _LoansPageState extends State<LoansPage> {
                   child: ElevatedButton(
                     onPressed: generateLoanReport,
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFFF5BB1B),
+                      backgroundColor: AppColors.financeGreenV3,
                       foregroundColor: Colors.black,
                       padding: const EdgeInsets.symmetric(vertical: 15),
                       shape: RoundedRectangleBorder(
@@ -1084,14 +1085,10 @@ class _LoansPageState extends State<LoansPage> {
               ],
             ),
           ),
-          Container(
-            color: const Color(0xFF374151),
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
-              child: BottomNavigationBar(
-                backgroundColor: Colors.transparent,
-                selectedItemColor: const Color(0xFFF5BB1B),
-                unselectedItemColor: Colors.white54,
+          BottomNavigationBar(
+                backgroundColor: AppTheme.cardLight,
+                selectedItemColor: AppColors.financeGreenV3,
+                unselectedItemColor: AppTheme.textSecondary,
                 currentIndex: _selectedIndex,
                 onTap: _onItemTapped,
                 type: BottomNavigationBarType.fixed,
@@ -1114,10 +1111,9 @@ class _LoansPageState extends State<LoansPage> {
                   ),
                 ],
               ),
-            ),
-          ),
         ],
       ),
     );
   }
 }
+

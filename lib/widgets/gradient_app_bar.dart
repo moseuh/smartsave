@@ -1,4 +1,5 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
+import '../constants/app_theme.dart';
 import 'package:flutter/services.dart';
 
 /// Custom app bar with gradient
@@ -44,7 +45,7 @@ class GradientAppBar extends StatelessWidget implements PreferredSizeWidget {
         title: Text(
           title,
           style: TextStyle(
-            color: textColor ?? Colors.white,
+            color: textColor ?? AppTheme.cardLight,
             fontWeight: FontWeight.w700,
             letterSpacing: 0.5,
           ),
@@ -54,9 +55,10 @@ class GradientAppBar extends StatelessWidget implements PreferredSizeWidget {
         backgroundColor: Colors.transparent,
         leading: leading,
         actions: actions,
-        iconTheme: IconThemeData(color: textColor ?? Colors.white),
+        iconTheme: IconThemeData(color: textColor ?? AppTheme.cardLight),
         systemOverlayStyle: SystemUiOverlayStyle.light,
       ),
     );
   }
 }
+

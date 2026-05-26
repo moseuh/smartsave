@@ -78,20 +78,21 @@ class _ProfileCompletionScreenState extends State<ProfileCompletionScreen>
           
           // Check what fields already exist (not placeholders)
           final nationalId = userData['national_id']?.toString() ?? '';
-          final dob = userData['date_of_birth']?.toString() ?? '';
+          final dob = (userData['date_of_birth'] ?? '').toString();
           final selfie = userData['selfie_path']?.toString() ?? '';
-          final idDoc = userData['id_document_path']?.toString() ?? '';
+          final idDoc = (userData['id_document_path'] ?? userData['id_back_path'] ?? '').toString();
           
           final hasNationalId = nationalId.isNotEmpty && nationalId != 'PENDING';
           final hasDob = dob.isNotEmpty && dob != '1990-01-01';
           final hasSelfie = selfie.isNotEmpty;
           final hasIdDocument = idDoc.isNotEmpty;
           
-          // If all fields are complete, skip this screen and go to dashboard
-          if (hasNationalId && hasDob && hasSelfie && hasIdDocument && mounted) {
+          // Skip to dashboard if user has completed the basics (national ID + DOB)
+          // Selfie and ID doc are optional — don't block dashboard access
+          if (hasNationalId && hasDob && mounted) {
             final prefs = await SharedPreferences.getInstance();
             await prefs.setBool('profile_completed', true);
-            
+
             Navigator.of(context).pushReplacement(
               MaterialPageRoute(
                 builder: (context) => graph.SavingsDashboard(userId: widget.userId),
@@ -292,14 +293,7 @@ class _ProfileCompletionScreenState extends State<ProfileCompletionScreen>
     return Scaffold(
       body: Container(
         decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [
-              Color(0xFF4B5563), // Dark grayish-blue
-              Color(0xFF374151), // Medium gray
-            ],
-          ),
+          gradient: AppTheme.primaryGradient,
         ),
         child: SafeArea(
           child: Column(

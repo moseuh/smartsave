@@ -1,4 +1,5 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
+import '../constants/app_theme.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import '../constants/app_constants.dart';
@@ -11,8 +12,8 @@ import '../widgets/graph.dart'; // SavingsDashboard
 import 'addtofavourites.dart';
 import 'homepage.dart';
 import 'favourites.dart';
-import 'profile.dart'; // <-- add this import
-import 'transactiohistory.dart';
+import 'profile.dart';
+import 'wallet_page.dart';
 
 class ProcessingDialog extends StatefulWidget {
   final VoidCallback? onCancel;
@@ -46,11 +47,11 @@ class _ProcessingDialogState extends State<ProcessingDialog> {
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
-      backgroundColor: Color(0xFF9CA3AF),
+      backgroundColor: AppTheme.textSecondary,
       content: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          const CircularProgressIndicator(color: Color(0xFFF5BB1B)),
+          const CircularProgressIndicator(color: AppColors.financeGreenV3),
           const SizedBox(height: 16),
           Text(
             'Waiting for PIN entry...\nPlease complete the M-PESA prompt.\nTime remaining: $remainingSeconds seconds',
@@ -63,7 +64,7 @@ class _ProcessingDialogState extends State<ProcessingDialog> {
               onPressed: widget.onCancel,
               child: const Text(
                 'Cancel',
-                style: TextStyle(color: Color(0xFFF5BB1B), fontSize: 16),
+                style: TextStyle(color: AppColors.financeGreenV3, fontSize: 16),
               ),
             ),
         ],
@@ -412,7 +413,7 @@ class _BuyGoodsSelectState extends State<BuyGoodsSelect> {
         showDialog(
           context: context,
           builder: (context) => AlertDialog(
-            backgroundColor: Color(0xFF9CA3AF),
+            backgroundColor: AppTheme.textSecondary,
             content: TransactionResult(
               status: 'error',
               amount: totalAmount.toStringAsFixed(2),
@@ -440,7 +441,7 @@ class _BuyGoodsSelectState extends State<BuyGoodsSelect> {
         showDialog(
           context: context,
           builder: (context) => AlertDialog(
-            backgroundColor: Color(0xFF9CA3AF),
+            backgroundColor: AppTheme.textSecondary,
             content: TransactionResult(
               status: 'error',
               amount: totalAmount.toStringAsFixed(2),
@@ -473,7 +474,7 @@ class _BuyGoodsSelectState extends State<BuyGoodsSelect> {
         showDialog(
           context: context,
           builder: (context) => AlertDialog(
-            backgroundColor: Color(0xFF9CA3AF),
+            backgroundColor: AppTheme.textSecondary,
             content: TransactionResult(
               status: 'error',
               amount: totalAmount.toStringAsFixed(2),
@@ -571,7 +572,7 @@ class _BuyGoodsSelectState extends State<BuyGoodsSelect> {
       showDialog(
         context: context,
         builder: (context) => AlertDialog(
-          backgroundColor: Color(0xFF9CA3AF),
+          backgroundColor: AppTheme.textSecondary,
           content: TransactionResult(
             status: transactionStatus,
             amount: amount,
@@ -611,7 +612,7 @@ class _BuyGoodsSelectState extends State<BuyGoodsSelect> {
       showDialog(
         context: context,
         builder: (context) => AlertDialog(
-          backgroundColor: Color(0xFF9CA3AF),
+          backgroundColor: AppTheme.textSecondary,
           content: TransactionResult(
             status: 'error',
             amount: totalAmount.toStringAsFixed(2),
@@ -788,16 +789,16 @@ class _BuyGoodsSelectState extends State<BuyGoodsSelect> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF1F2937),
+      backgroundColor: AppTheme.backgroundLight,
       appBar: AppBar(
-        backgroundColor: const Color(0xFF1F2937),
+        backgroundColor: AppTheme.primaryColor,
         elevation: 0,
         title: const Text(
           'Payment',
-          style: TextStyle(color: Colors.white),
+          style: TextStyle(color: AppTheme.textLight, fontWeight: FontWeight.bold),
         ),
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.white),
+          icon: const Icon(Icons.arrow_back, color: AppTheme.textLight),
           onPressed: () {
             Navigator.pushReplacement(
               context,
@@ -814,13 +815,14 @@ class _BuyGoodsSelectState extends State<BuyGoodsSelect> {
               'assets/logo.png',
               width: 30,
               height: 30,
-              errorBuilder: (context, error, stackTrace) => const SizedBox.shrink(),
+              color: AppTheme.textLight,
+              errorBuilder: (context, error, stackTrace) => const Icon(Icons.savings, color: AppTheme.textLight),
             ),
           ),
         ],
       ),
       body: isLoadingSettings || isLoadingPayment || isLoadingUserDetails
-          ? const Center(child: CircularProgressIndicator(color: Color(0xFFF5BB1B)))
+          ? const Center(child: CircularProgressIndicator(color: AppColors.financeGreenV3))
           : SingleChildScrollView(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -842,14 +844,14 @@ class _BuyGoodsSelectState extends State<BuyGoodsSelect> {
                             child: Container(
                               padding: const EdgeInsets.symmetric(vertical: 12),
                               decoration: BoxDecoration(
-                                color: isBuyGoods ? const Color(0xFFF5BB1B) : Color(0xFF9CA3AF),
+                                color: isBuyGoods ? AppColors.financeGreenV3 : AppColors.coreWhiteW2,
                                 borderRadius: const BorderRadius.horizontal(left: Radius.circular(8)),
                               ),
                               child: Center(
                                 child: Text(
                                   'Buy Goods',
                                   style: TextStyle(
-                                    color: isBuyGoods ? Colors.black : Colors.black,
+                                    color: isBuyGoods ? AppTheme.textLight : AppTheme.textSecondary,
                                     fontWeight: FontWeight.bold,
                                   ),
                                 ),
@@ -870,14 +872,14 @@ class _BuyGoodsSelectState extends State<BuyGoodsSelect> {
                             child: Container(
                               padding: const EdgeInsets.symmetric(vertical: 12),
                               decoration: BoxDecoration(
-                                color: !isBuyGoods ? const Color(0xFFF5BB1B) : Color(0xFF9CA3AF),
+                                color: !isBuyGoods ? AppColors.financeGreenV3 : AppColors.coreWhiteW2,
                                 borderRadius: const BorderRadius.horizontal(right: Radius.circular(8)),
                               ),
                               child: Center(
                                 child: Text(
                                   'Pay Bill',
                                   style: TextStyle(
-                                    color: !isBuyGoods ? Colors.black : Colors.black,
+                                    color: !isBuyGoods ? AppTheme.textLight : AppTheme.textSecondary,
                                     fontWeight: FontWeight.bold,
                                   ),
                                 ),
@@ -892,11 +894,12 @@ class _BuyGoodsSelectState extends State<BuyGoodsSelect> {
                     Container(
                       margin: const EdgeInsets.symmetric(horizontal: 16.0),
                       decoration: BoxDecoration(
-                        color: Color(0xFF9CA3AF),
+                        color: AppTheme.cardLight,
                         borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: AppColors.financeGreen.withValues(alpha: 0.2)),
                         boxShadow: [
                           BoxShadow(
-                            color: Colors.grey.withOpacity(0.15),
+                            color: AppColors.coreWhiteW2.withValues(alpha: 0.15),
                             spreadRadius: 0.5,
                             blurRadius: 2,
                             offset: const Offset(0, 1),
@@ -910,7 +913,7 @@ class _BuyGoodsSelectState extends State<BuyGoodsSelect> {
                           const Text(
                             'Add Favourite',
                             style: TextStyle(
-                              color: Colors.black,
+                              color: AppTheme.textPrimary,
                               fontSize: 14,
                               fontWeight: FontWeight.bold,
                             ),
@@ -921,15 +924,15 @@ class _BuyGoodsSelectState extends State<BuyGoodsSelect> {
                             child: Row(
                               children: [
                                 const Icon(
-                                  Icons.add,
-                                  color: Colors.black,
+                                  Icons.add_circle_outline,
+                                  color: AppColors.financeGreenV3,
                                   size: 16,
                                 ),
                                 const SizedBox(width: 8),
                                 Text(
                                   isBuyGoods ? 'Save current till number' : 'Save current pay bill number',
                                   style: const TextStyle(
-                                    color: Colors.black,
+                                    color: AppColors.financeGreen,
                                     fontSize: 12,
                                   ),
                                 ),
@@ -948,38 +951,46 @@ class _BuyGoodsSelectState extends State<BuyGoodsSelect> {
                       children: [
                         Text(
                           isBuyGoods ? 'Till Number' : 'Pay Bill Number',
-                          style: const TextStyle(color: Colors.white, fontSize: 14),
+                          style: const TextStyle(color: AppTheme.textPrimary, fontSize: 14),
                         ),
                         const SizedBox(height: 4),
                         TextField(
                           controller: tillNumberController,
                           decoration: InputDecoration(
                             hintText: isBuyGoods ? 'Enter till number' : 'Enter pay bill number',
-                            hintStyle: const TextStyle(color: Colors.white54),
+                            hintStyle: const TextStyle(color: AppTheme.textSecondary),
                             filled: true,
-                            fillColor: Color(0xFF9CA3AF),
+                            fillColor: AppTheme.cardLight,
                             border: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(8),
-                              borderSide: BorderSide.none,
+                              borderSide: BorderSide(color: AppColors.financeGreen.withValues(alpha: 0.3)),
+                            ),
+                            enabledBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(8),
+                              borderSide: BorderSide(color: AppColors.financeGreen.withValues(alpha: 0.3)),
+                            ),
+                            focusedBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(8),
+                              borderSide: const BorderSide(color: AppColors.financeGreen),
                             ),
                           ),
-                          style: const TextStyle(color: Colors.black),
+                          style: const TextStyle(color: AppTheme.textPrimary),
                           keyboardType: TextInputType.number,
                         ),
                         if (!isBuyGoods) ...[
                           const SizedBox(height: 12),
                           const Text(
                             'Account Number',
-                            style: TextStyle(color: Colors.white, fontSize: 14),
+                            style: TextStyle(color: AppTheme.textPrimary, fontSize: 14),
                           ),
                           const SizedBox(height: 4),
                           TextField(
                             controller: accountNumberController,
                             decoration: InputDecoration(
                               hintText: 'Enter account number',
-                              hintStyle: const TextStyle(color: Colors.white54),
+                              hintStyle: const TextStyle(color: AppTheme.textSecondary),
                               filled: true,
-                              fillColor: Color(0xFF9CA3AF),
+                              fillColor: AppTheme.textSecondary,
                               border: OutlineInputBorder(
                                 borderRadius: BorderRadius.circular(8),
                                 borderSide: BorderSide.none,
@@ -992,22 +1003,30 @@ class _BuyGoodsSelectState extends State<BuyGoodsSelect> {
                         const SizedBox(height: 12),
                         const Text(
                           'Amount',
-                          style: TextStyle(color: Colors.white, fontSize: 14),
+                          style: TextStyle(color: AppTheme.textPrimary, fontSize: 14),
                         ),
                         const SizedBox(height: 4),
                         TextField(
                           controller: amountController,
                           decoration: InputDecoration(
                             hintText: 'Enter amount',
-                            hintStyle: const TextStyle(color: Colors.white54),
+                            hintStyle: const TextStyle(color: AppTheme.textSecondary),
                             filled: true,
-                            fillColor: Color(0xFF9CA3AF),
+                            fillColor: AppTheme.cardLight,
                             border: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(8),
-                              borderSide: BorderSide.none,
+                              borderSide: BorderSide(color: AppColors.financeGreen.withValues(alpha: 0.3)),
+                            ),
+                            enabledBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(8),
+                              borderSide: BorderSide(color: AppColors.financeGreen.withValues(alpha: 0.3)),
+                            ),
+                            focusedBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(8),
+                              borderSide: const BorderSide(color: AppColors.financeGreen),
                             ),
                           ),
-                          style: const TextStyle(color: Colors.black),
+                          style: const TextStyle(color: AppTheme.textPrimary),
                           keyboardType: TextInputType.numberWithOptions(decimal: true),
                         ),
                       ],
@@ -1017,25 +1036,26 @@ class _BuyGoodsSelectState extends State<BuyGoodsSelect> {
                   Container(
                     margin: const EdgeInsets.symmetric(horizontal: 16.0),
                     decoration: BoxDecoration(
-                      color: Color(0xFF9CA3AF),
-                      borderRadius: BorderRadius.circular(8),
+                      color: AppTheme.cardLight,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: AppColors.financeGreen.withValues(alpha: 0.2)),
                       boxShadow: [
                         BoxShadow(
-                          color: Colors.black.withOpacity(0.15),
+                          color: AppColors.financeGreen.withValues(alpha: 0.08),
                           spreadRadius: 0.5,
-                          blurRadius: 2,
-                          offset: const Offset(0, 1),
+                          blurRadius: 6,
+                          offset: const Offset(0, 2),
                         ),
                       ],
                     ),
-                    padding: const EdgeInsets.all(12),
+                    padding: const EdgeInsets.all(16),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         const Text(
                           'Payment Summary',
                           style: TextStyle(
-                            color: Colors.black,
+                            color: AppTheme.textPrimary,
                             fontSize: 14,
                             fontWeight: FontWeight.bold,
                           ),
@@ -1055,7 +1075,7 @@ class _BuyGoodsSelectState extends State<BuyGoodsSelect> {
                       child: ElevatedButton(
                         onPressed: savePaymentData,
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFFF5BB1B),
+                          backgroundColor: AppColors.financeGreenV3,
                           foregroundColor: Colors.black,
                           padding: const EdgeInsets.symmetric(vertical: 15),
                           shape: RoundedRectangleBorder(
@@ -1073,20 +1093,16 @@ class _BuyGoodsSelectState extends State<BuyGoodsSelect> {
                 ],
               ),
             ),
-      bottomNavigationBar: Container(
-        color: const Color(0xFF374151),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
-          child: BottomNavigationBar(
-            backgroundColor: Colors.transparent,
-            selectedItemColor: const Color(0xFFF5BB1B),
-            unselectedItemColor: Colors.white54,
+      bottomNavigationBar: BottomNavigationBar(
+        backgroundColor: AppTheme.cardLight,
+            selectedItemColor: AppColors.financeGreenV3,
+            unselectedItemColor: AppTheme.textSecondary,
             currentIndex: 2,
             onTap: (index) {
               if (index == 2) return;
               final routes = [
+                MaterialPageRoute(builder: (context) => WalletPage(userId: widget.userId)),
                 MaterialPageRoute(builder: (context) => SavingsDashboard(userId: widget.userId)),
-                MaterialPageRoute(builder: (context) => TransactionHistory(userId: widget.userId)),
                 null,
                 MaterialPageRoute(builder: (context) => Profile(userId: widget.userId)),
               ];
@@ -1096,32 +1112,27 @@ class _BuyGoodsSelectState extends State<BuyGoodsSelect> {
             },
             type: BottomNavigationBarType.fixed,
             items: const [
+              BottomNavigationBarItem(icon: Icon(Icons.account_balance_wallet_outlined), label: 'Wallet'),
               BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Home'),
-              BottomNavigationBarItem(icon: Icon(Icons.bar_chart), label: 'Trans...'),
               BottomNavigationBarItem(icon: Icon(Icons.payment), label: 'Payments'),
               BottomNavigationBarItem(icon: Icon(Icons.person), label: 'Profile'),
             ],
           ),
-        ),
-      ),
     );
   }
 
   Widget _buildSummaryItem(String label, String value, {bool isBold = false}) {
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 2.0),
+      padding: const EdgeInsets.symmetric(vertical: 4.0),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Text(
-            label,
-            style: const TextStyle(color: Colors.black54, fontSize: 12),
-          ),
+          Text(label, style: const TextStyle(color: AppTheme.textSecondary, fontSize: 13)),
           Text(
             value,
             style: TextStyle(
-              color: Colors.black,
-              fontSize: 12,
+              color: isBold ? AppColors.financeGreen : AppTheme.textPrimary,
+              fontSize: 13,
               fontWeight: isBold ? FontWeight.bold : FontWeight.normal,
             ),
           ),
@@ -1168,7 +1179,7 @@ class TransactionResult extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(16.0),
       decoration: BoxDecoration(
-        color: Color(0xFF9CA3AF),
+        color: AppTheme.textSecondary,
         borderRadius: BorderRadius.circular(10),
       ),
       width: MediaQuery.of(context).size.width * 0.9,
@@ -1223,8 +1234,8 @@ class TransactionResult extends StatelessWidget {
                   child: ElevatedButton(
                     onPressed: onExportPdf,
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.grey[700],
-                      foregroundColor: Colors.white,
+                      backgroundColor: AppColors.coreWhiteW2,
+                      foregroundColor: AppTheme.textPrimary,
                       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(8),
@@ -1247,8 +1258,8 @@ class TransactionResult extends StatelessWidget {
                   }
                 },
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: isSuccess ? const Color(0xFFF5BB1B) : Colors.grey[700],
-                  foregroundColor: isSuccess ? Colors.black : Colors.white,
+                  backgroundColor: isSuccess ? AppColors.financeGreenV3 : AppColors.coreWhiteW2,
+                  foregroundColor: isSuccess ? Colors.black : AppTheme.cardLight,
                   padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 12),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(8),
@@ -1299,3 +1310,7 @@ class TransactionResult extends StatelessWidget {
     );
   }
 }
+
+
+
+

@@ -1,4 +1,5 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
+import '../constants/app_theme.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import '../constants/app_constants.dart';
@@ -87,12 +88,12 @@ class _AddToFavouritesState extends State<AddToFavourites> {
         backgroundColor: Colors.black,
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.white),
+          icon: const Icon(Icons.arrow_back, color: AppTheme.cardLight),
           onPressed: () => Navigator.pop(context),
         ),
         title: const Text(
           'Add to Favorites',
-          style: TextStyle(color: Colors.white),
+          style: TextStyle(color: AppTheme.cardLight),
         ),
       ),
       body: Padding(
@@ -102,7 +103,7 @@ class _AddToFavouritesState extends State<AddToFavourites> {
           children: [
             const Text(
               'Saved Till Numbers',
-              style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
+              style: TextStyle(color: AppTheme.textPrimary, fontSize: 18, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 10),
             Expanded(
@@ -112,7 +113,7 @@ class _AddToFavouritesState extends State<AddToFavourites> {
                       ? const Center(
                           child: Text(
                             'No till numbers found for this user',
-                            style: TextStyle(color: Colors.white70, fontSize: 16),
+                            style: TextStyle(color: AppTheme.textSecondary, fontSize: 16),
                           ),
                         )
                       : ListView.builder(
@@ -134,12 +135,12 @@ class _AddToFavouritesState extends State<AddToFavourites> {
                                     children: [
                                       Text(
                                         item['name']!,
-                                        style: const TextStyle(color: Colors.white, fontSize: 16),
+                                        style: const TextStyle(color: AppTheme.textPrimary, fontSize: 16),
                                       ),
                                       const SizedBox(height: 4),
                                       Text(
                                         item['till']!,
-                                        style: const TextStyle(color: Colors.white70, fontSize: 14),
+                                        style: const TextStyle(color: AppTheme.textSecondary, fontSize: 14),
                                       ),
                                     ],
                                   ),
@@ -187,7 +188,7 @@ class _AddToFavouritesState extends State<AddToFavourites> {
                       Navigator.pop(context);
                     },
                     style: OutlinedButton.styleFrom(
-                      foregroundColor: Colors.white,
+                      foregroundColor: AppTheme.textPrimary,
                       side: const BorderSide(color: Colors.grey),
                       padding: const EdgeInsets.symmetric(vertical: 12),
                       shape: RoundedRectangleBorder(
@@ -208,7 +209,7 @@ class _AddToFavouritesState extends State<AddToFavourites> {
       bottomNavigationBar: BottomNavigationBar(
         backgroundColor: Colors.black,
         selectedItemColor: Colors.yellow,
-        unselectedItemColor: Colors.white54,
+        unselectedItemColor: AppTheme.textSecondary,
         currentIndex: _selectedIndex,
         onTap: _onItemTapped,
         items: const [
@@ -229,3 +230,4 @@ class _AddToFavouritesState extends State<AddToFavourites> {
     );
   }
 }
+

@@ -5,11 +5,11 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import '../constants/app_theme.dart';
-import '../constants/app_constants.dart';
+import '../config/api_config.dart';
 import '../utils/smooth_page_route.dart';
 import 'modern_signup_screen.dart';
 import 'profile_completion_screen.dart';
-import '../widgets/graph.dart' as graph;
+import 'wallet_page.dart';
 
 /// Modern beautiful login screen
 class ModernLoginScreen extends StatefulWidget {
@@ -69,7 +69,7 @@ class _ModernLoginScreenState extends State<ModernLoginScreen>
 
     try {
       final response = await http.post(
-        Uri.parse('${AppConstants.apiBaseUrl}/login'),
+        Uri.parse(ApiConfig.login),
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({
           'email': _emailController.text.trim().toLowerCase(),
@@ -104,9 +104,8 @@ class _ModernLoginScreenState extends State<ModernLoginScreen>
               type: PageTransitionType.fadeScale,
             );
           } else {
-            // Navigate to dashboard
             context.pushReplacementSmooth(
-              graph.SavingsDashboard(userId: userId),
+              WalletPage(userId: userId),
               type: PageTransitionType.fadeScale,
             );
           }
@@ -145,7 +144,7 @@ class _ModernLoginScreenState extends State<ModernLoginScreen>
       if (user != null && mounted) {
         // Check if user exists in backend
         final response = await http.post(
-          Uri.parse('${AppConstants.apiBaseUrl}/google-login'),
+          Uri.parse(ApiConfig.googleLogin),
           headers: {'Content-Type': 'application/json'},
           body: jsonEncode({
             'email': user.email,
@@ -179,7 +178,7 @@ class _ModernLoginScreenState extends State<ModernLoginScreen>
               );
             } else {
               context.pushReplacementSmooth(
-                graph.SavingsDashboard(userId: responseData['userId'].toString()),
+                WalletPage(userId: responseData['userId'].toString()),
                 type: PageTransitionType.fadeScale,
               );
             }
@@ -217,14 +216,7 @@ class _ModernLoginScreenState extends State<ModernLoginScreen>
       resizeToAvoidBottomInset: true,
       body: Container(
         decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [
-              Color(0xFF4B5563), // Dark grayish-blue
-              Color(0xFF374151), // Medium gray
-            ],
-          ),
+          gradient: AppTheme.heroGradient,
         ),
         child: SafeArea(
           child: SingleChildScrollView(
@@ -283,7 +275,7 @@ class _ModernLoginScreenState extends State<ModernLoginScreen>
         ),
         const SizedBox(height: 12),
         const Text(
-          'SmartSave',
+          'Nebo',
           style: TextStyle(
             color: Colors.white,
             fontSize: 24,
@@ -394,45 +386,16 @@ class _ModernLoginScreenState extends State<ModernLoginScreen>
     Widget? suffixIcon,
     String? Function(String?)? validator,
   }) {
-    return Container(
-      decoration: BoxDecoration(
-        color: AppTheme.backgroundLight,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppTheme.primaryColor.withOpacity(0.3)),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.1),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: TextFormField(
-        controller: controller,
-        obscureText: obscureText,
-        keyboardType: keyboardType,
-        validator: validator,
-        style: const TextStyle(color: Colors.white),
-        decoration: InputDecoration(
-          labelText: label,
-          labelStyle: const TextStyle(color: AppTheme.textSecondary),
-          prefixIcon: Icon(icon, color: AppTheme.primaryColor),
-          suffixIcon: suffixIcon,
-          border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(12),
-            borderSide: BorderSide.none,
-          ),
-          enabledBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(12),
-            borderSide: BorderSide.none,
-          ),
-          focusedBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(12),
-            borderSide: BorderSide.none,
-          ),
-          filled: true,
-          fillColor: AppTheme.backgroundLight,
-        ),
+    return TextFormField(
+      controller: controller,
+      obscureText: obscureText,
+      keyboardType: keyboardType,
+      validator: validator,
+      style: const TextStyle(color: AppTheme.textPrimary),
+      decoration: InputDecoration(
+        labelText: label,
+        prefixIcon: Icon(icon, color: AppTheme.primaryColor),
+        suffixIcon: suffixIcon,
       ),
     );
   }
@@ -496,38 +459,26 @@ class _ModernLoginScreenState extends State<ModernLoginScreen>
   }
 
   Widget _buildGoogleButton() {
-    return Container(
+    return SizedBox(
       width: double.infinity,
       height: 56,
-      decoration: BoxDecoration(
-        border: Border.all(color: AppTheme.primaryColor, width: 2),
-        borderRadius: BorderRadius.circular(16),
-        color: Colors.transparent,
-      ),
-      child: ElevatedButton(
+      child: OutlinedButton(
         onPressed: _isLoading ? null : _googleSignIn,
-        style: ElevatedButton.styleFrom(
-          backgroundColor: Colors.transparent,
-          foregroundColor: Colors.white,
-          elevation: 0,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
-          ),
+        style: OutlinedButton.styleFrom(
+          backgroundColor: AppTheme.cardLight,
+          side: const BorderSide(color: AppTheme.primaryColor, width: 1.5),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         ),
         child: Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Image.asset('assets/google_logo.png', height: 24, errorBuilder: (_, __, ___) {
-              return const Icon(Icons.g_mobiledata, size: 24, color: Colors.white);
+              return const Icon(Icons.g_mobiledata, size: 28, color: Colors.red);
             }),
             const SizedBox(width: 12),
             const Text(
               'Continue with Google',
-              style: TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.w600,
-                color: Colors.white,
-              ),
+              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: AppTheme.textPrimary),
             ),
           ],
         ),

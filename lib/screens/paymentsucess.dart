@@ -1,4 +1,5 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
+import '../constants/app_theme.dart';
 import 'buygoodselect.dart'; // Adjust import path
 import 'homepage.dart'; // Adjust import path
 import 'addtofavourites.dart'; // Adjust import path
@@ -34,7 +35,7 @@ class PaymentSuccess extends StatelessWidget {
         backgroundColor: Colors.black,
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.white),
+          icon: const Icon(Icons.arrow_back, color: AppTheme.cardLight),
           onPressed: () => Navigator.pop(context),
         ),
       ),
@@ -48,13 +49,13 @@ class PaymentSuccess extends StatelessWidget {
               const CircleAvatar(
                 backgroundColor: Colors.green,
                 radius: 30,
-                child: Icon(Icons.check, color: Colors.white, size: 30),
+                child: Icon(Icons.check, color: AppTheme.textPrimary, size: 30),
               ),
               const SizedBox(height: 20),
               const Text(
                 'Payment Successful!',
                 style: TextStyle(
-                  color: Colors.white,
+                  color: AppTheme.textPrimary,
                   fontSize: 24,
                   fontWeight: FontWeight.bold,
                 ),
@@ -62,7 +63,7 @@ class PaymentSuccess extends StatelessWidget {
               const SizedBox(height: 10),
               const Text(
                 'Your transaction has been completed',
-                style: TextStyle(color: Colors.white70, fontSize: 16),
+                style: TextStyle(color: AppTheme.textSecondary, fontSize: 16),
               ),
               const SizedBox(height: 30),
               Container(
@@ -76,12 +77,12 @@ class PaymentSuccess extends StatelessWidget {
                   children: [
                     const Text(
                       'Amount Paid',
-                      style: TextStyle(color: Colors.white70, fontSize: 14),
+                      style: TextStyle(color: AppTheme.textSecondary, fontSize: 14),
                     ),
                     Text(
                       'KSH $amount',
                       style: const TextStyle(
-                        color: Colors.white,
+                        color: AppTheme.textPrimary,
                         fontSize: 20,
                         fontWeight: FontWeight.bold,
                       ),
@@ -89,20 +90,20 @@ class PaymentSuccess extends StatelessWidget {
                     const SizedBox(height: 10),
                     const Text(
                       'Transaction ID',
-                      style: TextStyle(color: Colors.white70, fontSize: 14),
+                      style: TextStyle(color: AppTheme.textSecondary, fontSize: 14),
                     ),
                     Text(
                       transactionId,
-                      style: const TextStyle(color: Colors.white, fontSize: 16),
+                      style: const TextStyle(color: AppTheme.textPrimary, fontSize: 16),
                     ),
                     const SizedBox(height: 10),
                     const Text(
                       'Date & Time',
-                      style: TextStyle(color: Colors.white70, fontSize: 14),
+                      style: TextStyle(color: AppTheme.textSecondary, fontSize: 14),
                     ),
                     Text(
                       dateTime,
-                      style: const TextStyle(color: Colors.white, fontSize: 16),
+                      style: const TextStyle(color: AppTheme.textPrimary, fontSize: 16),
                     ),
                   ],
                 ),
@@ -120,7 +121,7 @@ class PaymentSuccess extends StatelessWidget {
                     const Text(
                       'Payment Details',
                       style: TextStyle(
-                        color: Colors.white,
+                        color: AppTheme.textPrimary,
                         fontSize: 18,
                         fontWeight: FontWeight.bold,
                       ),
@@ -144,7 +145,7 @@ class PaymentSuccess extends StatelessWidget {
                     const Text(
                       'Payee Information',
                       style: TextStyle(
-                        color: Colors.white,
+                        color: AppTheme.textPrimary,
                         fontSize: 18,
                         fontWeight: FontWeight.bold,
                       ),
@@ -189,7 +190,7 @@ class PaymentSuccess extends StatelessWidget {
                 },
                 child: const Text(
                   'View Transaction History',
-                  style: TextStyle(color: Colors.white70, fontSize: 16),
+                  style: TextStyle(color: AppTheme.textSecondary, fontSize: 16),
                 ),
               ),
               const SizedBox(height: 10),
@@ -199,7 +200,7 @@ class PaymentSuccess extends StatelessWidget {
                 },
                 child: const Text(
                   'Back to Home',
-                  style: TextStyle(color: Colors.white70, fontSize: 16),
+                  style: TextStyle(color: AppTheme.textSecondary, fontSize: 16),
                 ),
               ),
               const SizedBox(height: 20),
@@ -218,11 +219,11 @@ class PaymentSuccess extends StatelessWidget {
         children: [
           Text(
             label,
-            style: const TextStyle(color: Colors.white70, fontSize: 14),
+            style: const TextStyle(color: AppTheme.textSecondary, fontSize: 14),
           ),
           Text(
             value,
-            style: const TextStyle(color: Colors.white, fontSize: 16),
+            style: const TextStyle(color: AppTheme.textPrimary, fontSize: 16),
           ),
         ],
       ),

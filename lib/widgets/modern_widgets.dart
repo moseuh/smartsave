@@ -1,4 +1,5 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
+import '../constants/app_theme.dart';
 import '../constants/app_theme.dart';
 
 /// Modern glassmorphic card with blur effect
@@ -36,10 +37,10 @@ class GlassCard extends StatelessWidget {
           child: Container(
             padding: padding ?? const EdgeInsets.all(20),
             decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.9),
+              color: AppTheme.cardLight.withOpacity(0.9),
               borderRadius: BorderRadius.circular(borderRadius),
               border: Border.all(
-                color: Colors.white.withOpacity(0.3),
+                color: AppTheme.cardLight.withOpacity(0.3),
                 width: 1.5,
               ),
               boxShadow: AppTheme.cardShadow,
@@ -171,7 +172,7 @@ class ActionButton extends StatelessWidget {
                 ),
               ],
             ),
-            child: Icon(icon, color: Colors.white, size: 28),
+            child: Icon(icon, color: AppTheme.textPrimary, size: 28),
           ),
           const SizedBox(height: 12),
           Text(
@@ -485,7 +486,7 @@ class EmptyState extends StatelessWidget {
                   style: const TextStyle(
                     fontSize: 16,
                     fontWeight: FontWeight.w600,
-                    color: Colors.white,
+                    color: AppTheme.textPrimary,
                   ),
                 ),
               ),
@@ -496,3 +497,4 @@ class EmptyState extends StatelessWidget {
     );
   }
 }
+

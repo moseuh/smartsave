@@ -1,17 +1,20 @@
 // ignore_for_file: deprecated_member_use
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:http/http.dart' as http;
+import 'dart:convert';
+import 'dart:async';
 import 'firebase_options.dart';
 import 'screens/modern_login_screen.dart';
 import 'screens/homepage.dart';
+import 'screens/main_shell.dart';
 import 'screens/profile_completion_screen.dart';
 import 'providers/auth_provider.dart' as app_auth;
 import 'providers/wallet_provider.dart';
 import 'constants/app_theme.dart';
-import 'dart:async';
+import 'constants/app_constants.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -51,7 +54,7 @@ class MainApp extends StatelessWidget {
       ],
       child: MaterialApp(
         debugShowCheckedModeBanner: false,
-        title: 'SmartSave',
+        title: 'Nebo',
         theme: AppTheme.lightTheme,
         darkTheme: AppTheme.darkTheme,
         themeMode: ThemeMode.light,
@@ -71,30 +74,61 @@ class AuthWrapper extends StatelessWidget {
   Future<Widget> _getInitialScreen() async {
     final prefs = await SharedPreferences.getInstance();
     final isLoggedIn = prefs.getBool('is_logged_in') ?? false;
-    
+
     if (!isLoggedIn) {
       return const ModernLoginScreen();
     }
-    
-    // Check if profile is completed
-    final profileCompleted = prefs.getBool('profile_completed') ?? false;
-    
-    if (!profileCompleted) {
-      // Get user info for profile completion
-      final userId = prefs.getString('user_id') ?? '';
-      final userName = prefs.getString('user_name') ?? '';
-      final userEmail = prefs.getString('email') ?? '';
-      
-      if (userId.isNotEmpty) {
-        return ProfileCompletionScreen(
-          userId: userId,
-          userName: userName,
-          userEmail: userEmail,
-        );
-      }
+
+    final userId = prefs.getString('user_id') ?? '';
+    final userName = prefs.getString('user_name') ?? '';
+    final userEmail = prefs.getString('email') ?? '';
+
+    if (userId.isEmpty) {
+      return const ModernLoginScreen();
     }
-    
-    return const HomePage();
+
+    // Check if we already know profile is complete
+    final profileCompleted = prefs.getBool('profile_completed') ?? false;
+    if (profileCompleted) {
+      return MainShell(userId: userId);
+    }
+
+    // Verify with backend whether basics are already filled in
+    try {
+      final isComplete = await _checkProfileCompletion(userId);
+      if (isComplete) {
+        await prefs.setBool('profile_completed', true);
+        return MainShell(userId: userId);
+      }
+    } catch (_) {
+      // If backend unreachable, fall through to profile completion
+    }
+
+    return ProfileCompletionScreen(
+      userId: userId,
+      userName: userName,
+      userEmail: userEmail,
+    );
+  }
+
+  Future<bool> _checkProfileCompletion(String userId) async {
+    try {
+      final uri = Uri.parse('${AppConstants.apiBaseUrl}/user-details/$userId');
+      final response = await http.get(uri).timeout(const Duration(seconds: 5));
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        if (data['status'] == 'success') {
+          final d = data['data'];
+          final nationalId = (d['national_id'] ?? '').toString();
+          final dob = (d['date_of_birth'] ?? '').toString();
+          return nationalId.isNotEmpty &&
+              nationalId != 'PENDING' &&
+              dob.isNotEmpty &&
+              dob != '1990-01-01';
+        }
+      }
+    } catch (_) {}
+    return false;
   }
 
   @override
@@ -160,14 +194,13 @@ class _SplashScreenState extends State<SplashScreen>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF4B5563), // Dark grayish-blue
+      backgroundColor: AppColors.financeGreen,
       body: SafeArea(
         child: Center(
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               const Spacer(flex: 2),
-              // Logo
               Image.asset(
                 'assets/logo.png',
                 width: 140,
@@ -177,7 +210,6 @@ class _SplashScreenState extends State<SplashScreen>
                     const Icon(Icons.account_balance, size: 140, color: Colors.white),
               ),
               const Spacer(flex: 3),
-              // Progress section at bottom
               Column(
                 children: [
                   SizedBox(
@@ -187,8 +219,8 @@ class _SplashScreenState extends State<SplashScreen>
                       builder: (context, child) {
                         return LinearProgressIndicator(
                           value: _progressAnimation.value,
-                          backgroundColor: Colors.grey[700],
-                          valueColor: const AlwaysStoppedAnimation<Color>(Color(0xFFD4AF37)), // Gold
+                          backgroundColor: AppColors.financeGreenV2,
+                          valueColor: const AlwaysStoppedAnimation<Color>(AppColors.financeGreenV3),
                           minHeight: 8,
                         );
                       },
@@ -207,7 +239,7 @@ class _SplashScreenState extends State<SplashScreen>
                         letterSpacing: 0.5,
                         shadows: [
                           Shadow(
-                            color: Color(0xFFD4AF37), // Gold shadow
+                            color: AppColors.financeGreenV3,
                             blurRadius: 8,
                             offset: Offset(0, 2),
                           ),

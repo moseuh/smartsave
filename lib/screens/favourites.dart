@@ -1,4 +1,5 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
+import '../constants/app_theme.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import '../constants/app_constants.dart';
@@ -68,7 +69,7 @@ class _FavouritesState extends State<Favourites> {
   void _showSnackBar(String message) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        backgroundColor: const Color(0xFF9CA3AF),
+        backgroundColor: AppTheme.textSecondary,
         content: Text(
           message,
           style: const TextStyle(color: Colors.black),
@@ -106,16 +107,16 @@ class _FavouritesState extends State<Favourites> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF1F2937),
+      backgroundColor: AppColors.coreDark,
       appBar: AppBar(
-        backgroundColor: const Color(0xFF1F2937),
+        backgroundColor: AppColors.coreDark,
         elevation: 0,
         title: const Text(
           'Favourites',
-          style: TextStyle(color: Colors.white),
+          style: TextStyle(color: AppTheme.cardLight),
         ),
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.white),
+          icon: const Icon(Icons.arrow_back, color: AppTheme.cardLight),
           onPressed: () {
             Navigator.pop(context); // Go back to BuyGoodsSelect
           },
@@ -133,7 +134,7 @@ class _FavouritesState extends State<Favourites> {
         ],
       ),
       body: isLoading
-          ? const Center(child: CircularProgressIndicator(color: Color(0xFFF5BB1B)))
+          ? const Center(child: CircularProgressIndicator(color: AppColors.financeGreenV3))
           : errorMessage != null
               ? Center(
                   child: Column(
@@ -141,14 +142,14 @@ class _FavouritesState extends State<Favourites> {
                     children: [
                       Text(
                         errorMessage!,
-                        style: const TextStyle(color: Colors.white, fontSize: 16),
+                        style: const TextStyle(color: AppTheme.textPrimary, fontSize: 16),
                         textAlign: TextAlign.center,
                       ),
                       const SizedBox(height: 16),
                       ElevatedButton(
                         onPressed: fetchFavourites,
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFFF5BB1B),
+                          backgroundColor: AppColors.financeGreenV3,
                           foregroundColor: Colors.black,
                         ),
                         child: const Text('Retry'),
@@ -160,7 +161,7 @@ class _FavouritesState extends State<Favourites> {
                   ? const Center(
                       child: Text(
                         'No favourites found',
-                        style: TextStyle(color: Colors.white, fontSize: 16),
+                        style: TextStyle(color: AppTheme.textPrimary, fontSize: 16),
                       ),
                     )
                   : ListView.builder(
@@ -169,7 +170,7 @@ class _FavouritesState extends State<Favourites> {
                       itemBuilder: (context, index) {
                         final favourite = favourites[index];
                         return Card(
-                          color: const Color(0xFF9CA3AF),
+                          color: AppTheme.textSecondary,
                           margin: const EdgeInsets.only(bottom: 12.0),
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(8),
@@ -214,3 +215,5 @@ class _FavouritesState extends State<Favourites> {
     );
   }
 }
+
+

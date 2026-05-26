@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../constants/app_theme.dart';
 
 class BeautifulAppBar extends StatelessWidget implements PreferredSizeWidget {
   final String? userName;
@@ -18,30 +19,19 @@ class BeautifulAppBar extends StatelessWidget implements PreferredSizeWidget {
 
   String _getGreeting() {
     final hour = DateTime.now().hour;
-    if (hour < 12) {
-      return 'Good Morning';
-    } else if (hour < 17) {
-      return 'Good Afternoon';
-    } else {
-      return 'Good Evening';
-    }
+    if (hour < 12) return 'Good Morning';
+    if (hour < 17) return 'Good Afternoon';
+    return 'Good Evening';
   }
 
   @override
   Widget build(BuildContext context) {
     return Container(
       decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            Color(0xFF1F2937),
-            Color(0xFF111827),
-          ],
-        ),
+        gradient: AppTheme.heroGradient,
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.2),
+            color: AppColors.financeGreen.withValues(alpha: 0.3),
             blurRadius: 8,
             offset: const Offset(0, 2),
           ),
@@ -52,31 +42,29 @@ class BeautifulAppBar extends StatelessWidget implements PreferredSizeWidget {
           padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
           child: Row(
             children: [
-              // Profile Picture
               GestureDetector(
                 onTap: onProfileTap,
                 child: Container(
                   padding: const EdgeInsets.all(2),
-                  decoration: BoxDecoration(
+                  decoration: const BoxDecoration(
                     shape: BoxShape.circle,
-                    gradient: const LinearGradient(
-                      colors: [Color(0xFFF5BB1B), Color(0xFFD4AF37)],
+                    gradient: LinearGradient(
+                      colors: [AppColors.financeGreenV3, AppColors.coreWhite],
                     ),
                   ),
                   child: CircleAvatar(
                     radius: 22,
-                    backgroundColor: const Color(0xFF374151),
+                    backgroundColor: AppColors.financeGreenV2,
                     backgroundImage: profileImageUrl != null && profileImageUrl!.isNotEmpty
                         ? NetworkImage(profileImageUrl!)
                         : null,
                     child: profileImageUrl == null || profileImageUrl!.isEmpty
-                        ? const Icon(Icons.person, color: Colors.white70, size: 24)
+                        ? const Icon(Icons.person, color: AppTheme.textLight, size: 24)
                         : null,
                   ),
                 ),
               ),
               const SizedBox(width: 12),
-              // Greeting and Name
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -84,8 +72,8 @@ class BeautifulAppBar extends StatelessWidget implements PreferredSizeWidget {
                   children: [
                     Text(
                       _getGreeting(),
-                      style: const TextStyle(
-                        color: Colors.white54,
+                      style: TextStyle(
+                        color: AppTheme.textLight.withValues(alpha: 0.75),
                         fontSize: 12,
                         fontWeight: FontWeight.w400,
                       ),
@@ -94,7 +82,7 @@ class BeautifulAppBar extends StatelessWidget implements PreferredSizeWidget {
                     Text(
                       userName ?? 'User',
                       style: const TextStyle(
-                        color: Colors.white,
+                        color: AppTheme.textLight,
                         fontSize: 17,
                         fontWeight: FontWeight.bold,
                       ),
@@ -104,14 +92,13 @@ class BeautifulAppBar extends StatelessWidget implements PreferredSizeWidget {
                   ],
                 ),
               ),
-              // Notification Icon
               Container(
                 decoration: BoxDecoration(
-                  color: const Color(0xFF374151),
+                  color: AppColors.financeGreenV2,
                   shape: BoxShape.circle,
                 ),
                 child: IconButton(
-                  icon: const Icon(Icons.notifications_outlined, color: Colors.white),
+                  icon: const Icon(Icons.notifications_outlined, color: AppTheme.textLight),
                   iconSize: 22,
                   onPressed: onNotificationTap ?? () {},
                 ),

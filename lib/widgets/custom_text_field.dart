@@ -1,4 +1,5 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
+import '../constants/app_theme.dart';
 
 /// Custom text input field with validation
 class CustomTextField extends StatelessWidget {
@@ -64,8 +65,9 @@ class CustomTextField extends StatelessWidget {
           borderSide: const BorderSide(color: Colors.red, width: 2),
         ),
         filled: true,
-        fillColor: enabled ? Colors.white : Colors.grey.shade100,
+        fillColor: enabled ? AppTheme.cardLight : Colors.grey.shade100,
       ),
     );
   }
 }
+

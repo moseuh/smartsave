@@ -1,10 +1,13 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import '../constants/app_constants.dart';
+import '../constants/app_theme.dart';
 import '../widgets/graph.dart'; // Import SavingsDashboard
-import 'buygoodselect.dart'; // Import BuyGoodsSelect
-import 'profile.dart'; // Import Profile
+import 'buygoodselect.dart';
+import 'profile.dart';
+import 'wallet_page.dart';
 
 class TransactionHistory extends StatefulWidget {
   final String userId;
@@ -112,11 +115,11 @@ class _TransactionHistoryState extends State<TransactionHistory> {
   Color _getIconColor(String type) {
     switch (type.toLowerCase()) {
       case 'buy_goods':
-        return Colors.green;
+        return AppColors.financeGreenV3;
       case 'pay_bill':
-        return Colors.blue;
+        return AppColors.financeGreen;
       default:
-        return Colors.grey;
+        return AppTheme.textSecondary;
     }
   }
 
@@ -137,27 +140,14 @@ class _TransactionHistoryState extends State<TransactionHistory> {
   }
 
   void _onItemTapped(int index) {
-    setState(() {
-      _selectedIndex = index;
-    });
-
     if (index == 0) {
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(builder: (context) => SavingsDashboard(userId: widget.userId)),
-      );
+      Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => WalletPage(userId: widget.userId)));
     } else if (index == 1) {
-      // Stay on TransactionHistory
+      Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => SavingsDashboard(userId: widget.userId)));
     } else if (index == 2) {
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(builder: (context) => BuyGoodsSelect(userId: widget.userId)),
-      );
+      Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => BuyGoodsSelect(userId: widget.userId)));
     } else if (index == 3) {
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(builder: (context) => Profile(userId: widget.userId)),
-      );
+      Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => Profile(userId: widget.userId)));
     }
   }
 
@@ -214,57 +204,42 @@ class _TransactionHistoryState extends State<TransactionHistory> {
     int transactionCount = transactions.length;
 
     return Scaffold(
-      backgroundColor: const Color.fromARGB(255, 31, 41, 55),
-      appBar: PreferredSize(
-        preferredSize: const Size.fromHeight(70.0),
-        child: SafeArea(
-          child: Container(
-            color: const Color(0xFF374151),
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  const Text(
-                    'Transaction History',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  IconButton(
-                    icon: const Icon(Icons.search, color: Colors.white),
-                    onPressed: _onSearchTapped,
-                  ),
-                ],
-              ),
-            ),
+      extendBodyBehindAppBar: false,
+      appBar: AppBar(
+        backgroundColor: AppTheme.primaryColor,
+        elevation: 0,
+        toolbarHeight: 70,
+        title: const Text(
+          'Transaction History',
+          style: TextStyle(color: AppTheme.textLight, fontSize: 20, fontWeight: FontWeight.bold),
+        ),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.search, color: AppTheme.textLight),
+            onPressed: _onSearchTapped,
           ),
+        ],
+        systemOverlayStyle: const SystemUiOverlayStyle(
+          statusBarColor: AppTheme.primaryColor,
+          statusBarIconBrightness: Brightness.light,
         ),
       ),
       body: isLoading
-          ? const Center(child: CircularProgressIndicator(color: Color(0xFFF5BB1B)))
+          ? Center(child: CircularProgressIndicator(color: AppColors.financeGreenV3))
           : hasError
               ? Center(
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      const Text(
-                        'Failed to load transactions',
-                        style: TextStyle(color: Colors.white70, fontSize: 16),
-                      ),
+                      const Text('Failed to load transactions', style: TextStyle(color: AppTheme.textSecondary, fontSize: 16)),
                       const SizedBox(height: 16),
-                      ElevatedButton(
-                        onPressed: fetchTransactions,
-                        child: const Text('Retry'),
-                      ),
+                      ElevatedButton(onPressed: fetchTransactions, child: const Text('Retry')),
                     ],
                   ),
                 )
-              : Padding(
-                  padding: const EdgeInsets.all(16.0),
-                  child: SingleChildScrollView(
+              : SingleChildScrollView(
+                  child: Padding(
+                    padding: const EdgeInsets.all(16),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
@@ -281,8 +256,9 @@ class _TransactionHistoryState extends State<TransactionHistory> {
                         Container(
                           padding: const EdgeInsets.all(12.0),
                           decoration: BoxDecoration(
-                            color: const Color(0xFF374151),
+                            color: AppTheme.cardLight,
                             borderRadius: BorderRadius.circular(12),
+                            boxShadow: [BoxShadow(color: AppColors.financeGreen.withValues(alpha: 0.08), blurRadius: 6, offset: const Offset(0, 2))],
                           ),
                           child: Row(
                             mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -290,20 +266,11 @@ class _TransactionHistoryState extends State<TransactionHistory> {
                               Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  const Text(
-                                    'Total Amount',
-                                    style: TextStyle(
-                                      color: Colors.white70,
-                                      fontSize: 16,
-                                    ),
-                                  ),
+                                  const Text('Total Amount', style: TextStyle(color: AppTheme.textSecondary, fontSize: 16)),
                                   const SizedBox(height: 4),
                                   Text(
                                     '$transactionCount Transaction${transactionCount == 1 ? '' : 's'}',
-                                    style: const TextStyle(
-                                      color: Colors.white70,
-                                      fontSize: 12,
-                                    ),
+                                    style: const TextStyle(color: AppTheme.textSecondary, fontSize: 12),
                                   ),
                                 ],
                               ),
@@ -313,19 +280,11 @@ class _TransactionHistoryState extends State<TransactionHistory> {
                                 children: [
                                   Text(
                                     'KSh ${totalAmount.abs().toStringAsFixed(0)}',
-                                    style: const TextStyle(
-                                      color: Color(0xFFF5BB1B),
-                                      fontSize: 18,
-                                      fontWeight: FontWeight.bold,
-                                    ),
+                                    style: const TextStyle(color: AppColors.financeGreenV3, fontSize: 18, fontWeight: FontWeight.bold),
                                   ),
                                   Text(
                                     '.${(totalAmount.abs() % 1 * 100).toInt().toString().padLeft(2, '0')}',
-                                    style: const TextStyle(
-                                      color: Color(0xFFF5BB1B),
-                                      fontSize: 12,
-                                      fontWeight: FontWeight.bold,
-                                    ),
+                                    style: const TextStyle(color: AppColors.financeGreenV3, fontSize: 12, fontWeight: FontWeight.bold),
                                   ),
                                 ],
                               ),
@@ -335,10 +294,7 @@ class _TransactionHistoryState extends State<TransactionHistory> {
                         const SizedBox(height: 20),
                         transactions.isEmpty
                             ? const Center(
-                                child: Text(
-                                  'No transactions found for this period',
-                                  style: TextStyle(color: Colors.white70, fontSize: 16),
-                                ),
+                                child: Text('No transactions found for this period', style: TextStyle(color: AppTheme.textSecondary, fontSize: 16)),
                               )
                             : ListView.builder(
                                 shrinkWrap: true,
@@ -360,37 +316,19 @@ class _TransactionHistoryState extends State<TransactionHistory> {
                     ),
                   ),
                 ),
-      bottomNavigationBar: Container(
-        color: const Color(0xFF374151),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
-          child: BottomNavigationBar(
-            backgroundColor: Colors.transparent,
-            selectedItemColor: const Color(0xFFF5BB1B),
-            unselectedItemColor: Colors.white54,
-            currentIndex: _selectedIndex,
-            onTap: _onItemTapped,
-            type: BottomNavigationBarType.fixed,
-            items: const [
-              BottomNavigationBarItem(
-                icon: Icon(Icons.home),
-                label: 'Home',
-              ),
-              BottomNavigationBarItem(
-                icon: Icon(Icons.bar_chart),
-                label: 'Trans...',
-              ),
-              BottomNavigationBarItem(
-                icon: Icon(Icons.payment),
-                label: 'Payments',
-              ),
-              BottomNavigationBarItem(
-                icon: Icon(Icons.person),
-                label: 'Profile',
-              ),
-            ],
-          ),
-        ),
+      bottomNavigationBar: BottomNavigationBar(
+        backgroundColor: AppTheme.cardLight,
+        selectedItemColor: AppColors.financeGreenV3,
+        unselectedItemColor: AppTheme.textSecondary,
+        currentIndex: _selectedIndex,
+        onTap: _onItemTapped,
+        type: BottomNavigationBarType.fixed,
+        items: const [
+          BottomNavigationBarItem(icon: Icon(Icons.account_balance_wallet_outlined), label: 'Wallet'),
+          BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Home'),
+          BottomNavigationBarItem(icon: Icon(Icons.payment), label: 'Payments'),
+          BottomNavigationBarItem(icon: Icon(Icons.person), label: 'Profile'),
+        ],
       ),
     );
   }
@@ -402,13 +340,13 @@ class _TransactionHistoryState extends State<TransactionHistory> {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
         decoration: BoxDecoration(
-          color: isSelected ? Colors.blue : Colors.grey[800],
+          color: isSelected ? AppColors.financeGreenV3 : AppColors.coreWhiteW2,
           borderRadius: BorderRadius.circular(8),
         ),
         child: Text(
           label,
           style: TextStyle(
-            color: isSelected ? Colors.white : Colors.white70,
+            color: isSelected ? AppTheme.textLight : AppTheme.textSecondary,
             fontSize: 14,
             fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
           ),
@@ -427,32 +365,29 @@ class _TransactionHistoryState extends State<TransactionHistory> {
   }) {
     final isPositive = amount > 0;
     final statusColor = status.toLowerCase() == 'completed'
-        ? Colors.green
+        ? AppColors.financeGreenV3
         : status.toLowerCase() == 'pending'
-            ? Colors.orange
-            : Colors.red;
+            ? AppTheme.warningColor
+            : AppTheme.errorColor;
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 16.0),
       child: Container(
         padding: const EdgeInsets.all(12.0),
         decoration: BoxDecoration(
-          color: const Color(0xFF374151),
+          color: AppTheme.cardLight,
           borderRadius: BorderRadius.circular(12),
+          boxShadow: [BoxShadow(color: AppColors.financeGreen.withValues(alpha: 0.06), blurRadius: 4, offset: const Offset(0, 2))],
         ),
         child: Row(
           children: [
             Container(
               padding: const EdgeInsets.all(8),
               decoration: BoxDecoration(
-                color: iconColor.withOpacity(0.2),
+                color: iconColor.withValues(alpha: 0.15),
                 shape: BoxShape.circle,
               ),
-              child: Icon(
-                icon,
-                color: iconColor,
-                size: 24,
-              ),
+              child: Icon(icon, color: iconColor, size: 24),
             ),
             const SizedBox(width: 12),
             Expanded(
@@ -461,31 +396,15 @@ class _TransactionHistoryState extends State<TransactionHistory> {
                 children: [
                   Text(
                     title,
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                    ),
+                    style: const TextStyle(color: AppTheme.textPrimary, fontSize: 16, fontWeight: FontWeight.bold),
                     overflow: TextOverflow.ellipsis,
                   ),
                   const SizedBox(height: 4),
                   Row(
                     children: [
-                      Text(
-                        status,
-                        style: TextStyle(
-                          color: statusColor,
-                          fontSize: 12,
-                        ),
-                      ),
+                      Text(status, style: TextStyle(color: statusColor, fontSize: 12)),
                       const SizedBox(width: 8),
-                      Text(
-                        timestamp,
-                        style: const TextStyle(
-                          color: Colors.white70,
-                          fontSize: 12,
-                        ),
-                      ),
+                      Text(timestamp, style: const TextStyle(color: AppTheme.textSecondary, fontSize: 12)),
                     ],
                   ),
                 ],
@@ -494,7 +413,7 @@ class _TransactionHistoryState extends State<TransactionHistory> {
             Text(
               '${isPositive ? "+" : "-"}KSh ${amount.abs().toStringAsFixed(2)}',
               style: TextStyle(
-                color: isPositive ? Colors.green : Colors.red,
+                color: isPositive ? AppColors.financeGreenV3 : AppTheme.errorColor,
                 fontSize: 16,
                 fontWeight: FontWeight.bold,
               ),
