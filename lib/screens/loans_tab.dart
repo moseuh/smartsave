@@ -84,45 +84,57 @@ class _LoansTabState extends State<LoansTab> {
           physics: const AlwaysScrollableScrollPhysics(),
           slivers: [
             SliverAppBar(
-              expandedHeight: 200,
               pinned: true,
-              backgroundColor: AppColors.financeGreen,
+              backgroundColor: AppTheme.backgroundLight,
+              elevation: 0,
+              surfaceTintColor: Colors.transparent,
+              automaticallyImplyLeading: false,
+              expandedHeight: 160,
               flexibleSpace: FlexibleSpaceBar(
+                collapseMode: CollapseMode.pin,
                 background: Container(
-                  decoration: const BoxDecoration(
-                    gradient: LinearGradient(
-                      colors: [Color(0xFF0F4023), Color(0xFF1B6631), Color(0xFF2D8A47)],
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                    ),
-                  ),
+                  color: AppTheme.backgroundLight,
                   child: SafeArea(
                     child: Padding(
-                      padding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
+                      padding: const EdgeInsets.fromLTRB(20, 16, 20, 16),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          const Text('Loans & Credit', style: TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.bold)),
-                          const SizedBox(height: 4),
-                          const Text('Borrow responsibly, grow confidently', style: TextStyle(color: Colors.white60, fontSize: 13)),
-                          const Spacer(),
+                          const Text('Loans & Credit',
+                              style: TextStyle(color: Color(0xFF111827), fontSize: 26, fontWeight: FontWeight.bold, letterSpacing: -0.5)),
+                          const SizedBox(height: 2),
+                          const Text('Borrow responsibly, grow confidently',
+                              style: TextStyle(color: Color(0xFF6B7280), fontSize: 13)),
+                          const SizedBox(height: 12),
                           if (_loading)
-                            const LinearProgressIndicator(color: Colors.white, backgroundColor: Colors.white24)
+                            const LinearProgressIndicator(
+                              color: AppColors.financeGreen,
+                              backgroundColor: Color(0xFFE5E7EB),
+                            )
                           else
-                            Row(children: [
-                              _HStat('Credit Score', _creditScore > 0 ? _creditScore.toInt().toString() : '—', _scoreColor),
-                              const SizedBox(width: 24),
-                              _HStat('Rating', _creditScore > 0 ? _scoreLabel : '—', _scoreColor),
-                              const SizedBox(width: 24),
-                              _HStat('Max Loan', _maxLoan > 0 ? 'KES ${fmt.format(_maxLoan)}' : '—', Colors.white),
-                            ]),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                              decoration: BoxDecoration(
+                                color: Colors.white,
+                                borderRadius: BorderRadius.circular(14),
+                                boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.05), blurRadius: 8, offset: const Offset(0, 2))],
+                              ),
+                              child: Row(children: [
+                                _HStat('Credit Score', _creditScore > 0 ? _creditScore.toInt().toString() : '—'),
+                                _HStat('Rating', _creditScore > 0 ? _scoreLabel : '—'),
+                                _HStat('Max Loan', _maxLoan > 0 ? 'KES ${fmt.format(_maxLoan)}' : '—'),
+                              ]),
+                            ),
                         ],
                       ),
                     ),
                   ),
                 ),
               ),
-              title: const Text('Loans', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+              bottom: PreferredSize(
+                preferredSize: const Size.fromHeight(1),
+                child: Container(height: 1, color: AppColors.coreWhiteW2),
+              ),
             ),
 
             SliverPadding(
@@ -202,17 +214,18 @@ class _LoansTabState extends State<LoansTab> {
 
 class _HStat extends StatelessWidget {
   final String label, value;
-  final Color color;
-  const _HStat(this.label, this.value, this.color);
+  const _HStat(this.label, this.value);
 
   @override
-  Widget build(BuildContext context) => Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(label, style: const TextStyle(color: Colors.white54, fontSize: 10)),
-          const SizedBox(height: 2),
-          Text(value, style: TextStyle(color: color, fontSize: 13, fontWeight: FontWeight.bold)),
-        ],
+  Widget build(BuildContext context) => Expanded(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(label, style: const TextStyle(color: Color(0xFF9CA3AF), fontSize: 10, fontWeight: FontWeight.w500)),
+            const SizedBox(height: 2),
+            Text(value, style: const TextStyle(color: Color(0xFF111827), fontSize: 13, fontWeight: FontWeight.bold)),
+          ],
+        ),
       );
 }
 
@@ -297,16 +310,20 @@ class _ActionCard extends StatelessWidget {
   Widget build(BuildContext context) => GestureDetector(
         onTap: onTap,
         child: Container(
-          padding: const EdgeInsets.symmetric(vertical: 16),
+          height: 90,
           decoration: BoxDecoration(
-            color: color.withValues(alpha: 0.08),
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: color.withValues(alpha: 0.2)),
+            color: color,
+            borderRadius: BorderRadius.circular(20),
+            boxShadow: [BoxShadow(color: color.withValues(alpha: 0.35), blurRadius: 12, offset: const Offset(0, 6))],
           ),
-          child: Column(children: [
-            Icon(icon, color: color, size: 26),
+          child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+            Container(
+              width: 42, height: 42,
+              decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.2), shape: BoxShape.circle),
+              child: Icon(icon, color: Colors.white, size: 22),
+            ),
             const SizedBox(height: 8),
-            Text(label, style: TextStyle(color: color, fontSize: 11, fontWeight: FontWeight.bold), textAlign: TextAlign.center),
+            Text(label, style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold), textAlign: TextAlign.center),
           ]),
         ),
       );

@@ -7,10 +7,7 @@ import 'dart:io' show File;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:cached_network_image/cached_network_image.dart';
-import 'buygoodselect.dart';
 import 'modern_login_screen.dart';
-import 'wallet_page.dart';
-import '../widgets/graph.dart';
 
 class Profile extends StatefulWidget {
   final String userId;
@@ -115,14 +112,15 @@ class _ProfileState extends State<Profile> {
 
   Widget _buildEditSheet(BuildContext ctx) {
     return StatefulBuilder(
-      builder: (context, setSheetState) => Padding(
-        padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
-        child: Container(
+      builder: (context, setSheetState) {
+        final mq = MediaQuery.of(context);
+        final bottomPadding = mq.viewInsets.bottom + mq.padding.bottom + 24;
+        return Container(
           decoration: const BoxDecoration(
             color: Colors.white,
             borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
           ),
-          padding: const EdgeInsets.fromLTRB(24, 16, 24, 32),
+          padding: EdgeInsets.fromLTRB(24, 16, 24, bottomPadding),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -183,8 +181,8 @@ class _ProfileState extends State<Profile> {
               ),
             ],
           ),
-        ),
-      ),
+        );
+      },
     );
   }
 
@@ -366,11 +364,11 @@ class _ProfileState extends State<Profile> {
                 SliverAppBar(
                   expandedHeight: 220,
                   pinned: true,
-                  backgroundColor: AppTheme.primaryColor,
+                  backgroundColor: AppTheme.backgroundLight,
                   leading: const SizedBox.shrink(),
                   flexibleSpace: FlexibleSpaceBar(
                     background: Container(
-                      decoration: const BoxDecoration(gradient: AppTheme.heroGradient),
+                      color: AppTheme.backgroundLight,
                       child: SafeArea(
                         child: Column(
                           mainAxisAlignment: MainAxisAlignment.center,
@@ -385,8 +383,8 @@ class _ProfileState extends State<Profile> {
                                     height: 88,
                                     decoration: BoxDecoration(
                                       shape: BoxShape.circle,
-                                      border: Border.all(color: AppColors.coreWhite, width: 3),
-                                      boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.2), blurRadius: 12)],
+                                      border: Border.all(color: AppColors.financeGreen.withValues(alpha: 0.3), width: 3),
+                                      boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.08), blurRadius: 12)],
                                     ),
                                     child: ClipOval(
                                       child: selfie != null && selfie.toString().isNotEmpty
@@ -403,25 +401,26 @@ class _ProfileState extends State<Profile> {
                                     right: 0,
                                     child: Container(
                                       padding: const EdgeInsets.all(6),
-                                      decoration: const BoxDecoration(
-                                        color: AppColors.financeGreenV3,
+                                      decoration: BoxDecoration(
+                                        color: AppColors.financeGreen,
                                         shape: BoxShape.circle,
+                                        border: Border.all(color: Colors.white, width: 2),
                                       ),
-                                      child: const Icon(Icons.camera_alt, color: AppColors.coreWhite, size: 14),
+                                      child: const Icon(Icons.camera_alt, color: Colors.white, size: 14),
                                     ),
                                   ),
                                   if (isUploading)
                                     const Positioned.fill(
-                                      child: CircularProgressIndicator(color: AppColors.coreWhite, strokeWidth: 2),
+                                      child: CircularProgressIndicator(color: AppColors.financeGreen, strokeWidth: 2),
                                     ),
                                 ],
                               ),
                             ),
                             const SizedBox(height: 12),
-                            Text(name, style: const TextStyle(color: AppTheme.textLight, fontSize: 20, fontWeight: FontWeight.bold)),
+                            Text(name, style: const TextStyle(color: Color(0xFF111827), fontSize: 20, fontWeight: FontWeight.bold)),
                             if (email.isNotEmpty) ...[
                               const SizedBox(height: 4),
-                              Text(email, style: TextStyle(color: AppTheme.textLight.withValues(alpha: 0.8), fontSize: 13)),
+                              Text(email, style: const TextStyle(color: Color(0xFF6B7280), fontSize: 13)),
                             ],
                           ],
                         ),
@@ -480,25 +479,6 @@ class _ProfileState extends State<Profile> {
                 ),
               ],
             ),
-      bottomNavigationBar: BottomNavigationBar(
-        backgroundColor: AppTheme.cardLight,
-        selectedItemColor: AppColors.financeGreenV3,
-        unselectedItemColor: AppTheme.textSecondary,
-        currentIndex: 3,
-        onTap: (index) {
-          if (index == 3) return;
-          if (index == 0) Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => SavingsDashboard(userId: widget.userId)));
-          if (index == 1) Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => WalletPage(userId: widget.userId)));
-          if (index == 2) Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => BuyGoodsSelect(userId: widget.userId)));
-        },
-        type: BottomNavigationBarType.fixed,
-        items: const [
-          BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Home'),
-          BottomNavigationBarItem(icon: Icon(Icons.account_balance_wallet_outlined), label: 'Wallet'),
-          BottomNavigationBarItem(icon: Icon(Icons.payment), label: 'Pay'),
-          BottomNavigationBarItem(icon: Icon(Icons.person), label: 'Profile'),
-        ],
-      ),
     );
   }
 

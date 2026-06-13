@@ -7,11 +7,8 @@ import 'package:cached_network_image/cached_network_image.dart';
 
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter_spinkit/flutter_spinkit.dart';
-import '../widgets/graph.dart' as graph;
-import 'buygoodselect.dart';
 import 'modern_login_screen.dart';
 import 'loans_page.dart';
-import 'profile.dart';
 
 class LoansCreditScore extends StatefulWidget {
   final String userId;
@@ -26,8 +23,6 @@ class _LoansCreditScoreState extends State<LoansCreditScore> with SingleTickerPr
   Map<String, dynamic>? userDetails;
   Map<String, dynamic>? metropolCreditData;
   bool isLoading = true;
-  int _selectedIndex = 1;
-
   // Form controllers
   final _idTypeController = TextEditingController(text: 'national_id');
   final _idNumberController = TextEditingController();
@@ -201,31 +196,6 @@ class _LoansCreditScoreState extends State<LoansCreditScore> with SingleTickerPr
     );
   }
 
-  void _onItemTapped(int index) {
-    if (!mounted) return;
-    setState(() {
-      _selectedIndex = index;
-    });
-
-    if (index == 0) {
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(builder: (context) => graph.SavingsDashboard(userId: widget.userId)),
-      );
-    } else if (index == 1) {
-      // Stay on LoansCreditScore page
-    } else if (index == 2) {
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(builder: (context) => BuyGoodsSelect(userId: widget.userId)),
-      );
-    } else if (index == 3) {
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(builder: (context) => Profile(userId: widget.userId)),
-      );
-    }
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -402,60 +372,43 @@ class _LoansCreditScoreState extends State<LoansCreditScore> with SingleTickerPr
                 ],
               ),
             ),
-      bottomNavigationBar: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Container(
-            color: AppTheme.backgroundLight,
-            padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
-            child: Row(
-              children: [
-                Expanded(
-                  child: ElevatedButton(
-                    onPressed: () {
-                      if (!mounted) return;
-                      Navigator.push(context, MaterialPageRoute(builder: (context) => LoansPage(userId: widget.userId)));
-                    },
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: AppColors.financeGreenV3,
-                      foregroundColor: AppTheme.textLight,
-                      padding: const EdgeInsets.symmetric(vertical: 15),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                    ),
-                    child: const Text('View Loans', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+      bottomNavigationBar: SafeArea(
+        child: Container(
+          color: AppTheme.backgroundLight,
+          padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+          child: Row(
+            children: [
+              Expanded(
+                child: ElevatedButton(
+                  onPressed: () {
+                    if (!mounted) return;
+                    Navigator.push(context, MaterialPageRoute(builder: (context) => LoansPage(userId: widget.userId)));
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.financeGreenV3,
+                    foregroundColor: AppTheme.textLight,
+                    padding: const EdgeInsets.symmetric(vertical: 15),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                   ),
+                  child: const Text('View Loans', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
                 ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: ElevatedButton(
-                    onPressed: () {},
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: AppColors.financeGreenV2,
-                      foregroundColor: AppTheme.textLight,
-                      padding: const EdgeInsets.symmetric(vertical: 15),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                    ),
-                    child: const Text('Improve Score', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: ElevatedButton(
+                  onPressed: () {},
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.financeGreenV2,
+                    foregroundColor: AppTheme.textLight,
+                    padding: const EdgeInsets.symmetric(vertical: 15),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                   ),
+                  child: const Text('Improve Score', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
                 ),
-              ],
-            ),
-          ),
-          BottomNavigationBar(
-            backgroundColor: AppTheme.cardLight,
-            selectedItemColor: AppColors.financeGreenV3,
-            unselectedItemColor: AppTheme.textSecondary,
-            currentIndex: _selectedIndex,
-            onTap: _onItemTapped,
-            type: BottomNavigationBarType.fixed,
-            items: const [
-              BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Home'),
-              BottomNavigationBarItem(icon: Icon(Icons.bar_chart), label: 'Trans...'),
-              BottomNavigationBarItem(icon: Icon(Icons.payment), label: 'Payments'),
-              BottomNavigationBarItem(icon: Icon(Icons.person), label: 'Profile'),
+              ),
             ],
           ),
-        ],
+        ),
       ),
     );
   }

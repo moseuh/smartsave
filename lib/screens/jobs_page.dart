@@ -868,17 +868,17 @@ class _JobsPageState extends State<JobsPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       key: _scaffoldKey,
-      backgroundColor: AppColors.coreDark,
+      backgroundColor: AppTheme.backgroundLight,
       appBar: PreferredSize(
         preferredSize: const Size.fromHeight(70.0),
         child: Container(
-          decoration: const BoxDecoration(
-            color: AppTheme.cardLight,
+          decoration: BoxDecoration(
+            color: AppTheme.backgroundLight,
             boxShadow: [
               BoxShadow(
-                color: Colors.black26,
+                color: Colors.black.withValues(alpha: 0.05),
                 blurRadius: 4,
-                offset: Offset(0, 2),
+                offset: const Offset(0, 2),
               ),
             ],
           ),
@@ -887,7 +887,7 @@ class _JobsPageState extends State<JobsPage> {
             child: Row(
               children: [
                 IconButton(
-                  icon: const Icon(Icons.menu, color: AppTheme.cardLight),
+                  icon: const Icon(Icons.menu, color: Color(0xFF111827)),
                   onPressed: () {
                     _scaffoldKey.currentState?.openDrawer();
                   },
@@ -916,7 +916,7 @@ class _JobsPageState extends State<JobsPage> {
                   ),
                 ),
                 IconButton(
-                  icon: const Icon(Icons.notifications, color: AppTheme.cardLight),
+                  icon: const Icon(Icons.notifications, color: AppColors.financeGreen),
                   onPressed: () {},
                 ),
               ],

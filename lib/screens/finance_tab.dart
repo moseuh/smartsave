@@ -61,67 +61,74 @@ class _FinanceTabState extends State<FinanceTab> {
       backgroundColor: AppTheme.backgroundLight,
       body: CustomScrollView(
         slivers: [
-          // Header
+          // Header — whitish like home screen
           SliverAppBar(
-            expandedHeight: 200,
             pinned: true,
-            backgroundColor: AppColors.financeGreen,
+            backgroundColor: AppTheme.backgroundLight,
+            elevation: 0,
+            surfaceTintColor: Colors.transparent,
+            automaticallyImplyLeading: false,
+            expandedHeight: _smsGranted && !_loading ? 200 : 110,
             flexibleSpace: FlexibleSpaceBar(
+              collapseMode: CollapseMode.pin,
               background: Container(
-                decoration: const BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: [Color(0xFF0F4023), Color(0xFF1B6631), Color(0xFF2D8A47)],
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                  ),
-                ),
+                color: AppTheme.backgroundLight,
                 child: SafeArea(
                   child: Padding(
-                    padding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
+                    padding: const EdgeInsets.fromLTRB(20, 16, 20, 16),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Text('Finance', style: TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.bold)),
+                        const Text('Finance',
+                            style: TextStyle(color: Color(0xFF111827), fontSize: 26, fontWeight: FontWeight.bold, letterSpacing: -0.5)),
                         const SizedBox(height: 2),
                         Text(
-                          _smsGranted ? '${_txs.length} transactions • Last 6 months' : 'Connect your M-Pesa & Bank SMS',
-                          style: const TextStyle(color: Colors.white60, fontSize: 12),
+                          _smsGranted ? '${_txs.length} M-Pesa transactions • Last 6 months' : 'Connect your M-Pesa SMS',
+                          style: const TextStyle(color: Color(0xFF6B7280), fontSize: 12),
                         ),
-                        const Spacer(),
                         if (_loading)
-                          const LinearProgressIndicator(color: Colors.white, backgroundColor: Colors.white24)
+                          const Padding(
+                            padding: EdgeInsets.only(top: 12),
+                            child: LinearProgressIndicator(
+                              color: AppColors.financeGreen,
+                              backgroundColor: Color(0xFFE5E7EB),
+                            ),
+                          )
                         else if (_smsGranted) ...[
-                          Row(children: [
-                            _HStat('Income', 'KES ${fmt.format(_income)}', const Color(0xFF78FF86)),
-                            const SizedBox(width: 20),
-                            _HStat('Expenses', 'KES ${fmt.format(_expenses)}', const Color(0xFFFF8A80)),
-                            const SizedBox(width: 20),
-                            _HStat('Balance', 'KES ${fmt.format(_balance)}',
-                                _balance >= 0 ? const Color(0xFF78FF86) : const Color(0xFFFF8A80)),
-                          ]),
                           const SizedBox(height: 12),
-                          // Savings bar
-                          Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-                                const Text('Savings Rate', style: TextStyle(color: Colors.white70, fontSize: 11)),
-                                Text('${_savingsRate.toStringAsFixed(1)}%',
-                                    style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold)),
-                              ]),
-                              const SizedBox(height: 6),
-                              ClipRRect(
-                                borderRadius: BorderRadius.circular(4),
-                                child: LinearProgressIndicator(
-                                  value: _savingsRate / 100,
-                                  backgroundColor: Colors.white24,
-                                  valueColor: AlwaysStoppedAnimation(
-                                    _savingsRate >= 20 ? const Color(0xFF78FF86) : _savingsRate >= 10 ? Colors.orange : const Color(0xFFFF8A80),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              borderRadius: BorderRadius.circular(14),
+                              boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.05), blurRadius: 8, offset: const Offset(0, 2))],
+                            ),
+                            child: Column(
+                              children: [
+                                Row(children: [
+                                  _HStat('Income', 'KES ${fmt.format(_income)}'),
+                                  _HStat('Expenses', 'KES ${fmt.format(_expenses)}'),
+                                  _HStat('Balance', 'KES ${fmt.format(_balance)}'),
+                                ]),
+                                const SizedBox(height: 10),
+                                Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+                                  const Text('Savings Rate',
+                                      style: TextStyle(color: Color(0xFF9CA3AF), fontSize: 11)),
+                                  Text('${_savingsRate.toStringAsFixed(1)}%',
+                                      style: const TextStyle(color: AppColors.financeGreen, fontSize: 11, fontWeight: FontWeight.bold)),
+                                ]),
+                                const SizedBox(height: 6),
+                                ClipRRect(
+                                  borderRadius: BorderRadius.circular(4),
+                                  child: LinearProgressIndicator(
+                                    value: _savingsRate / 100,
+                                    backgroundColor: const Color(0xFFF3F4F6),
+                                    valueColor: const AlwaysStoppedAnimation(AppColors.financeGreen),
+                                    minHeight: 6,
                                   ),
-                                  minHeight: 6,
                                 ),
-                              ),
-                            ],
+                              ],
+                            ),
                           ),
                         ],
                       ],
@@ -130,7 +137,10 @@ class _FinanceTabState extends State<FinanceTab> {
                 ),
               ),
             ),
-            title: const Text('Finance', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+            bottom: PreferredSize(
+              preferredSize: const Size.fromHeight(1),
+              child: Container(height: 1, color: AppColors.coreWhiteW2),
+            ),
           ),
 
           SliverPadding(
@@ -208,17 +218,18 @@ class _FinanceTabState extends State<FinanceTab> {
 
 class _HStat extends StatelessWidget {
   final String label, value;
-  final Color color;
-  const _HStat(this.label, this.value, this.color);
+  const _HStat(this.label, this.value);
 
   @override
-  Widget build(BuildContext context) => Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(label, style: const TextStyle(color: Colors.white54, fontSize: 10)),
-          const SizedBox(height: 2),
-          Text(value, style: TextStyle(color: color, fontSize: 12, fontWeight: FontWeight.bold)),
-        ],
+  Widget build(BuildContext context) => Expanded(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(label, style: const TextStyle(color: Color(0xFF9CA3AF), fontSize: 10, fontWeight: FontWeight.w500)),
+            const SizedBox(height: 2),
+            Text(value, style: const TextStyle(color: Color(0xFF111827), fontSize: 12, fontWeight: FontWeight.bold)),
+          ],
+        ),
       );
 }
 

@@ -161,10 +161,8 @@ class _RoundUpSettingsState extends State<RoundUpSettings> {
 
     return Scaffold(
       appBar: AppBar(
-        backgroundColor: AppTheme.primaryColor,
         elevation: 0,
-        title: const Text('Round-Up Settings', style: TextStyle(color: AppTheme.textLight)),
-        iconTheme: const IconThemeData(color: AppTheme.textLight),
+        title: const Text('Round-Up Settings'),
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16.0),

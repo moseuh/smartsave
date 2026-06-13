@@ -19,15 +19,15 @@ class _TillFavouritesState extends State<TillFavourites> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        backgroundColor: Colors.black,
+        backgroundColor: AppTheme.backgroundLight,
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: AppTheme.cardLight),
+          icon: const Icon(Icons.arrow_back, color: Color(0xFF111827)),
           onPressed: () => Navigator.pop(context),
         ),
         title: const Text(
           'Add to Favorites',
-          style: TextStyle(color: AppTheme.cardLight),
+          style: TextStyle(color: Color(0xFF111827), fontWeight: FontWeight.w600),
         ),
       ),
       body: Padding(

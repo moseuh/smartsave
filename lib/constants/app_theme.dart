@@ -107,10 +107,11 @@ class AppTheme {
     appBarTheme: const AppBarTheme(
       elevation: 0,
       centerTitle: true,
-      backgroundColor: primaryColor,
-      foregroundColor: textLight,
-      iconTheme: IconThemeData(color: textLight),
-      titleTextStyle: TextStyle(color: textLight, fontSize: 20, fontWeight: FontWeight.w600, letterSpacing: 0.5),
+      backgroundColor: backgroundLight,
+      foregroundColor: textPrimary,
+      iconTheme: IconThemeData(color: primaryColor),
+      titleTextStyle: TextStyle(color: textPrimary, fontSize: 18, fontWeight: FontWeight.w600, letterSpacing: 0.3),
+      surfaceTintColor: Colors.transparent,
     ),
     cardTheme: CardThemeData(
       elevation: 2,

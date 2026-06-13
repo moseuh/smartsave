@@ -115,17 +115,17 @@ class _LeaderboardPageState extends State<LeaderboardPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.coreDark,
+      backgroundColor: AppTheme.backgroundLight,
       appBar: PreferredSize(
         preferredSize: const Size.fromHeight(70),
         child: Container(
-          color: AppTheme.cardLight,
+          color: AppTheme.backgroundLight,
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
           child: SafeArea(
             child: Row(
               children: [
                 IconButton(
-                  icon: const Icon(Icons.arrow_back, color: AppTheme.cardLight),
+                  icon: const Icon(Icons.arrow_back, color: Color(0xFF111827)),
                   onPressed: () => Navigator.pop(context),
                 ),
                 const SizedBox(width: 12),

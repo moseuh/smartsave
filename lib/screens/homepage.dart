@@ -8,15 +8,7 @@ import 'jobs_page.dart';
 import 'profile.dart';
 import 'loans_credit_score.dart';
 import 'till.dart';
-import 'buygoodselect.dart';
-
-// Beautiful new widgets
-import '../widgets/gradient_app_bar.dart';
-import '../widgets/balance_card.dart';
-import '../widgets/stat_card.dart';
-import '../widgets/feature_card.dart';
 import '../constants/app_theme.dart';
-import '../utils/responsive.dart';
 
 void main() {
   runApp(const MyApp());
@@ -64,7 +56,7 @@ class _HomePageState extends State<HomePage> {
 
   Widget _comingSoonPage(String title) {
     return Scaffold(
-      appBar: AppBar(backgroundColor: AppTheme.primaryColor, title: Text(title, style: const TextStyle(color: AppTheme.textLight))),
+      appBar: AppBar(backgroundColor: AppTheme.backgroundLight, title: Text(title, style: const TextStyle(color: Color(0xFF111827)))),
       body: const Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,

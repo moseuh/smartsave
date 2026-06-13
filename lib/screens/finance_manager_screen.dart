@@ -119,24 +119,23 @@ class _FinanceManagerScreenState extends State<FinanceManagerScreen>
     return Scaffold(
       backgroundColor: AppTheme.backgroundLight,
       appBar: AppBar(
-        backgroundColor: AppColors.financeGreen,
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.white),
+          icon: const Icon(Icons.arrow_back),
           onPressed: () => Navigator.pop(context),
         ),
-        title: const Text('Finance Manager', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+        title: const Text('Finance Manager', style: TextStyle(fontWeight: FontWeight.bold)),
         actions: [
           IconButton(
-            icon: const Icon(Icons.refresh, color: Colors.white),
+            icon: const Icon(Icons.refresh),
             onPressed: () => _load(forceRefresh: true),
           ),
         ],
         bottom: TabBar(
           controller: _tabs,
-          indicatorColor: Colors.white,
-          labelColor: Colors.white,
-          unselectedLabelColor: Colors.white60,
+          indicatorColor: AppColors.financeGreen,
+          labelColor: AppColors.financeGreen,
+          unselectedLabelColor: const Color(0xFF9CA3AF),
           labelStyle: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
           tabs: const [
             Tab(text: 'Overview'),
@@ -733,9 +732,10 @@ class _AddTransactionSheetState extends State<_AddTransactionSheet> {
 
   @override
   Widget build(BuildContext context) {
-    final bottom = MediaQuery.of(context).viewInsets.bottom;
+    final mq = MediaQuery.of(context);
+    final bottomPadding = mq.viewInsets.bottom + mq.padding.bottom + 24;
     return Container(
-      padding: EdgeInsets.fromLTRB(20, 20, 20, 20 + bottom),
+      padding: EdgeInsets.fromLTRB(20, 20, 20, bottomPadding),
       decoration: const BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
@@ -1119,7 +1119,7 @@ class _SmsBanner extends StatelessWidget {
           const Icon(Icons.sms_outlined, color: Colors.amber, size: 20),
           const SizedBox(width: 10),
           const Expanded(
-            child: Text('Tap to enable SMS auto-import (M-Pesa + Banks)',
+            child: Text('Tap to enable SMS auto-import (M-Pesa)',
                 style: TextStyle(fontSize: 12, color: Color(0xFF374151), fontWeight: FontWeight.w500)),
           ),
           const Icon(Icons.chevron_right, color: Colors.amber, size: 18),

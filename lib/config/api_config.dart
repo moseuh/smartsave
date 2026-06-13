@@ -76,6 +76,13 @@ class ApiConfig {
   static String get transactions => getUrl('transactions');
   static String transactionsById(String userId) =>
       getUrl('transactions/$userId');
+  static String transactionsTodayById(String userId) =>
+      getUrl('transactions-today/$userId');
+  static String get deposit => getUrl('deposit');
+  static String get withdraw => getUrl('withdraw');
+  static String get buyGoodsPayment => getUrl('buy-goods-payment');
+  static String get payMerchant => getUrl('pay-merchant');
+  static String get paybillPayment => getUrl('process-paybill-payment');
 
   // Auth
   static String get googleLogin => getUrl('google-login');

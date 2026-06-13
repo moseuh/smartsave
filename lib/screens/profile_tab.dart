@@ -5,8 +5,6 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../constants/app_theme.dart';
 import '../config/api_config.dart';
 import 'profile.dart' show Profile;
-import 'jobs_page.dart';
-import 'scholarships_and_funding.dart';
 import 'favourites.dart' show Favourites;
 import 'modern_login_screen.dart';
 
@@ -87,17 +85,11 @@ class _ProfileTabState extends State<ProfileTab> {
           // Header with avatar
           SliverToBoxAdapter(
             child: Container(
-              decoration: const BoxDecoration(
-                gradient: LinearGradient(
-                  colors: [Color(0xFF0F4023), Color(0xFF1B6631), Color(0xFF2D8A47)],
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                ),
-              ),
+              color: AppTheme.backgroundLight,
               child: SafeArea(
                 bottom: false,
                 child: Padding(
-                  padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),
+                  padding: const EdgeInsets.fromLTRB(20, 8, 20, 16),
                   child: Column(
                     children: [
                       // Avatar
@@ -107,7 +99,7 @@ class _ProfileTabState extends State<ProfileTab> {
                             width: 88, height: 88,
                             decoration: BoxDecoration(
                               shape: BoxShape.circle,
-                              border: Border.all(color: Colors.white.withValues(alpha: 0.4), width: 3),
+                              border: Border.all(color: AppColors.financeGreen.withValues(alpha: 0.25), width: 3),
                             ),
                             child: ClipOval(
                               child: _avatarUrl.isNotEmpty
@@ -122,7 +114,7 @@ class _ProfileTabState extends State<ProfileTab> {
                               child: Container(
                                 width: 28, height: 28,
                                 decoration: BoxDecoration(
-                                  color: AppColors.financeGreenV3,
+                                  color: AppColors.financeGreen,
                                   shape: BoxShape.circle,
                                   border: Border.all(color: Colors.white, width: 2),
                                 ),
@@ -134,13 +126,13 @@ class _ProfileTabState extends State<ProfileTab> {
                       ),
                       const SizedBox(height: 14),
                       Text(_loading ? '...' : _name,
-                          style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold)),
+                          style: const TextStyle(color: Color(0xFF111827), fontSize: 20, fontWeight: FontWeight.bold)),
                       const SizedBox(height: 4),
                       if (_email.isNotEmpty)
-                        Text(_email, style: const TextStyle(color: Colors.white60, fontSize: 13)),
+                        Text(_email, style: const TextStyle(color: Color(0xFF6B7280), fontSize: 13)),
                       if (_phone.isNotEmpty) ...[
                         const SizedBox(height: 2),
-                        Text(_phone, style: const TextStyle(color: Colors.white54, fontSize: 12)),
+                        Text(_phone, style: const TextStyle(color: Color(0xFF9CA3AF), fontSize: 12)),
                       ],
                     ],
                   ),
@@ -162,8 +154,6 @@ class _ProfileTabState extends State<ProfileTab> {
 
                 // Opportunities section
                 _SectionLabel('Opportunities'),
-                _MenuTile(icon: Icons.work_outline_rounded, label: 'Jobs', subtitle: 'Find employment opportunities', onTap: () => _go(JobsPage(userId: widget.userId))),
-                _MenuTile(icon: Icons.school_outlined, label: 'Scholarships & Funding', subtitle: 'Education grants & bursaries', onTap: () => _go(const ScholarshipsAndFundingPage())),
                 _MenuTile(icon: Icons.favorite_outline_rounded, label: 'Favourites', subtitle: 'Your saved payees', onTap: () => _go(Favourites(userId: widget.userId))),
                 const SizedBox(height: 20),
 

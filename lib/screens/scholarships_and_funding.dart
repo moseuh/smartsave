@@ -106,11 +106,11 @@ class _ScholarshipsAndFundingPageState extends State<ScholarshipsAndFundingPage>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF4B5563), // Fintech-themed dark grayish-blue
+      backgroundColor: AppTheme.backgroundLight,
       appBar: AppBar(
-        title: const Text('Scholarships & Funding', style: TextStyle(color: AppTheme.cardLight)),
-        backgroundColor: const Color(0xFF2A2F3A), // Darker header
-        elevation: 2,
+        title: const Text('Scholarships & Funding', style: TextStyle(color: Color(0xFF111827), fontWeight: FontWeight.w600)),
+        backgroundColor: AppTheme.backgroundLight,
+        elevation: 0,
       ),
       body: FutureBuilder<List<Map<String, String>>>(
         future: _opportunities,
@@ -225,11 +225,11 @@ class _WebViewPageState extends State<WebViewPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Apply Now', style: TextStyle(color: AppTheme.cardLight)),
-        backgroundColor: const Color(0xFF2A2F3A),
-        elevation: 2,
+        title: const Text('Apply Now', style: TextStyle(color: Color(0xFF111827), fontWeight: FontWeight.w600)),
+        backgroundColor: AppTheme.backgroundLight,
+        elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: AppTheme.cardLight),
+          icon: const Icon(Icons.arrow_back, color: Color(0xFF111827)),
           onPressed: () => Navigator.of(context).pop(),
         ),
       ),

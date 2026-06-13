@@ -86,7 +86,7 @@ class _MainShellState extends State<MainShell> with TickerProviderStateMixin {
         child: SafeArea(
           top: false,
           child: SizedBox(
-            height: 64,
+            height: 68,
             child: Row(
               children: List.generate(_navItems.length, (i) => Expanded(
                 child: GestureDetector(
@@ -127,21 +127,12 @@ class _NavPill extends StatelessWidget {
     return Column(
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
-        AnimatedContainer(
-          duration: const Duration(milliseconds: 220),
-          curve: Curves.easeOut,
-          padding: EdgeInsets.symmetric(horizontal: selected ? 16 : 8, vertical: 7),
-          decoration: BoxDecoration(
-            color: selected ? AppColors.financeGreen : Colors.transparent,
-            borderRadius: BorderRadius.circular(20),
-          ),
-          child: Transform.scale(
-            scale: scale,
-            child: Icon(
-              item.icon,
-              size: 22,
-              color: selected ? Colors.white : AppColors.coreDarkD2,
-            ),
+        Transform.scale(
+          scale: scale,
+          child: Icon(
+            item.icon,
+            size: 24,
+            color: selected ? AppColors.financeGreen : AppColors.coreDarkD2,
           ),
         ),
         const SizedBox(height: 3),
@@ -154,6 +145,17 @@ class _NavPill extends StatelessWidget {
             letterSpacing: 0.2,
           ),
           child: Text(item.label),
+        ),
+        const SizedBox(height: 3),
+        AnimatedContainer(
+          duration: const Duration(milliseconds: 220),
+          curve: Curves.easeOut,
+          width: selected ? 20 : 0,
+          height: 3,
+          decoration: BoxDecoration(
+            color: selected ? AppColors.financeGreen : Colors.transparent,
+            borderRadius: BorderRadius.circular(2),
+          ),
         ),
       ],
     );

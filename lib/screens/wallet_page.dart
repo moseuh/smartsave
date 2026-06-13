@@ -8,15 +8,12 @@ import 'package:flutter_spinkit/flutter_spinkit.dart';
 import 'package:smartsave/constants/app_theme.dart';
 import '../constants/app_constants.dart';
 import 'loan_products.dart';
-// === YOUR PAGES ===
-import 'buygoodselect.dart';
 import 'loans_credit_score.dart';
 import 'profile.dart';
 import 'goals_dashboard.dart';
 import 'ask_nia_screen.dart';
 import 'expenditure_screen.dart';
 import 'finance_manager_screen.dart';
-import '../widgets/graph.dart';
 
 // Placeholder page
 class LeaderboardPage extends StatelessWidget {
@@ -49,6 +46,9 @@ class _WalletPageState extends State<WalletPage> {
   bool isLoading = true;
   bool _isPayBillMode = false;
   bool _paymentPending = false;
+  String? _lastError;
+  bool _retryCountdown = false;
+  int _retrySecondsLeft = 60;
 
   String get baseUrl => AppConstants.apiBaseUrl;
 
@@ -143,16 +143,61 @@ class _WalletPageState extends State<WalletPage> {
 
     final res = await _post('/deposit', body);
     if (res['status'] == 'success') {
-      // Show pending overlay for 30s while waiting for M-Pesa confirmation
+      final checkoutId = res['checkout_id']?.toString() ?? '';
       setState(() => _paymentPending = true);
-      await Future.delayed(const Duration(seconds: 30));
+
+      // Poll transaction status every 5s for up to 60s
+      String paymentStatus = 'PENDING';
+      for (int i = 0; i < 12; i++) {
+        await Future.delayed(const Duration(seconds: 5));
+        if (!mounted) return;
+        try {
+          final statusRes = await http.get(
+            Uri.parse('$baseUrl/transaction-status/$checkoutId'),
+          );
+          if (statusRes.statusCode == 200) {
+            final statusData = jsonDecode(statusRes.body);
+            paymentStatus = statusData['payment_status'] ?? 'PENDING';
+            if (paymentStatus == 'SUCCESS' || paymentStatus == 'FAILED') break;
+          }
+        } catch (_) {}
+      }
+
       if (mounted) {
         setState(() => _paymentPending = false);
-        await _loadData();
+        if (paymentStatus == 'SUCCESS') {
+          setState(() => _lastError = null);
+          await _loadData();
+          _showResult('Deposit successful! Wallet updated.');
+        } else if (paymentStatus == 'FAILED') {
+          _triggerRetry('Payment was declined by the provider. You can retry in 60 seconds.');
+        } else {
+          await _loadData();
+          _showResult('Payment sent — balance will update shortly.');
+        }
       }
     } else {
-      _showResult(res['message'] ?? 'Payment failed');
+      _triggerRetry(res['message'] ?? 'Payment failed — please try again');
     }
+  }
+
+  void _triggerRetry(String error) {
+    setState(() {
+      _lastError = error;
+      _retryCountdown = true;
+      _retrySecondsLeft = 60;
+    });
+    _showResult(error);
+    Future.doWhile(() async {
+      await Future.delayed(const Duration(seconds: 1));
+      if (!mounted) return false;
+      setState(() => _retrySecondsLeft--);
+      if (_retrySecondsLeft <= 0) {
+        setState(() => _retryCountdown = false);
+        return false;
+      }
+      return true;
+    });
   }
 
   Future<void> withdraw(double amount, String phone) async {
@@ -181,19 +226,28 @@ class _WalletPageState extends State<WalletPage> {
     if (roundUp > 0) body["round_up_savings"] = roundUp.toInt();
     if (goalId != null && roundUp > 0) body["goal_id"] = goalId;
 
-    final res = await _post('/buy-goods-payment', body);
-    _showResult(res['message'] ?? 'Payment initiated!');
+    final res = await _post('/pay-merchant', body);
+    if (res['status'] == 'success') {
+      await _loadData();
+      _showResult(res['message'] ?? 'Payment successful!');
+    } else {
+      _triggerRetry(res['message'] ?? 'Payment failed — please try again');
+    }
   }
 
-  Future<void> payBill({required double amount, required String paybill, required String account, required String phone}) async {
+  Future<void> payBill({required double amount, required String paybill, required String account}) async {
     final res = await _post('/process-paybill-payment', {
       "user_id": int.parse(widget.userId),
-      "phone_number": phone.startsWith('0') ? '254${phone.substring(1)}' : phone,
       "amount": amount.toInt(),
       "merchant_paybill": paybill,
       "merchant_account": account,
     });
-    _showResult(res['message'] ?? 'PayBill STK sent!');
+    if (res['status'] == 'success') {
+      await _loadData();
+      _showResult(res['message'] ?? 'PayBill payment sent!');
+    } else {
+      _triggerRetry(res['message'] ?? 'PayBill failed — please try again');
+    }
   }
 
   void _showResult(String msg) {
@@ -223,8 +277,10 @@ class _WalletPageState extends State<WalletPage> {
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
       builder: (context) {
+        final mq = MediaQuery.of(context);
+        final bottomPadding = mq.viewInsets.bottom + mq.padding.bottom + 20;
         return Padding(
-          padding: const EdgeInsets.all(20),
+          padding: EdgeInsets.fromLTRB(20, 20, 20, bottomPadding),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
@@ -478,14 +534,33 @@ class _WalletPageState extends State<WalletPage> {
                       const SizedBox(width: 12),
                       Expanded(
                         flex: 2,
-                        child: ElevatedButton(
+                        child: StatefulBuilder(
+                          builder: (_, __) => Column(
+                            children: [
+                              if (_lastError != null) ...[
+                                Container(
+                                  margin: const EdgeInsets.only(bottom: 8),
+                                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                                  decoration: BoxDecoration(
+                                    color: Colors.red.shade50,
+                                    borderRadius: BorderRadius.circular(10),
+                                    border: Border.all(color: Colors.red.shade200),
+                                  ),
+                                  child: Text(
+                                    _lastError!,
+                                    style: TextStyle(color: Colors.red.shade700, fontSize: 11),
+                                    textAlign: TextAlign.center,
+                                  ),
+                                ),
+                              ],
+                              ElevatedButton(
                           style: ElevatedButton.styleFrom(
                             backgroundColor: const Color(0xFF1B6631),
                             padding: const EdgeInsets.symmetric(vertical: 14),
                             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
                             elevation: 0,
                           ),
-                          onPressed: () {
+                          onPressed: _retryCountdown ? null : () {
                             final amt = double.tryParse(amtCtrl.text);
                             final phone = phoneCtrl.text.trim();
                             if (amt != null && amt > 0 && phone.isNotEmpty) {
@@ -496,16 +571,22 @@ class _WalletPageState extends State<WalletPage> {
                               deposit(amt, normalizedPhone, goalId: selectedGoalId);
                             }
                           },
-                          child: const Row(
+                          child: Row(
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: [
-                              Icon(Icons.send_to_mobile, size: 16, color: Colors.white),
-                              SizedBox(width: 8),
-                              Text('Send STK', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 15)),
+                              const Icon(Icons.send_to_mobile, size: 16, color: Colors.white),
+                              const SizedBox(width: 8),
+                              Text(
+                                _retryCountdown ? 'Retry in ${_retrySecondsLeft}s...' : 'Send STK',
+                                style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 15),
+                              ),
                             ],
                           ),
                         ),
-                      ),
+                      ],
+                    ),
+                  ),
+                ),
                     ],
                   ),
                 ),
@@ -518,31 +599,111 @@ class _WalletPageState extends State<WalletPage> {
   }
 
   void _showWithdrawDialog() {
-    final ctrl = TextEditingController();
-    showDialog(
+    final amtCtrl = TextEditingController();
+    final phoneCtrl = TextEditingController(text: userDetails?['phone_number'] ?? '');
+    final balance = (walletData?['balance'] ?? 0).toDouble();
+
+    showModalBottomSheet(
       context: context,
-      builder: (_) => AlertDialog(
-        backgroundColor: AppTheme.cardLight,
-        title: const Text('Withdraw', style: TextStyle(color: AppTheme.textPrimary)),
-        content: TextField(
-          controller: ctrl,
-          keyboardType: TextInputType.number,
-          decoration: const InputDecoration(labelText: 'Amount (KES)'),
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(backgroundColor: AppColors.financeGreenV3),
-            onPressed: () {
-              final amt = double.tryParse(ctrl.text);
-              if (amt != null && amt > 0) {
-                Navigator.pop(context);
-                withdraw(amt, userDetails?['phone_number'] ?? '');
-              }
-            },
-            child: const Text('Withdraw', style: TextStyle(color: AppTheme.textLight)),
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => Padding(
+        padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
+        child: Container(
+          padding: const EdgeInsets.fromLTRB(24, 20, 24, 32),
+          decoration: const BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
           ),
-        ],
+          child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Center(child: Container(width: 40, height: 4, decoration: BoxDecoration(color: const Color(0xFFE5E7EB), borderRadius: BorderRadius.circular(2)))),
+            const SizedBox(height: 20),
+            Row(children: [
+              Container(
+                width: 44, height: 44,
+                decoration: BoxDecoration(color: AppColors.financeGreen.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(12)),
+                child: const Icon(Icons.arrow_downward_rounded, color: AppColors.financeGreen),
+              ),
+              const SizedBox(width: 12),
+              Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                const Text('Withdraw to M-Pesa', style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold, color: Color(0xFF111827))),
+                Text('Wallet balance: KES ${balance.toStringAsFixed(2)}', style: const TextStyle(fontSize: 12, color: Color(0xFF6B7280))),
+              ]),
+            ]),
+            const SizedBox(height: 24),
+            const Text('Phone Number', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Color(0xFF374151))),
+            const SizedBox(height: 6),
+            TextField(
+              controller: phoneCtrl,
+              keyboardType: TextInputType.phone,
+              style: const TextStyle(fontSize: 15),
+              decoration: InputDecoration(
+                hintText: 'e.g. 0712345678',
+                prefixIcon: const Icon(Icons.phone_android_rounded, color: AppColors.financeGreen, size: 20),
+                filled: true, fillColor: const Color(0xFFF9FAFB),
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Color(0xFFE5E7EB))),
+                enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Color(0xFFE5E7EB))),
+                focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: AppColors.financeGreen, width: 1.5)),
+                contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+              ),
+            ),
+            const SizedBox(height: 14),
+            const Text('Amount (KES)', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Color(0xFF374151))),
+            const SizedBox(height: 6),
+            TextField(
+              controller: amtCtrl,
+              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+              style: const TextStyle(fontSize: 15),
+              decoration: InputDecoration(
+                hintText: '0.00',
+                prefixIcon: const Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 12),
+                  child: Text('KES', style: TextStyle(fontWeight: FontWeight.w600, color: Color(0xFF374151), fontSize: 14)),
+                ),
+                prefixIconConstraints: const BoxConstraints(minWidth: 0, minHeight: 0),
+                filled: true, fillColor: const Color(0xFFF9FAFB),
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Color(0xFFE5E7EB))),
+                enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Color(0xFFE5E7EB))),
+                focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: AppColors.financeGreen, width: 1.5)),
+                contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+              ),
+            ),
+            const SizedBox(height: 24),
+            Row(children: [
+              Expanded(
+                child: OutlinedButton(
+                  onPressed: () => Navigator.pop(context),
+                  style: OutlinedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    side: const BorderSide(color: Color(0xFFE5E7EB)),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                  ),
+                  child: const Text('Cancel', style: TextStyle(color: Color(0xFF374151), fontWeight: FontWeight.w600)),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.financeGreen,
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                    elevation: 0,
+                  ),
+                  onPressed: () {
+                    final amt = double.tryParse(amtCtrl.text);
+                    final phone = phoneCtrl.text.trim();
+                    if (amt != null && amt > 0 && phone.isNotEmpty) {
+                      Navigator.pop(context);
+                      withdraw(amt, phone);
+                    }
+                  },
+                  child: const Text('Withdraw', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                ),
+              ),
+            ]),
+          ]),
+        ),
       ),
     );
   }
@@ -578,7 +739,7 @@ class _WalletPageState extends State<WalletPage> {
             children: [
               AnimatedCrossFade(
                 firstChild: Column(children: [
-                  const TextField(decoration: InputDecoration(labelText: 'Till Number')),
+                  TextField(controller: tillCtrl, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: 'Till Number')),
                   const SizedBox(height: 12),
                   const Text('Buy Goods / Till', style: TextStyle(color: AppTheme.textSecondary)),
                 ]),
@@ -639,7 +800,6 @@ class _WalletPageState extends State<WalletPage> {
                       amount: amt,
                       paybill: paybillCtrl.text,
                       account: accountCtrl.text,
-                      phone: userDetails?['phone_number'] ?? '',
                     );
                   }
                 } else {
@@ -884,25 +1044,6 @@ class _WalletPageState extends State<WalletPage> {
                 ),
               ],
             ),
-      bottomNavigationBar: BottomNavigationBar(
-        currentIndex: 1,
-        onTap: (index) {
-          if (index == 1) return;
-          if (index == 0) Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => SavingsDashboard(userId: widget.userId)));
-          if (index == 2) Navigator.push(context, MaterialPageRoute(builder: (_) => BuyGoodsSelect(userId: widget.userId)));
-          if (index == 3) Navigator.push(context, MaterialPageRoute(builder: (_) => Profile(userId: widget.userId)));
-        },
-        backgroundColor: AppTheme.cardLight,
-        selectedItemColor: AppColors.financeGreenV3,
-        unselectedItemColor: AppTheme.textSecondary,
-        type: BottomNavigationBarType.fixed,
-        items: const [
-          BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Home'),
-          BottomNavigationBarItem(icon: Icon(Icons.account_balance_wallet), label: 'Wallet'),
-          BottomNavigationBarItem(icon: Icon(Icons.payment), label: 'Pay'),
-          BottomNavigationBarItem(icon: Icon(Icons.person), label: 'Profile'),
-        ],
-      ),
         ),
         // Payment pending overlay
         if (_paymentPending)
@@ -929,14 +1070,13 @@ class _WalletPageState extends State<WalletPage> {
                       ),
                       const SizedBox(height: 8),
                       const Text(
-                        'Enter your M-Pesa PIN to complete the payment',
+                        'Enter your SasaPay PIN to complete the payment',
                         textAlign: TextAlign.center,
                         style: TextStyle(fontSize: 13, color: Color(0xFF6b7280)),
                       ),
                       const SizedBox(height: 20),
-                      // Countdown
                       _PaymentCountdown(
-                        seconds: 30,
+                        seconds: 60,
                         onDone: () {},
                       ),
                     ],
@@ -1078,47 +1218,34 @@ class _GlobalSendFlowState extends State<GlobalSendFlow> {
       return;
     }
 
-    final provider = selectedChannel == 'M-Pesa'
-        ? 'm-pesa'
-        : selectedChannel == 'Airtel Money'
-            ? 'airtel-money'
-            : selectedChannel == 'Bitcoin'
-                ? 'bitlipa'
-                : 'bank-ke';
-
     String phone = recipientPhone.trim();
     if (phone.startsWith('0')) phone = '254${phone.substring(1)}';
+    if (phone.startsWith('+')) phone = phone.substring(1);
     if (!phone.startsWith('254')) phone = '254$phone';
-
-    final nameParts = recipientName.trim().split(' ');
-    final firstName = nameParts.isNotEmpty ? nameParts.first : '';
-    final lastName = nameParts.length > 1 ? nameParts.sublist(1).join(' ') : '';
 
     try {
       final res = await http.post(
-        Uri.parse('${AppConstants.apiBaseUrl}/remittance'),
+        Uri.parse('${AppConstants.apiBaseUrl}/withdraw'),
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({
           "user_id": int.parse(widget.userId),
           "amount": amt.toInt(),
-          "currency": "KES",
-          "provider": provider,
           "phone": phone,
-          "first_name": firstName,
-          "last_name": lastName,
-          if (description.isNotEmpty) "description": description,
         }),
       );
 
       final json = jsonDecode(res.body);
-      if (json['status'] == 'success') {
-        widget.onSuccess?.call();
-        if (mounted) Navigator.of(context).popUntil((r) => r.isFirst);
-      }
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(json['message'] ?? 'Transaction completed')),
+          SnackBar(
+            content: Text(json['message'] ?? 'Transaction completed'),
+            backgroundColor: json['status'] == 'success' ? const Color(0xFF059669) : const Color(0xFFDC2626),
+          ),
         );
+        if (json['status'] == 'success') {
+          widget.onSuccess?.call();
+          Navigator.of(context).popUntil((r) => r.isFirst);
+        }
       }
     } catch (e) {
       if (mounted) {
@@ -1132,9 +1259,9 @@ class _GlobalSendFlowState extends State<GlobalSendFlow> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        backgroundColor: AppTheme.primaryColor,
-        title: const Text('Send Money Globally', style: TextStyle(color: AppTheme.textLight)),
-        leading: IconButton(icon: const Icon(Icons.close, color: AppTheme.textLight), onPressed: () => Navigator.pop(context)),
+        elevation: 0,
+        title: const Text('Send Money Globally'),
+        leading: IconButton(icon: const Icon(Icons.close), onPressed: () => Navigator.pop(context)),
       ),
       body: Column(
         children: [

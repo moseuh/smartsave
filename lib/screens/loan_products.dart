@@ -9,9 +9,6 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter_contacts/flutter_contacts.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:signature/signature.dart';
-import 'wallet_page.dart';
-import 'buygoodselect.dart';
-import 'profile.dart';
 
 const Map<String, Color> _kStatusColors = {
   'submitting': Colors.orange,
@@ -1070,10 +1067,10 @@ class _LoanProductsState extends State<LoanProducts> with TickerProviderStateMix
   // ----------------- UI Build Methods -----------------
   PreferredSizeWidget _buildAppBar() {
     return AppBar(
-      backgroundColor: AppTheme.cardLight,
+      backgroundColor: AppTheme.backgroundLight,
       elevation: 0,
-      title: const Text('Loan Products', style: TextStyle(color: AppTheme.textPrimary, fontWeight: FontWeight.bold, fontSize: 20)),
-      leading: IconButton(icon: const Icon(Icons.menu, color: AppTheme.cardLight), onPressed: () => _scaffoldKey.currentState?.openDrawer()),
+      title: const Text('Loan Products', style: TextStyle(color: Color(0xFF111827), fontWeight: FontWeight.bold, fontSize: 20)),
+      leading: IconButton(icon: const Icon(Icons.menu, color: Color(0xFF111827)), onPressed: () => _scaffoldKey.currentState?.openDrawer()),
     );
   }
 
@@ -1089,7 +1086,7 @@ class _LoanProductsState extends State<LoanProducts> with TickerProviderStateMix
           ),
           ListTile(
             leading: const Icon(Icons.logout, color: AppTheme.textSecondary),
-            title: const Text('Logout', style: TextStyle(color: AppTheme.cardLight)),
+            title: const Text('Logout', style: TextStyle(color: Color(0xFF374151))),
             onTap: _logout,
           ),
         ],
@@ -1178,23 +1175,6 @@ class _LoanProductsState extends State<LoanProducts> with TickerProviderStateMix
     );
   }
 
-  Widget _buildBottomNav() {
-    return BottomNavigationBar(
-      backgroundColor: AppTheme.cardLight,
-      selectedItemColor: AppColors.financeGreenV3,
-      unselectedItemColor: AppTheme.textSecondary,
-      currentIndex: 1,
-      onTap: _onItemTapped,
-      type: BottomNavigationBarType.fixed,
-      items: const [
-        BottomNavigationBarItem(icon: Icon(Icons.account_balance_wallet), label: 'Wallet'),
-        BottomNavigationBarItem(icon: Icon(Icons.account_balance), label: 'Loans'),
-        BottomNavigationBarItem(icon: Icon(Icons.payment), label: 'Payments'),
-        BottomNavigationBarItem(icon: Icon(Icons.person), label: 'Profile'),
-      ],
-    );
-  }
-
   Future<void> _validateAndFetchUserDetails() async {
     if (widget.userId.isEmpty) {
       if (!mounted) return;
@@ -1237,29 +1217,16 @@ class _LoanProductsState extends State<LoanProducts> with TickerProviderStateMix
     }
   }
 
-  void _onItemTapped(int index) {
-    final pages = [
-      WalletPage(userId: widget.userId),
-      LoanProducts(userId: widget.userId),
-      BuyGoodsSelect(userId: widget.userId),
-      Profile(userId: widget.userId),
-    ];
-    if (index != 1 && index < pages.length) {
-      Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => pages[index]));
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       key: _scaffoldKey,
-      backgroundColor: AppColors.coreDark,
+      backgroundColor: AppTheme.backgroundLight,
       appBar: _buildAppBar(),
       drawer: _buildDrawer(),
       body: isLoading
           ? Center(child: RotationTransition(turns: _knobController, child: const Icon(Icons.autorenew, size: 80, color: AppColors.financeGreenV3)))
           : _buildBody(),
-      bottomNavigationBar: _buildBottomNav(),
     );
   }
 }

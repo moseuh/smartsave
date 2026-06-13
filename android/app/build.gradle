@@ -23,7 +23,7 @@ if (flutterVersionName == null) {
 }
 
 android {
-    namespace = "com.example.saves"
+    namespace = "com.nebo.user"
     compileSdkVersion flutter.compileSdkVersion
     ndkVersion = "27.0.12077973"
 
@@ -38,8 +38,8 @@ android {
     }
 
     defaultConfig {
-        applicationId "com.example.saves"
-        minSdkVersion flutter.minSdkVersion  // <- change from flutter.minSdkVersion to 23
+        applicationId "com.nebo.user"
+        minSdkVersion flutter.minSdkVersion
         targetSdkVersion flutter.targetSdkVersion
         versionCode flutterVersionCode.toInteger()
         versionName flutterVersionName

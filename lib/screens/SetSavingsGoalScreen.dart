@@ -5,7 +5,6 @@ import 'dart:convert';
 import '../constants/app_constants.dart';
 import 'dart:async';
 import 'package:shared_preferences/shared_preferences.dart';
-import '../widgets/graph.dart';
 
 class GoalCreationScreen extends StatefulWidget {
   final String userId;
@@ -628,16 +627,16 @@ class _GoalCreationScreenState extends State<GoalCreationScreen> {
     return Scaffold(
           backgroundColor: AppTheme.backgroundLight,
           appBar: AppBar(
-            backgroundColor: AppTheme.primaryColor,
+            backgroundColor: AppTheme.backgroundLight,
             elevation: 0,
-            title: const Text('Savings Goals', style: TextStyle(color: AppTheme.textLight, fontWeight: FontWeight.bold)),
+            title: const Text('Savings Goals', style: TextStyle(color: Color(0xFF111827), fontWeight: FontWeight.bold)),
             leading: IconButton(
-              icon: const Icon(Icons.arrow_back, color: AppTheme.textLight),
+              icon: const Icon(Icons.arrow_back, color: Color(0xFF111827)),
               onPressed: () => Navigator.pop(context),
             ),
             actions: [
               IconButton(
-                icon: const Icon(Icons.add, color: AppTheme.textLight),
+                icon: const Icon(Icons.add, color: AppColors.financeGreen),
                 tooltip: 'Create Goal',
                 onPressed: () => _showCreateGoalSheet(context),
               ),

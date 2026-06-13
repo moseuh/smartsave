@@ -1,32 +1,36 @@
 // ignore_for_file: deprecated_member_use
 import 'package:flutter/material.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:http/http.dart' as http;
-import 'dart:convert';
+import 'package:onesignal_flutter/onesignal_flutter.dart';
 import 'dart:async';
 import 'firebase_options.dart';
 import 'screens/modern_login_screen.dart';
 import 'screens/homepage.dart';
 import 'screens/main_shell.dart';
-import 'screens/profile_completion_screen.dart';
 import 'providers/auth_provider.dart' as app_auth;
 import 'providers/wallet_provider.dart';
 import 'constants/app_theme.dart';
-import 'constants/app_constants.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  // Firebase
   try {
-    await Firebase.initializeApp(
-      options: DefaultFirebaseOptions.currentPlatform,
-    );
-    runApp(const MainApp());
+    await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
   } catch (e) {
-    print('Firebase initialization failed: $e');
-    runApp(const ErrorApp());
+    if (!e.toString().contains('duplicate-app')) {
+      debugPrint('Firebase init failed: $e');
+    }
   }
+
+  // OneSignal
+  OneSignal.initialize('3a49f279-28c0-4202-8295-40803253b8b7');
+  OneSignal.Notifications.requestPermission(true);
+
+  runApp(const MainApp());
 }
 
 class ErrorApp extends StatelessWidget {
@@ -74,61 +78,10 @@ class AuthWrapper extends StatelessWidget {
   Future<Widget> _getInitialScreen() async {
     final prefs = await SharedPreferences.getInstance();
     final isLoggedIn = prefs.getBool('is_logged_in') ?? false;
-
-    if (!isLoggedIn) {
-      return const ModernLoginScreen();
-    }
-
+    if (!isLoggedIn) return const ModernLoginScreen();
     final userId = prefs.getString('user_id') ?? '';
-    final userName = prefs.getString('user_name') ?? '';
-    final userEmail = prefs.getString('email') ?? '';
-
-    if (userId.isEmpty) {
-      return const ModernLoginScreen();
-    }
-
-    // Check if we already know profile is complete
-    final profileCompleted = prefs.getBool('profile_completed') ?? false;
-    if (profileCompleted) {
-      return MainShell(userId: userId);
-    }
-
-    // Verify with backend whether basics are already filled in
-    try {
-      final isComplete = await _checkProfileCompletion(userId);
-      if (isComplete) {
-        await prefs.setBool('profile_completed', true);
-        return MainShell(userId: userId);
-      }
-    } catch (_) {
-      // If backend unreachable, fall through to profile completion
-    }
-
-    return ProfileCompletionScreen(
-      userId: userId,
-      userName: userName,
-      userEmail: userEmail,
-    );
-  }
-
-  Future<bool> _checkProfileCompletion(String userId) async {
-    try {
-      final uri = Uri.parse('${AppConstants.apiBaseUrl}/user-details/$userId');
-      final response = await http.get(uri).timeout(const Duration(seconds: 5));
-      if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
-        if (data['status'] == 'success') {
-          final d = data['data'];
-          final nationalId = (d['national_id'] ?? '').toString();
-          final dob = (d['date_of_birth'] ?? '').toString();
-          return nationalId.isNotEmpty &&
-              nationalId != 'PENDING' &&
-              dob.isNotEmpty &&
-              dob != '1990-01-01';
-        }
-      }
-    } catch (_) {}
-    return false;
+    if (userId.isEmpty) return const ModernLoginScreen();
+    return MainShell(userId: userId);
   }
 
   @override
@@ -153,32 +106,52 @@ class SplashScreen extends StatefulWidget {
 }
 
 class _SplashScreenState extends State<SplashScreen>
-    with SingleTickerProviderStateMixin {
-  late AnimationController _controller;
-  late Animation<double> _progressAnimation;
+    with TickerProviderStateMixin {
+  late AnimationController _mainCtrl;
+  late AnimationController _barCtrl;
   late Timer _timer;
+
+  late Animation<double> _logoScale;
+  late Animation<double> _logoFade;
+  late Animation<double> _taglineFade;
+  late Animation<double> _barProgress;
 
   @override
   void initState() {
     super.initState();
 
-    // Animation Controller for progress bar (3 seconds)
-    _controller = AnimationController(
-      duration: const Duration(seconds: 3),
-      vsync: this,
-    )..forward();
+    // Main: logo pops in (0–600ms), text slides up (400–900ms)
+    _mainCtrl = AnimationController(vsync: this, duration: const Duration(milliseconds: 900));
 
-    // Progress Animation from 0.0 to 1.0
-    _progressAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
-      CurvedAnimation(parent: _controller, curve: Curves.linear),
+    _logoScale = Tween(begin: 0.6, end: 1.0).animate(
+      CurvedAnimation(parent: _mainCtrl, curve: const Interval(0.0, 0.65, curve: Curves.easeOutBack)),
+    );
+    _logoFade = Tween(begin: 0.0, end: 1.0).animate(
+      CurvedAnimation(parent: _mainCtrl, curve: const Interval(0.0, 0.5, curve: Curves.easeOut)),
+    );
+    _taglineFade = Tween(begin: 0.0, end: 1.0).animate(
+      CurvedAnimation(parent: _mainCtrl, curve: const Interval(0.65, 1.0, curve: Curves.easeOut)),
     );
 
-    // Navigate to AuthWrapper to check authentication status
-    _timer = Timer(const Duration(seconds: 3), () {
+    // Loading bar fills over 2.2s
+    _barCtrl = AnimationController(vsync: this, duration: const Duration(milliseconds: 2200));
+    _barProgress = CurvedAnimation(parent: _barCtrl, curve: Curves.easeInOut);
+
+    _mainCtrl.forward();
+    Future.delayed(const Duration(milliseconds: 300), () {
+      if (mounted) _barCtrl.forward();
+    });
+
+    _timer = Timer(const Duration(milliseconds: 3000), () {
       if (mounted) {
         Navigator.pushReplacement(
           context,
-          MaterialPageRoute(builder: (context) => const AuthWrapper()),
+          PageRouteBuilder(
+            pageBuilder: (_, __, ___) => const AuthWrapper(),
+            transitionsBuilder: (_, a, __, child) =>
+                FadeTransition(opacity: a, child: child),
+            transitionDuration: const Duration(milliseconds: 400),
+          ),
         );
       }
     });
@@ -187,71 +160,94 @@ class _SplashScreenState extends State<SplashScreen>
   @override
   void dispose() {
     _timer.cancel();
-    _controller.dispose();
+    _mainCtrl.dispose();
+    _barCtrl.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
+    final size = MediaQuery.of(context).size;
+
     return Scaffold(
-      backgroundColor: AppColors.financeGreen,
+      backgroundColor: AppTheme.backgroundLight, // #F2F7F2 — same as home
       body: SafeArea(
-        child: Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              const Spacer(flex: 2),
-              Image.asset(
-                'assets/logo.png',
-                width: 140,
-                height: 140,
-                fit: BoxFit.contain,
-                errorBuilder: (context, error, stackTrace) =>
-                    const Icon(Icons.account_balance, size: 140, color: Colors.white),
+        child: Stack(
+          children: [
+            // ── Subtle top-right green circle ─────────────────────────
+            Positioned(
+              top: -size.width * 0.25,
+              right: -size.width * 0.25,
+              child: Container(
+                width: size.width * 0.65,
+                height: size.width * 0.65,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: AppColors.financeGreenV3.withValues(alpha: 0.07),
+                ),
               ),
-              const Spacer(flex: 3),
-              Column(
-                children: [
-                  SizedBox(
-                    width: 200,
-                    child: AnimatedBuilder(
-                      animation: _controller,
-                      builder: (context, child) {
-                        return LinearProgressIndicator(
-                          value: _progressAnimation.value,
-                          backgroundColor: AppColors.financeGreenV2,
-                          valueColor: const AlwaysStoppedAnimation<Color>(AppColors.financeGreenV3),
-                          minHeight: 8,
-                        );
-                      },
+            ),
+            // ── Subtle bottom-left circle ──────────────────────────────
+            Positioned(
+              bottom: -size.width * 0.2,
+              left: -size.width * 0.2,
+              child: Container(
+                width: size.width * 0.55,
+                height: size.width * 0.55,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: AppColors.financeGreen.withValues(alpha: 0.05),
+                ),
+              ),
+            ),
+
+            // ── Main content ──────────────────────────────────────────
+            Column(
+              children: [
+                const Spacer(flex: 5),
+
+                // Wordmark SVG — centered, big
+                ScaleTransition(
+                  scale: _logoScale,
+                  child: FadeTransition(
+                    opacity: _logoFade,
+                    child: SvgPicture.asset(
+                      'assets/logo-green-word.svg',
+                      width: 220,
                     ),
                   ),
-                  const SizedBox(height: 24),
-                  const Padding(
-                    padding: EdgeInsets.symmetric(horizontal: 40),
-                    child: Text(
-                      'Empowering Your Finances...',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 22,
-                        fontWeight: FontWeight.w600,
-                        letterSpacing: 0.5,
-                        shadows: [
-                          Shadow(
-                            color: AppColors.financeGreenV3,
-                            blurRadius: 8,
-                            offset: Offset(0, 2),
+                ),
+
+                const Spacer(flex: 5),
+
+                // Progress bar
+                FadeTransition(
+                  opacity: _taglineFade,
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 48),
+                    child: Column(
+                      children: [
+                        AnimatedBuilder(
+                          animation: _barProgress,
+                          builder: (_, __) => ClipRRect(
+                            borderRadius: BorderRadius.circular(4),
+                            child: LinearProgressIndicator(
+                              value: _barProgress.value,
+                              backgroundColor: AppColors.coreWhiteW2,
+                              valueColor: const AlwaysStoppedAnimation(AppColors.financeGreenV3),
+                              minHeight: 3,
+                            ),
                           ),
-                        ],
-                      ),
+                        ),
+                      ],
                     ),
                   ),
-                  const SizedBox(height: 40),
-                ],
-              ),
-            ],
-          ),
+                ),
+
+                const SizedBox(height: 48),
+              ],
+            ),
+          ],
         ),
       ),
     );

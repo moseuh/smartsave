@@ -71,38 +71,56 @@ class _SaveTabState extends State<SaveTab> {
         child: CustomScrollView(
           physics: const AlwaysScrollableScrollPhysics(),
           slivers: [
-            // Header
+            // ── White hero header ─────────────────────────────────────────
             SliverAppBar(
-              expandedHeight: 180,
               pinned: true,
-              backgroundColor: AppColors.financeGreen,
+              backgroundColor: AppTheme.backgroundLight,
+              elevation: 0,
+              surfaceTintColor: Colors.transparent,
+              automaticallyImplyLeading: false,
+              expandedHeight: 170,
               flexibleSpace: FlexibleSpaceBar(
+                collapseMode: CollapseMode.pin,
                 background: Container(
-                  decoration: const BoxDecoration(
-                    gradient: LinearGradient(
-                      colors: [Color(0xFF0F4023), Color(0xFF1B6631), Color(0xFF2D8A47)],
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                    ),
-                  ),
+                  color: AppTheme.backgroundLight,
                   child: SafeArea(
                     child: Padding(
-                      padding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
+                      padding: const EdgeInsets.fromLTRB(20, 16, 20, 16),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          const Text('Savings', style: TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.bold)),
-                          const SizedBox(height: 4),
-                          const Text('Build your wealth, step by step', style: TextStyle(color: Colors.white60, fontSize: 13)),
+                          const Text(
+                            'Savings',
+                            style: TextStyle(
+                              color: Color(0xFF111827),
+                              fontSize: 26,
+                              fontWeight: FontWeight.bold,
+                              letterSpacing: -0.3,
+                            ),
+                          ),
+                          const SizedBox(height: 3),
+                          const Text(
+                            'Build your wealth, step by step',
+                            style: TextStyle(
+                              color: Color(0xFF6B7280),
+                              fontSize: 13,
+                            ),
+                          ),
                           const Spacer(),
-                          Row(
-                            children: [
-                              _HeaderStat('Total Saved', _loading ? '…' : 'KES ${fmt.format(_totalSaved)}'),
-                              const SizedBox(width: 24),
-                              _HeaderStat('This Month', _loading ? '…' : 'KES ${fmt.format(_monthSaved)}'),
-                              const SizedBox(width: 24),
-                              _HeaderStat('Round-ups', _loading ? '…' : 'KES ${fmt.format(_roundupTotal)}'),
-                            ],
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              borderRadius: BorderRadius.circular(14),
+                              boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.05), blurRadius: 8, offset: const Offset(0, 2))],
+                            ),
+                            child: Row(
+                              children: [
+                                _HeaderStat('Total Saved', _loading ? '…' : 'KES ${fmt.format(_totalSaved)}'),
+                                _HeaderStat('This Month', _loading ? '…' : 'KES ${fmt.format(_monthSaved)}'),
+                                _HeaderStat('Round-ups', _loading ? '…' : 'KES ${fmt.format(_roundupTotal)}'),
+                              ],
+                            ),
                           ),
                         ],
                       ),
@@ -110,7 +128,10 @@ class _SaveTabState extends State<SaveTab> {
                   ),
                 ),
               ),
-              title: const Text('Save', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+              bottom: PreferredSize(
+                preferredSize: const Size.fromHeight(1),
+                child: Container(height: 1, color: AppColors.coreWhiteW2),
+              ),
             ),
 
             SliverPadding(
@@ -209,21 +230,39 @@ class _SaveTabState extends State<SaveTab> {
       );
 }
 
+// ── _HeaderStat — dark text for light background ──────────────────────────────
 class _HeaderStat extends StatelessWidget {
   final String label, value;
   const _HeaderStat(this.label, this.value);
 
   @override
-  Widget build(BuildContext context) => Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(label, style: const TextStyle(color: Colors.white54, fontSize: 10, fontWeight: FontWeight.w500)),
-          const SizedBox(height: 2),
-          Text(value, style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.bold)),
-        ],
+  Widget build(BuildContext context) => Expanded(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              label,
+              style: const TextStyle(
+                color: Color(0xFF9CA3AF),
+                fontSize: 10,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+            const SizedBox(height: 2),
+            Text(
+              value,
+              style: const TextStyle(
+                color: Color(0xFF111827),
+                fontSize: 12,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ],
+        ),
       );
 }
 
+// ── _ActionCard — solid color, tall, icon in frosted circle ──────────────────
 class _ActionCard extends StatelessWidget {
   final IconData icon;
   final String label;
@@ -236,17 +275,39 @@ class _ActionCard extends StatelessWidget {
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 16),
+        height: 90,
         decoration: BoxDecoration(
-          color: color.withValues(alpha: 0.08),
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: color.withValues(alpha: 0.2)),
+          color: color,
+          borderRadius: BorderRadius.circular(20),
+          boxShadow: [
+            BoxShadow(
+              color: color.withValues(alpha: 0.35),
+              blurRadius: 12,
+              offset: const Offset(0, 6),
+            ),
+          ],
         ),
         child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(icon, color: color, size: 28),
+            Container(
+              width: 42,
+              height: 42,
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: 0.2),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(icon, color: Colors.white, size: 22),
+            ),
             const SizedBox(height: 8),
-            Text(label, style: TextStyle(color: color, fontSize: 12, fontWeight: FontWeight.bold)),
+            Text(
+              label,
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 12,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
           ],
         ),
       ),
@@ -254,6 +315,7 @@ class _ActionCard extends StatelessWidget {
   }
 }
 
+// ── _GoalCard ─────────────────────────────────────────────────────────────────
 class _GoalCard extends StatelessWidget {
   final Map<String, dynamic> goal;
   final NumberFormat fmt;
@@ -329,6 +391,7 @@ class _GoalCard extends StatelessWidget {
   }
 }
 
+// ── _EmptyGoals ───────────────────────────────────────────────────────────────
 class _EmptyGoals extends StatelessWidget {
   final VoidCallback onTap;
   const _EmptyGoals({required this.onTap});
@@ -366,6 +429,7 @@ class _EmptyGoals extends StatelessWidget {
   }
 }
 
+// ── _TipCard ──────────────────────────────────────────────────────────────────
 class _TipCard extends StatelessWidget {
   final IconData icon;
   final String title, body;
@@ -384,31 +448,32 @@ class _TipCard extends StatelessWidget {
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Container(
-            width: 40, height: 40,
-            decoration: BoxDecoration(color: color.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(12)),
-            child: Icon(icon, color: color, size: 22),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(title, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Color(0xFF111827))),
-                const SizedBox(height: 3),
-                Text(body, style: const TextStyle(fontSize: 12, color: Color(0xFF6B7280), height: 1.4)),
-              ],
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              width: 40, height: 40,
+              decoration: BoxDecoration(color: color.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(12)),
+              child: Icon(icon, color: color, size: 22),
             ),
-          ),
-        ],
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(title, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Color(0xFF111827))),
+                  const SizedBox(height: 3),
+                  Text(body, style: const TextStyle(fontSize: 12, color: Color(0xFF6B7280), height: 1.4)),
+                ],
+              ),
+            ),
+          ],
         ),
       ),
     );
   }
 }
 
+// ── _Skeleton ─────────────────────────────────────────────────────────────────
 class _Skeleton extends StatelessWidget {
   final double height;
   const _Skeleton({required this.height});

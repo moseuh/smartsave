@@ -204,14 +204,14 @@ Future<void> fetchGoals() async {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        backgroundColor: AppTheme.primaryColor,
-        elevation: 4,
+        backgroundColor: AppTheme.backgroundLight,
+        elevation: 0,
         title: const Text(
           'Your Goals',
-          style: TextStyle(color: AppTheme.textLight, fontWeight: FontWeight.bold),
+          style: TextStyle(color: Color(0xFF111827), fontWeight: FontWeight.bold),
         ),
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: AppTheme.textLight),
+          icon: const Icon(Icons.arrow_back, color: Color(0xFF111827)),
           onPressed: () {
             Navigator.pushReplacement(
               context,
@@ -223,7 +223,7 @@ Future<void> fetchGoals() async {
         ),
         actions: [
           IconButton(
-            icon: const Icon(Icons.add, color: AppTheme.textLight),
+            icon: const Icon(Icons.add, color: AppColors.financeGreen),
             onPressed: () {
               Navigator.push(
                 context,

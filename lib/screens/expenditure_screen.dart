@@ -70,17 +70,16 @@ class _ExpenditureScreenState extends State<ExpenditureScreen> {
     return Scaffold(
       backgroundColor: AppTheme.backgroundLight,
       appBar: AppBar(
-        backgroundColor: AppColors.financeGreen,
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.white),
+          icon: const Icon(Icons.arrow_back),
           onPressed: () => Navigator.pop(context),
         ),
-        title: const Text('My Expenditure', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+        title: const Text('My Expenditure', style: TextStyle(fontWeight: FontWeight.bold)),
         actions: [
           if (_smsGranted)
             IconButton(
-              icon: const Icon(Icons.refresh, color: Colors.white),
+              icon: const Icon(Icons.refresh),
               tooltip: 'Refresh SMS',
               onPressed: () => _load(forceRefresh: true),
             ),
@@ -112,7 +111,7 @@ class _ExpenditureScreenState extends State<ExpenditureScreen> {
                 textAlign: TextAlign.center),
             const SizedBox(height: 12),
             const Text(
-              'We read your M-Pesa and bank SMS messages to automatically track your income and expenses across the last 6 months. Your messages never leave your device.',
+              'We read your M-Pesa SMS messages to automatically track your income and expenses across the last 6 months. Your messages never leave your device.',
               style: TextStyle(fontSize: 14, color: Color(0xFF6B7280), height: 1.6),
               textAlign: TextAlign.center,
             ),
@@ -203,7 +202,7 @@ class _ExpenditureScreenState extends State<ExpenditureScreen> {
                   children: [
                     const Icon(Icons.inbox_outlined, size: 48, color: Color(0xFFD1D5DB)),
                     const SizedBox(height: 12),
-                    const Text('No M-Pesa or bank messages found for this month',
+                    const Text('No M-Pesa messages found for this month',
                         textAlign: TextAlign.center, style: TextStyle(color: Color(0xFF6B7280))),
                   ],
                 ),

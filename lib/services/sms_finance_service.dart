@@ -3,6 +3,20 @@ import 'package:flutter_sms_inbox/flutter_sms_inbox.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+/// M-Pesa transaction types
+enum MpesaType {
+  received,       // You have received KES X from Y
+  sentTo,         // KES X sent to Y
+  paybill,        // KES X paid to paybill XXXXXX account YYYY
+  buyGoods,       // KES X paid to BUSINESS for account YYYY (Till)
+  withdraw,       // KES X withdrawn from Agent XXXXX
+  airtime,        // KES X airtime purchased
+  fuliza,         // Fuliza M-PESA – KES X
+  reversal,       // Transaction reversal
+  salary,         // Salary / payroll credit
+  unknown,
+}
+
 class FinanceTransaction {
   final String id;
   final double amount;
@@ -10,9 +24,12 @@ class FinanceTransaction {
   final String category;
   final String description;
   final DateTime date;
-  final String source; // 'M-Pesa', 'Equity', 'KCB', etc.
+  final String source; // Always 'M-Pesa' now
   final String raw;
-  final bool isManual; // user-entered vs SMS-parsed
+  final bool isManual;
+  final String? reference;   // e.g. QJK2X1234A
+  final double? balanceAfter;
+  final MpesaType mpesaType;
 
   FinanceTransaction({
     required this.id,
@@ -24,6 +41,9 @@ class FinanceTransaction {
     required this.source,
     this.raw = '',
     this.isManual = false,
+    this.reference,
+    this.balanceAfter,
+    this.mpesaType = MpesaType.unknown,
   });
 
   Map<String, dynamic> toJson() => {
@@ -36,6 +56,9 @@ class FinanceTransaction {
         'source': source,
         'raw': raw,
         'isManual': isManual,
+        'reference': reference,
+        'balanceAfter': balanceAfter,
+        'mpesaType': mpesaType.name,
       };
 
   factory FinanceTransaction.fromJson(Map<String, dynamic> j) =>
@@ -46,9 +69,17 @@ class FinanceTransaction {
         category: j['category'],
         description: j['description'],
         date: DateTime.parse(j['date']),
-        source: j['source'],
+        source: j['source'] ?? 'M-Pesa',
         raw: j['raw'] ?? '',
         isManual: j['isManual'] ?? false,
+        reference: j['reference'],
+        balanceAfter: j['balanceAfter'] != null
+            ? (j['balanceAfter'] as num).toDouble()
+            : null,
+        mpesaType: MpesaType.values.firstWhere(
+          (e) => e.name == j['mpesaType'],
+          orElse: () => MpesaType.unknown,
+        ),
       );
 }
 
@@ -57,7 +88,7 @@ class SmsFinanceService {
   static const _manualKey = 'manual_finance_transactions';
   static const _lastLoadKey = 'sms_finance_last_load';
 
-  // Request SMS permission and load 6 months of transactions
+  // ── Permission ─────────────────────────────────────────────────────
   static Future<bool> requestPermission() async {
     final status = await Permission.sms.request();
     return status.isGranted;
@@ -69,7 +100,8 @@ class SmsFinanceService {
     return _hasPermission;
   }
 
-  // Load from SMS (last 6 months) + merge with manual entries
+  // ── Load ────────────────────────────────────────────────────────────
+  /// Load M-Pesa SMS (last 6 months) + merge with manual entries
   static Future<List<FinanceTransaction>> loadAll({bool forceRefresh = false}) async {
     final prefs = await SharedPreferences.getInstance();
     final sms = await _loadSmsTransactions(prefs, forceRefresh: forceRefresh);
@@ -98,15 +130,13 @@ class SmsFinanceService {
       }
     }
 
-    // Check permission
     final granted = await Permission.sms.isGranted;
     if (!granted) return [];
 
     try {
       final query = SmsQuery();
-      final cutoff = DateTime.now().subtract(const Duration(days: 183)); // ~6 months
+      final cutoff = DateTime.now().subtract(const Duration(days: 183));
 
-      // Load enough messages to cover 6 months (adjust count as needed)
       final messages = await query.querySms(
         kinds: [SmsQueryKind.inbox],
         count: 2000,
@@ -114,17 +144,15 @@ class SmsFinanceService {
 
       final parsed = <FinanceTransaction>[];
       for (final msg in messages) {
-        // Skip messages older than 6 months
         final date = msg.date ?? DateTime.now();
         if (date.isBefore(cutoff)) continue;
 
-        final tx = _parseSms(msg);
+        final tx = _parseMpesaSms(msg);
         if (tx != null) parsed.add(tx);
       }
 
       parsed.sort((a, b) => b.date.compareTo(a.date));
 
-      // Cache results
       prefs.setString(_cacheKey, jsonEncode(parsed.map((t) => t.toJson()).toList()));
       prefs.setInt(_lastLoadKey, DateTime.now().millisecondsSinceEpoch);
 
@@ -134,136 +162,276 @@ class SmsFinanceService {
     }
   }
 
-  static FinanceTransaction? _parseSms(SmsMessage msg) {
+  // ── M-Pesa SMS Parser ───────────────────────────────────────────────
+  /// Returns a transaction only if the SMS is from M-Pesa.
+  /// Handles all real Safaricom M-Pesa message formats.
+  static FinanceTransaction? _parseMpesaSms(SmsMessage msg) {
     final body = msg.body ?? '';
     final date = msg.date ?? DateTime.now();
     final sender = (msg.sender ?? '').toUpperCase();
 
-    final isMpesa = sender.contains('MPESA') || body.contains('M-Pesa') || body.contains('MPESA');
-    final source = _detectSource(sender, body);
-    if (source == null) return null;
+    // ── 1. STRICT M-Pesa gate ──────────────────────────────────────
+    final isMpesa = sender.contains('MPESA') ||
+        sender == 'MPESA' ||
+        body.contains('M-Pesa') ||
+        body.contains('MPESA');
+    if (!isMpesa) return null;
 
-    // Extract amount — handle Ksh, KES, both with optional space
-    final amountRegex = RegExp(r'(?:Ksh|KES)\s*([\d,]+(?:\.\d{2})?)', caseSensitive: false);
-    final match = amountRegex.firstMatch(body);
-    if (match == null) return null;
-    final amountStr = (match.group(1) ?? '0').replaceAll(',', '');
+    final b = body.toLowerCase();
+
+    // ── 2. Extract transaction reference (e.g. QJK2X1234A) ─────────
+    // M-Pesa refs are 10 alphanumeric chars starting with letters
+    final refMatch = RegExp(r'\b([A-Z]{2,3}[A-Z0-9]{7,8})\b').firstMatch(body);
+    final reference = refMatch?.group(1);
+
+    // ── 3. Extract amount ───────────────────────────────────────────
+    // M-Pesa always uses "Ksh" (not KES) in real messages
+    // Examples: "Ksh1,200.00" or "Ksh 500" or "KES 300.00"
+    final amountMatch = RegExp(
+      r'(?:Ksh|KES)\s*([\d,]+(?:\.\d{1,2})?)',
+      caseSensitive: false,
+    ).firstMatch(body);
+    if (amountMatch == null) return null;
+    final amountStr = (amountMatch.group(1) ?? '0').replaceAll(',', '');
     final amount = double.tryParse(amountStr) ?? 0;
     if (amount <= 0) return null;
 
-    final lowerBody = body.toLowerCase();
-    bool isIncome = false;
-    String category = 'Other';
+    // ── 4. Extract balance after transaction ────────────────────────
+    // "New M-PESA balance is Ksh2,500.00"
+    final balMatch = RegExp(
+      r'(?:balance is|balance:)\s*(?:Ksh|KES)\s*([\d,]+(?:\.\d{1,2})?)',
+      caseSensitive: false,
+    ).firstMatch(body);
+    final balanceAfter = balMatch != null
+        ? double.tryParse((balMatch.group(1) ?? '').replaceAll(',', ''))
+        : null;
 
-    if (lowerBody.contains('you have received') ||
-        lowerBody.contains('received from') ||
-        (lowerBody.contains('received') && !lowerBody.contains('not received'))) {
+    // ── 5. Detect transaction type & classify ───────────────────────
+    // IMPORTANT: income checks come FIRST; expense checks follow.
+    // Each branch uses the tightest possible keyword to avoid false positives.
+    MpesaType mpesaType = MpesaType.unknown;
+    bool isIncome = false;
+    String category = 'M-Pesa';
+    String description = 'M-Pesa Transaction';
+
+    // ── INCOME ─────────────────────────────────────────────────────
+
+    // RECEIVED – "You have received Ksh500.00 from ..."
+    // Must contain explicit "received" + a sender — never triggered by sends
+    if (b.contains('you have received') ||
+        (b.contains('received') && b.contains('from') && !b.contains('sent') && !b.contains('paid to') && !b.contains('pay bill'))) {
+      mpesaType = MpesaType.received;
       isIncome = true;
       category = 'Income';
-    } else if (lowerBody.contains('salary') || lowerBody.contains('payroll')) {
+      description = _extractSender(body);
+    }
+
+    // SALARY / PAYROLL – explicit payroll credit
+    else if ((b.contains('salary') || b.contains('payroll')) &&
+             (b.contains('received') || b.contains('credited') || b.contains('from'))) {
+      mpesaType = MpesaType.salary;
       isIncome = true;
       category = 'Salary';
-    } else if (lowerBody.contains('reversal')) {
+      description = _extractSender(body);
+    }
+
+    // REVERSAL – money returned to you; only count if "your" money came back
+    // "Your transaction of Ksh X to Y has been reversed"
+    else if ((b.contains('reversal') || b.contains('reversed')) &&
+             (b.contains('your transaction') || b.contains('has been reversed'))) {
+      mpesaType = MpesaType.reversal;
       isIncome = true;
       category = 'Reversal';
-    } else if (lowerBody.contains('sent to') || lowerBody.contains('paid to')) {
-      category = _categorizeExpense(body);
-    } else if (lowerBody.contains('withdraw') || lowerBody.contains('withdrawn')) {
-      category = 'Withdrawal';
-    } else if (lowerBody.contains('buy goods') || lowerBody.contains('paybill') || lowerBody.contains('pay bill')) {
+      description = 'M-Pesa Reversal';
+    }
+
+    // ── EXPENSES ───────────────────────────────────────────────────
+
+    // FULIZA – you borrowed; it's a debt/expense
+    else if (b.contains('fuliza')) {
+      mpesaType = MpesaType.fuliza;
+      isIncome = false;
+      category = 'Fuliza';
+      description = 'Fuliza M-Pesa';
+    }
+
+    // PAYBILL – "Pay Bill" or "paybill" — check BEFORE "sent to" since
+    // some paybill confirmations also say "sent to paybill number"
+    else if (b.contains('pay bill') || b.contains('paybill')) {
+      mpesaType = MpesaType.paybill;
+      isIncome = false;
       category = _categorizePaybill(body);
-    } else if (lowerBody.contains('airtime') || lowerBody.contains('data bundle')) {
+      description = _extractPaybillName(body);
+    }
+
+    // BUY GOODS (Till) – "Buy Goods" keyword
+    else if (b.contains('buy goods')) {
+      mpesaType = MpesaType.buyGoods;
+      isIncome = false;
+      category = _categorizeMerchant(body);
+      description = _extractMerchantName(body);
+    }
+
+    // SENT TO PERSON – "sent to" a mobile number (person-to-person)
+    else if (b.contains('sent to')) {
+      mpesaType = MpesaType.sentTo;
+      isIncome = false;
+      category = 'Send Money';
+      description = _extractRecipient(body);
+    }
+
+    // WITHDRAW – must explicitly say "withdrawn" (not just "agent")
+    else if (b.contains('withdrawn') || b.contains('withdraw at') || b.contains('withdraw from agent')) {
+      mpesaType = MpesaType.withdraw;
+      isIncome = false;
+      category = 'Withdrawal';
+      description = _extractAgentName(body);
+    }
+
+    // AIRTIME / DATA – "airtime" or "data bundle"
+    else if (b.contains('airtime') || b.contains('data bundle') || b.contains('data pack')) {
+      mpesaType = MpesaType.airtime;
+      isIncome = false;
       category = 'Airtime/Data';
-    } else if (lowerBody.contains('debit') || lowerBody.contains('debited')) {
-      category = _categorizeExpense(body);
-    } else if (lowerBody.contains('credit') || lowerBody.contains('credited')) {
-      isIncome = true;
-      category = 'Income';
-    } else {
+      description = 'Airtime/Data Purchase';
+    }
+
+    // Fallback – unrecognised M-Pesa message, skip it
+    else {
       return null;
     }
 
-    final description = _extractDescription(body, isMpesa, source);
-
     return FinanceTransaction(
-      id: '${date.millisecondsSinceEpoch}_${amount.toInt()}',
+      id: '${date.millisecondsSinceEpoch}_${amount.toInt()}_${reference ?? ""}',
       amount: amount,
       isIncome: isIncome,
       category: category,
       description: description,
       date: date,
-      source: source,
+      source: 'M-Pesa',
       raw: body,
+      reference: reference,
+      balanceAfter: balanceAfter,
+      mpesaType: mpesaType,
     );
   }
 
-  static String? _detectSource(String sender, String body) {
-    if (sender.contains('MPESA') || body.contains('M-Pesa') || body.contains('MPESA')) return 'M-Pesa';
-    if (sender.contains('EQUITY') || body.contains('Equity Bank')) return 'Equity Bank';
-    if (sender.contains('KCB') || body.contains('KCB Bank')) return 'KCB';
-    if (sender.contains('COOP') || body.contains('Co-op Bank') || body.contains('Cooperative Bank')) return 'Co-op Bank';
-    if (sender.contains('NCBA') || body.contains('NCBA Bank')) return 'NCBA';
-    if (sender.contains('DTB') || body.contains('Diamond Trust')) return 'DTB';
-    if (sender.contains('ABSA') || body.contains('Absa Bank')) return 'Absa';
-    if (sender.contains('STANBIC') || body.contains('Stanbic Bank')) return 'Stanbic';
-    if (sender.contains('FAMILY') || body.contains('Family Bank')) return 'Family Bank';
-    if (sender.contains('SIDIAN') || body.contains('Sidian Bank')) return 'Sidian';
-    return null;
+  // ── Description extractors ──────────────────────────────────────────
+
+  /// Extracts sender name from a "received from X" message
+  static String _extractSender(String body) {
+    final patterns = [
+      RegExp(r'received\s+(?:Ksh|KES)[\d,\.]+\s+from\s+([A-Za-z][^0-9\n\.]{2,30}?)(?:\s+\d|\s+on|\.|$)', caseSensitive: false),
+      RegExp(r'from\s+([A-Z][A-Z\s]{2,30}?)(?:\s+\d{10}|\s+on|\.|$)', caseSensitive: false),
+    ];
+    for (final p in patterns) {
+      final m = p.firstMatch(body);
+      final name = m?.group(1)?.trim();
+      if (name != null && name.length > 2) return _titleCase(name);
+    }
+    return 'M-Pesa Received';
   }
 
-  static String _categorizeExpense(String body) {
-    final b = body.toLowerCase();
-    if (b.contains('supermarket') || b.contains('naivas') || b.contains('quickmart') ||
-        b.contains('carrefour') || b.contains('tuskys') || b.contains('game ')) return 'Groceries';
-    if (b.contains('kplc') || b.contains('kenya power') || b.contains('electricity') || b.contains('888880')) return 'Electricity';
-    if (b.contains('water') || b.contains('nairobi water') || b.contains('nawasco')) return 'Water';
-    if (b.contains('rent') || b.contains('housing')) return 'Rent';
-    if (b.contains('safaricom') || b.contains('airtel') || b.contains('telkom')) return 'Airtime/Data';
-    if (b.contains('school') || b.contains('college') || b.contains('university') || b.contains('fees') || b.contains('tuition')) return 'Education';
-    if (b.contains('hospital') || b.contains('pharmacy') || b.contains('clinic') || b.contains('nhif') || b.contains('health')) return 'Health';
-    if (b.contains('fuel') || b.contains('petrol') || b.contains('uber') || b.contains('bolt') || b.contains('matatu') || b.contains('parking')) return 'Transport';
-    if (b.contains('restaurant') || b.contains('hotel') || b.contains('cafe') || b.contains('food') || b.contains('kfc') || b.contains('java')) return 'Food & Dining';
-    if (b.contains('dstv') || b.contains('gotv') || b.contains('showmax') || b.contains('netflix') || b.contains('spotify')) return 'Entertainment';
-    if (b.contains('insurance') || b.contains('britam') || b.contains('jubilee') || b.contains('aar')) return 'Insurance';
-    if (b.contains('nssf') || b.contains('nhif')) return 'Tax/Deductions';
-    return 'Payments';
+  /// Extracts recipient name from a "sent to X" message
+  static String _extractRecipient(String body) {
+    final patterns = [
+      RegExp(r'sent to\s+([A-Za-z][^0-9\n\.]{2,30}?)(?:\s+\d{10}|\s+on|\.|$)', caseSensitive: false),
+      RegExp(r'paid to\s+([A-Za-z][^0-9\n\.]{2,30}?)(?:\s+\d{10}|\s+on|\.|$)', caseSensitive: false),
+    ];
+    for (final p in patterns) {
+      final m = p.firstMatch(body);
+      final name = m?.group(1)?.trim();
+      if (name != null && name.length > 2) return _titleCase(name);
+    }
+    return 'M-Pesa Sent';
   }
+
+  /// Extracts paybill business name
+  static String _extractPaybillName(String body) {
+    final patterns = [
+      RegExp(r'Pay Bill to\s+([A-Za-z][^\n\.]{2,40}?)(?:\s+Account|\.|$)', caseSensitive: false),
+      RegExp(r'paid to\s+([A-Za-z][^\n\.]{2,40}?)(?:\s+Account|\.|$)', caseSensitive: false),
+      RegExp(r'paybill\s+(?:number\s+)?(\d{5,7})', caseSensitive: false),
+    ];
+    for (final p in patterns) {
+      final m = p.firstMatch(body);
+      final name = m?.group(1)?.trim();
+      if (name != null && name.length > 2) return _titleCase(name);
+    }
+    return 'Paybill Payment';
+  }
+
+  /// Extracts till/merchant name from Buy Goods message
+  static String _extractMerchantName(String body) {
+    final patterns = [
+      RegExp(r'Buy Goods to\s+([A-Za-z][^\n\.]{2,40}?)(?:\s+for|\.|$)', caseSensitive: false),
+      RegExp(r'paid to\s+([A-Za-z][^\n\.]{2,40}?)(?:\s+for|\.|$)', caseSensitive: false),
+      RegExp(r'Buy Goods and Services\s+([A-Za-z][^\n\.]{2,40}?)(?:\.|$)', caseSensitive: false),
+    ];
+    for (final p in patterns) {
+      final m = p.firstMatch(body);
+      final name = m?.group(1)?.trim();
+      if (name != null && name.length > 2) return _titleCase(name);
+    }
+    return 'Buy Goods';
+  }
+
+  /// Extracts agent name from withdrawal message
+  static String _extractAgentName(String body) {
+    final m = RegExp(r'(?:from|at)\s+Agent\s+([A-Za-z0-9][^\n\.]{2,30}?)(?:\.|$)', caseSensitive: false).firstMatch(body);
+    final name = m?.group(1)?.trim();
+    if (name != null && name.length > 2) return 'Withdrawal – $name';
+    return 'M-Pesa Withdrawal';
+  }
+
+  // ── Category helpers ───────────────────────────────────────────────
 
   static String _categorizePaybill(String body) {
     final b = body.toLowerCase();
-    if (b.contains('kplc') || b.contains('888880') || b.contains('electricity')) return 'Electricity';
-    if (b.contains('dstv') || b.contains('gotv') || b.contains('showmax') || b.contains('netflix')) return 'Entertainment';
-    if (b.contains('water')) return 'Water';
-    if (b.contains('safaricom') || b.contains('airtel')) return 'Airtime/Data';
-    if (b.contains('school') || b.contains('fees')) return 'Education';
-    if (b.contains('insurance')) return 'Insurance';
-    if (b.contains('rent') || b.contains('house')) return 'Rent';
+    if (b.contains('kplc') || b.contains('888880') || b.contains('electricity') || b.contains('kenya power')) return 'Electricity';
+    if (b.contains('dstv') || b.contains('gotv') || b.contains('showmax') || b.contains('netflix') || b.contains('zuku')) return 'Entertainment';
+    if (b.contains('water') || b.contains('nairobi water') || b.contains('nawasco') || b.contains('nwsc')) return 'Water';
+    if (b.contains('safaricom') || b.contains('airtel') || b.contains('telkom')) return 'Airtime/Data';
+    if (b.contains('school') || b.contains('college') || b.contains('university') || b.contains('fees') || b.contains('tuition')) return 'Education';
+    if (b.contains('insurance') || b.contains('britam') || b.contains('jubilee') || b.contains('aar') || b.contains('nhif')) return 'Insurance';
+    if (b.contains('rent') || b.contains('landlord') || b.contains('housing')) return 'Rent';
+    if (b.contains('hospital') || b.contains('clinic') || b.contains('pharmacy') || b.contains('health')) return 'Health';
+    if (b.contains('nssf')) return 'Tax/Deductions';
     return 'Bills';
   }
 
-  static String _extractDescription(String body, bool isMpesa, String source) {
-    if (isMpesa) {
-      final patterns = [
-        RegExp(r'sent to ([^0-9\.]+?)(?:\.|on|\d)', caseSensitive: false),
-        RegExp(r'paid to ([^0-9\.]+?)(?:\.|on|\d)', caseSensitive: false),
-        RegExp(r'from ([A-Z][^0-9\.]+?)(?:\.|on|\d)', caseSensitive: false),
-        RegExp(r'received from ([^0-9\.]+?)(?:\.|on|\d)', caseSensitive: false),
-        RegExp(r'Buy Goods ([^0-9\.]+?)(?:\.|on|\d)', caseSensitive: false),
-        RegExp(r'Pay Bill ([^0-9\.]+?)(?:\.|on|\d)', caseSensitive: false),
-      ];
-      for (final p in patterns) {
-        final m = p.firstMatch(body);
-        if (m != null) {
-          final desc = m.group(1)?.trim();
-          if (desc != null && desc.length > 2) return desc;
-        }
-      }
+  static String _categorizeMerchant(String body) {
+    final b = body.toLowerCase();
+    if (b.contains('naivas') || b.contains('quickmart') || b.contains('carrefour') ||
+        b.contains('tuskys') || b.contains('supermarket') || b.contains('game ')) {
+      return 'Groceries';
     }
-    return '$source Transaction';
+    if (b.contains('kfc') || b.contains('java') || b.contains('restaurant') ||
+        b.contains('cafe') || b.contains('food') || b.contains('hotel')) {
+      return 'Food & Dining';
+    }
+    if (b.contains('petrol') || b.contains('fuel') || b.contains('total') ||
+        b.contains('shell') || b.contains('kenol') || b.contains('rubis')) {
+      return 'Transport';
+    }
+    if (b.contains('pharmacy') || b.contains('hospital') || b.contains('clinic')) {
+      return 'Health';
+    }
+    if (b.contains('school') || b.contains('college') || b.contains('university')) {
+      return 'Education';
+    }
+    return 'Shopping';
+  }
+
+  // ── String helper ──────────────────────────────────────────────────
+  static String _titleCase(String s) {
+    return s.trim().split(' ').map((w) {
+      if (w.isEmpty) return w;
+      return w[0].toUpperCase() + w.substring(1).toLowerCase();
+    }).join(' ');
   }
 
   // ── Manual transaction CRUD ────────────────────────────────────────
-
   static List<FinanceTransaction> _loadManual(SharedPreferences prefs) {
     final raw = prefs.getString(_manualKey);
     if (raw == null) return [];
@@ -305,7 +473,6 @@ class SmsFinanceService {
   }
 
   // ── Summary helpers ────────────────────────────────────────────────
-
   static Map<String, List<FinanceTransaction>> groupByMonth(List<FinanceTransaction> txs) {
     final map = <String, List<FinanceTransaction>>{};
     for (final t in txs) {
@@ -326,12 +493,13 @@ class SmsFinanceService {
     for (final t in txs.where((t) => !t.isIncome)) {
       map[t.category] = (map[t.category] ?? 0) + t.amount;
     }
-    return Map.fromEntries(map.entries.toList()..sort((a, b) => b.value.compareTo(a.value)));
+    return Map.fromEntries(
+        map.entries.toList()..sort((a, b) => b.value.compareTo(a.value)));
   }
 
-  // Build a text summary for Nia AI context
+  /// Build a text summary for Nia AI context — M-Pesa only
   static String buildNiaContext(List<FinanceTransaction> txs) {
-    if (txs.isEmpty) return 'No financial data available.';
+    if (txs.isEmpty) return 'No M-Pesa transaction data available.';
 
     final income = totalIncome(txs);
     final expenses = totalExpenses(txs);
@@ -340,12 +508,12 @@ class SmsFinanceService {
     final categories = expensesByCategory(txs);
 
     final sb = StringBuffer();
-    sb.writeln('USER FINANCIAL SUMMARY (last 6 months):');
+    sb.writeln('USER M-PESA FINANCIAL SUMMARY (last 6 months):');
     sb.writeln('Total Income: KES ${income.toStringAsFixed(2)}');
     sb.writeln('Total Expenses: KES ${expenses.toStringAsFixed(2)}');
     sb.writeln('Net Savings: KES ${savings.toStringAsFixed(2)}');
     sb.writeln('Savings Rate: ${savingsRate.toStringAsFixed(1)}%');
-    sb.writeln('Total Transactions: ${txs.length}');
+    sb.writeln('Total M-Pesa Transactions: ${txs.length}');
     sb.writeln('');
     sb.writeln('TOP EXPENSE CATEGORIES:');
     int i = 0;
@@ -354,7 +522,6 @@ class SmsFinanceService {
       sb.writeln('  ${e.key}: KES ${e.value.toStringAsFixed(2)}');
     }
 
-    // Monthly breakdown
     final byMonth = groupByMonth(txs);
     sb.writeln('');
     sb.writeln('MONTHLY BREAKDOWN:');
@@ -363,7 +530,8 @@ class SmsFinanceService {
       final mTxs = byMonth[m]!;
       final mInc = totalIncome(mTxs);
       final mExp = totalExpenses(mTxs);
-      sb.writeln('  $m → Income: KES ${mInc.toStringAsFixed(0)}, Expenses: KES ${mExp.toStringAsFixed(0)}, Saved: KES ${(mInc - mExp).toStringAsFixed(0)}');
+      sb.writeln(
+          '  $m → Income: KES ${mInc.toStringAsFixed(0)}, Expenses: KES ${mExp.toStringAsFixed(0)}, Saved: KES ${(mInc - mExp).toStringAsFixed(0)}');
     }
 
     return sb.toString();

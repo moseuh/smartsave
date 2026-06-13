@@ -4,9 +4,11 @@ import 'package:http/http.dart' as http;
 import 'package:intl/intl.dart';
 import '../constants/app_theme.dart';
 import '../config/api_config.dart';
+import '../services/onesignal_service.dart';
 import 'buygoodselect.dart';
 import 'transactiohistory.dart';
 import 'ask_nia_screen.dart';
+import 'notifications_screen.dart';
 
 class HomeTab extends StatefulWidget {
   final String userId;
@@ -33,6 +35,8 @@ class _HomeTabState extends State<HomeTab> with SingleTickerProviderStateMixin {
     _fadeCtrl = AnimationController(vsync: this, duration: const Duration(milliseconds: 600));
     _fade = CurvedAnimation(parent: _fadeCtrl, curve: Curves.easeOut);
     _load();
+    // Register this device with OneSignal linked to the user
+    OneSignalService.registerUser(widget.userId);
   }
 
   @override
@@ -82,14 +86,33 @@ class _HomeTabState extends State<HomeTab> with SingleTickerProviderStateMixin {
 
   Future<void> _fetchRecent() async {
     try {
-      final r = await http.get(Uri.parse(ApiConfig.transactionsById(widget.userId)));
+      final r = await http.get(Uri.parse(ApiConfig.transactionsById(widget.userId.toString())));
       if (r.statusCode == 200) {
         final d = jsonDecode(r.body);
         if (d['status'] == 'success') {
-          setState(() => _recent = List<Map<String, dynamic>>.from(d['data'] ?? []).take(5).toList());
+          final raw = List<Map<String, dynamic>>.from(d['data'] ?? []);
+          setState(() => _recent = raw.take(5).toList());
         }
       }
     } catch (_) {}
+  }
+
+  void _showWithdraw() {
+    final rawPhone = (_user?['phone_number'] ?? _user?['phone'] ?? '').toString();
+    final phoneCtrl = TextEditingController(text: rawPhone);
+    final amtCtrl = TextEditingController();
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => _WithdrawSheet(
+        userId: widget.userId,
+        phoneCtrl: phoneCtrl,
+        amtCtrl: amtCtrl,
+        onSuccess: () => _load(),
+      ),
+    );
   }
 
   String get _firstName {
@@ -122,17 +145,11 @@ class _HomeTabState extends State<HomeTab> with SingleTickerProviderStateMixin {
             // ── Header ──────────────────────────────────────────────────
             SliverToBoxAdapter(
               child: Container(
-                decoration: const BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: [Color(0xFF0F4023), Color(0xFF1B6631), Color(0xFF2D8A47)],
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                  ),
-                ),
+                color: AppTheme.backgroundLight,
                 child: SafeArea(
                   bottom: false,
                   child: Padding(
-                    padding: EdgeInsets.fromLTRB(20, top > 0 ? 8 : 16, 20, 32),
+                    padding: EdgeInsets.fromLTRB(20, top > 0 ? 8 : 16, 20, 24),
                     child: Column(
                       children: [
                         // Top row
@@ -144,15 +161,14 @@ class _HomeTabState extends State<HomeTab> with SingleTickerProviderStateMixin {
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  Text('Good ${_greeting()},', style: const TextStyle(color: Colors.white60, fontSize: 13)),
-                                  Text(_firstName, style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold, letterSpacing: 0.3)),
+                                  Text('Good ${_greeting()},', style: const TextStyle(color: Color(0xFF6B7280), fontSize: 13)),
+                                  Text(_firstName, style: const TextStyle(color: Color(0xFF111827), fontSize: 20, fontWeight: FontWeight.bold, letterSpacing: 0.3)),
                                 ],
                               ),
                             ),
                             _IconBtn(
                               icon: Icons.notifications_none_rounded,
-                              onTap: () {},
-                              badge: true,
+                              onTap: () => Navigator.push(context, _slide(NotificationsScreen(userId: widget.userId))),
                             ),
                             const SizedBox(width: 8),
                             _IconBtn(
@@ -161,7 +177,7 @@ class _HomeTabState extends State<HomeTab> with SingleTickerProviderStateMixin {
                             ),
                           ],
                         ),
-                        const SizedBox(height: 28),
+                        const SizedBox(height: 20),
 
                         // Balance card
                         _loading
@@ -176,7 +192,7 @@ class _HomeTabState extends State<HomeTab> with SingleTickerProviderStateMixin {
                                   fmt: fmt,
                                 ),
                               ),
-                        const SizedBox(height: 24),
+                        const SizedBox(height: 20),
 
                         // Quick actions
                         Row(
@@ -184,7 +200,7 @@ class _HomeTabState extends State<HomeTab> with SingleTickerProviderStateMixin {
                           children: [
                             _QuickAction(icon: Icons.add_rounded, label: 'Add Money', onTap: () => _showDeposit()),
                             _QuickAction(icon: Icons.send_rounded, label: 'Pay', onTap: () => Navigator.push(context, _slide(BuyGoodsSelect(userId: widget.userId)))),
-                            _QuickAction(icon: Icons.swap_horiz_rounded, label: 'Transfer', onTap: () {}),
+                            _QuickAction(icon: Icons.arrow_upward_rounded, label: 'Withdraw', onTap: () => _showWithdraw()),
                             _QuickAction(icon: Icons.receipt_long_rounded, label: 'History', onTap: () => Navigator.push(context, _slide(TransactionHistory(userId: widget.userId)))),
                           ],
                         ),
@@ -246,50 +262,20 @@ class _HomeTabState extends State<HomeTab> with SingleTickerProviderStateMixin {
   }
 
   void _showDeposit() {
-    final phoneCtrl = TextEditingController();
+    // Pre-fill phone — try multiple field names the API might return
+    final rawPhone = (_user?['phone_number'] ?? _user?['phone'] ?? '').toString();
+    final phoneCtrl = TextEditingController(text: rawPhone);
     final amtCtrl = TextEditingController();
+
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (_) => _Sheet(
-        title: 'Add Money via M-Pesa',
-        children: [
-          _input(amtCtrl, 'Amount (KES)', isNumber: true),
-          const SizedBox(height: 12),
-          _input(phoneCtrl, 'M-Pesa Phone Number', isNumber: true),
-          const SizedBox(height: 24),
-          _GreenBtn(
-            label: 'Send STK Push',
-            onTap: () async {
-              Navigator.pop(context);
-              final amt = double.tryParse(amtCtrl.text);
-              if (amt != null && phoneCtrl.text.isNotEmpty) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('STK Push sent — check your phone'), backgroundColor: AppColors.financeGreenV3),
-                );
-              }
-            },
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _input(TextEditingController c, String hint, {bool isNumber = false}) {
-    return TextField(
-      controller: c,
-      keyboardType: isNumber ? TextInputType.number : TextInputType.text,
-      style: const TextStyle(fontSize: 15, color: Color(0xFF111827)),
-      decoration: InputDecoration(
-        hintText: hint,
-        hintStyle: const TextStyle(color: Color(0xFF9CA3AF)),
-        filled: true,
-        fillColor: const Color(0xFFF9FAFB),
-        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Color(0xFFE5E7EB))),
-        enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Color(0xFFE5E7EB))),
-        focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: AppColors.financeGreen, width: 1.5)),
-        contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+      builder: (ctx) => _DepositSheet(
+        userId: widget.userId,
+        phoneCtrl: phoneCtrl,
+        amtCtrl: amtCtrl,
+        onSuccess: () => _load(), // refresh balance after deposit
       ),
     );
   }
@@ -317,7 +303,7 @@ class _Avatar extends StatelessWidget {
       width: 44, height: 44,
       decoration: BoxDecoration(
         shape: BoxShape.circle,
-        border: Border.all(color: Colors.white.withValues(alpha: 0.4), width: 2),
+        border: Border.all(color: AppColors.financeGreen.withValues(alpha: 0.3), width: 2),
       ),
       child: ClipOval(
         child: url.isNotEmpty
@@ -341,33 +327,19 @@ class _Avatar extends StatelessWidget {
 class _IconBtn extends StatelessWidget {
   final IconData icon;
   final VoidCallback onTap;
-  final bool badge;
-  const _IconBtn({required this.icon, required this.onTap, this.badge = false});
+  const _IconBtn({required this.icon, required this.onTap});
 
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
       onTap: onTap,
-      child: Stack(
-        clipBehavior: Clip.none,
-        children: [
-          Container(
-            width: 40, height: 40,
-            decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.15),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Icon(icon, color: Colors.white, size: 22),
-          ),
-          if (badge)
-            Positioned(
-              top: -2, right: -2,
-              child: Container(
-                width: 10, height: 10,
-                decoration: const BoxDecoration(color: Color(0xFFFF4444), shape: BoxShape.circle),
-              ),
-            ),
-        ],
+      child: Container(
+        width: 40, height: 40,
+        decoration: BoxDecoration(
+          color: AppColors.financeGreen.withValues(alpha: 0.1),
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Icon(icon, color: AppColors.financeGreen, size: 22),
       ),
     );
   }
@@ -385,19 +357,19 @@ class _BalanceCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.12),
+        color: Colors.white,
         borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
+        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.06), blurRadius: 12, offset: const Offset(0, 4))],
       ),
       child: Column(
         children: [
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              const Text('Wallet Balance', style: TextStyle(color: Colors.white70, fontSize: 13, fontWeight: FontWeight.w500)),
+              const Text('Wallet Balance', style: TextStyle(color: Color(0xFF6B7280), fontSize: 13, fontWeight: FontWeight.w500)),
               GestureDetector(
                 onTap: onToggle,
-                child: Icon(hidden ? Icons.visibility_off_outlined : Icons.visibility_outlined, color: Colors.white60, size: 18),
+                child: Icon(hidden ? Icons.visibility_off_outlined : Icons.visibility_outlined, color: AppColors.financeGreen, size: 18),
               ),
             ],
           ),
@@ -407,12 +379,12 @@ class _BalanceCard extends StatelessWidget {
             children: [
               Text(
                 hidden ? '••••••' : 'KES ${fmt.format(balance)}',
-                style: const TextStyle(color: Colors.white, fontSize: 32, fontWeight: FontWeight.w800, letterSpacing: -0.5),
+                style: const TextStyle(color: Color(0xFF111827), fontSize: 32, fontWeight: FontWeight.w800, letterSpacing: -0.5),
               ),
             ],
           ),
           const SizedBox(height: 16),
-          Container(height: 1, color: Colors.white.withValues(alpha: 0.15)),
+          Container(height: 1, color: const Color(0xFFF3F4F6)),
           const SizedBox(height: 12),
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -437,13 +409,13 @@ class _BalanceStat extends StatelessWidget {
   Widget build(BuildContext context) {
     return Row(
       children: [
-        Icon(icon, color: Colors.white60, size: 14),
+        Icon(icon, color: AppColors.financeGreen, size: 14),
         const SizedBox(width: 6),
         Column(
           crossAxisAlignment: right ? CrossAxisAlignment.end : CrossAxisAlignment.start,
           children: [
-            Text(label, style: const TextStyle(color: Colors.white54, fontSize: 10)),
-            Text(value, style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold)),
+            Text(label, style: const TextStyle(color: Color(0xFF9CA3AF), fontSize: 10)),
+            Text(value, style: const TextStyle(color: Color(0xFF111827), fontSize: 12, fontWeight: FontWeight.bold)),
           ],
         ),
       ],
@@ -466,14 +438,13 @@ class _QuickAction extends StatelessWidget {
           Container(
             width: 52, height: 52,
             decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.18),
+              color: AppColors.financeGreen,
               borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: Colors.white.withValues(alpha: 0.25)),
             ),
             child: Icon(icon, color: Colors.white, size: 24),
           ),
           const SizedBox(height: 6),
-          Text(label, style: const TextStyle(color: Colors.white70, fontSize: 11, fontWeight: FontWeight.w500)),
+          Text(label, style: const TextStyle(color: Color(0xFF374151), fontSize: 11, fontWeight: FontWeight.w500)),
         ],
       ),
     );
@@ -528,51 +499,96 @@ class _TxTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isIn = (tx['type']?.toString() ?? '').contains('deposit') || (tx['amount'] ?? 0) > 0;
-    final amount = double.tryParse(tx['amount']?.toString() ?? '0') ?? 0;
-    final date = tx['created_at'] ?? tx['date'] ?? '';
+    final type = (tx['type']?.toString() ?? '').toLowerCase();
+    final isIn = type.contains('deposit');
+    // backend returns total_amount; fallback to amount for safety
+    final amount = double.tryParse(
+            (tx['total_amount'] ?? tx['amount'] ?? 0).toString()) ??
+        0;
+    final title = tx['business_name']?.toString().isNotEmpty == true
+        ? tx['business_name'].toString()
+        : type.contains('deposit')
+            ? 'Deposit'
+            : type.contains('pay_bill')
+                ? 'Pay Bill'
+                : type.contains('buy_goods')
+                    ? 'Buy Goods'
+                    : 'Transaction';
+    final date = tx['created_at'] ?? '';
     String dateStr = '';
-    try { dateStr = DateFormat('d MMM').format(DateTime.parse(date)); } catch (_) {}
+    try {
+      final dt = DateTime.parse(date).toLocal();
+      final now = DateTime.now();
+      if (dt.day == now.day && dt.month == now.month && dt.year == now.year) {
+        dateStr = 'Today ${dt.hour.toString().padLeft(2,'0')}:${dt.minute.toString().padLeft(2,'0')}';
+      } else {
+        dateStr = DateFormat('d MMM, HH:mm').format(dt);
+      }
+    } catch (_) {}
 
-    return Container(
+    final iconData = isIn
+        ? Icons.arrow_downward_rounded
+        : type.contains('pay_bill')
+            ? Icons.account_balance_rounded
+            : type.contains('buy_goods')
+                ? Icons.shopping_bag_rounded
+                : Icons.arrow_upward_rounded;
+    final color = isIn ? const Color(0xFF059669) : const Color(0xFFDC2626);
+
+    return GestureDetector(
+      onTap: () => showTransactionDetail(context, tx, fmt),
+      child: Container(
       margin: const EdgeInsets.only(bottom: 8),
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(16),
         boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.04), blurRadius: 8, offset: const Offset(0, 2))],
       ),
       child: Row(
         children: [
           Container(
-            width: 42, height: 42,
+            width: 44, height: 44,
             decoration: BoxDecoration(
-              color: (isIn ? const Color(0xFF059669) : const Color(0xFFDC2626)).withValues(alpha: 0.1),
-              borderRadius: BorderRadius.circular(12),
+              color: color.withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(14),
             ),
-            child: Icon(isIn ? Icons.arrow_downward_rounded : Icons.arrow_upward_rounded,
-                color: isIn ? const Color(0xFF059669) : const Color(0xFFDC2626), size: 20),
+            child: Icon(iconData, color: color, size: 20),
           ),
           const SizedBox(width: 12),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(tx['description'] ?? tx['type'] ?? 'Transaction',
-                    style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13, color: Color(0xFF111827)),
+                Text(title,
+                    style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14, color: Color(0xFF111827)),
                     maxLines: 1, overflow: TextOverflow.ellipsis),
                 if (dateStr.isNotEmpty)
                   Text(dateStr, style: const TextStyle(fontSize: 11, color: Color(0xFF9CA3AF))),
               ],
             ),
           ),
-          Text(
-            '${isIn ? '+' : '-'} KES ${fmt.format(amount.abs())}',
-            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13,
-                color: isIn ? const Color(0xFF059669) : const Color(0xFFDC2626)),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              Text(
+                '${isIn ? '+' : '-'}KES ${fmt.format(amount.abs())}',
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: color),
+              ),
+              Container(
+                margin: const EdgeInsets.only(top: 3),
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF059669).withValues(alpha: 0.08),
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: const Text('Completed', style: TextStyle(fontSize: 9, color: Color(0xFF059669), fontWeight: FontWeight.w600)),
+              ),
+            ],
           ),
         ],
       ),
+    ),
     );
   }
 }
@@ -613,16 +629,143 @@ class _EmptyState extends StatelessWidget {
   }
 }
 
-class _Sheet extends StatelessWidget {
-  final String title;
-  final List<Widget> children;
-  const _Sheet({required this.title, required this.children});
+// ── Deposit Sheet ─────────────────────────────────────────────────────────────
+
+class _DepositSheet extends StatefulWidget {
+  final String userId;
+  final TextEditingController phoneCtrl;
+  final TextEditingController amtCtrl;
+  final VoidCallback onSuccess;
+  const _DepositSheet({
+    required this.userId,
+    required this.phoneCtrl,
+    required this.amtCtrl,
+    required this.onSuccess,
+  });
+
+  @override
+  State<_DepositSheet> createState() => _DepositSheetState();
+}
+
+class _DepositSheetState extends State<_DepositSheet> {
+  bool _loading = false;
+  String? _error;
+  // After STK sent — poll for status
+  String? _checkoutRef;
+  bool _polling = false;
+  bool _paid = false;
+  int _pollCount = 0; // incremented each poll cycle
+  static const int _maxPolls = 22; // ~90 seconds (22 × 4s)
+
+  @override
+  void dispose() {
+    _polling = false;
+    super.dispose();
+  }
+
+  Future<void> _sendSTK() async {
+    final amt = double.tryParse(widget.amtCtrl.text.replaceAll(',', ''));
+    if (amt == null || amt < 1) {
+      setState(() => _error = 'Enter a valid amount (min KES 1)');
+      return;
+    }
+    setState(() { _loading = true; _error = null; });
+
+    try {
+      final res = await http.post(
+        Uri.parse(ApiConfig.getUrl('deposit')),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({
+          'user_id': widget.userId,
+          'amount': amt,
+          'phone': widget.phoneCtrl.text.trim(),
+        }),
+      ).timeout(const Duration(seconds: 20));
+
+      final data = jsonDecode(res.body);
+
+      if (res.statusCode == 200 && data['status'] == 'success') {
+        setState(() {
+          _loading = false;
+          _checkoutRef = data['checkout_id']?.toString() ?? '';
+        });
+        // Start polling for completion
+        _startPolling();
+      } else {
+        setState(() {
+          _loading = false;
+          _error = data['message'] ?? 'Failed to send STK Push';
+        });
+      }
+    } catch (e) {
+      setState(() {
+        _loading = false;
+        _error = 'Network error — check your connection';
+      });
+    }
+  }
+
+  void _startPolling() {
+    _polling = true;
+    _pollCount = 0;
+    Future.doWhile(() async {
+      if (!_polling || !mounted) return false;
+      await Future.delayed(const Duration(seconds: 4));
+      if (!_polling || !mounted) return false;
+
+      _pollCount++;
+
+      // Timeout after ~90 seconds — tell user to check manually
+      if (_pollCount >= _maxPolls) {
+        if (mounted) {
+          setState(() {
+            _polling = false;
+            _checkoutRef = null;
+            _error = 'Timed out waiting for confirmation. If debited, your balance will update shortly.';
+          });
+        }
+        return false;
+      }
+
+      try {
+        final ref = _checkoutRef ?? '';
+        if (ref.isEmpty) return false;
+        final res = await http.get(
+          Uri.parse(ApiConfig.transactionStatus(ref)),
+          headers: {'Content-Type': 'application/json'},
+        ).timeout(const Duration(seconds: 10));
+
+        final data = jsonDecode(res.body);
+        final status = (data['payment_status'] ?? data['status'] ?? '').toString().toUpperCase();
+
+        if (status == 'SUCCESS' || status == 'COMPLETE' || status == 'COMPLETED') {
+          if (mounted) {
+            setState(() { _paid = true; _polling = false; });
+            widget.onSuccess();
+          }
+          return false;
+        } else if (status == 'FAILED' || status == 'CANCELLED' || status == 'EXPIRED') {
+          if (mounted) {
+            setState(() {
+              _polling = false;
+              _checkoutRef = null;
+              _error = 'Payment ${status.toLowerCase()} — please try again';
+            });
+          }
+          return false;
+        }
+      } catch (_) {}
+      return true; // keep polling
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
-    final bottom = MediaQuery.of(context).viewInsets.bottom;
+    final mq = MediaQuery.of(context);
+    final bottomPadding = mq.viewInsets.bottom + mq.padding.bottom + 24;
+
     return Container(
-      padding: EdgeInsets.fromLTRB(20, 20, 20, 20 + bottom),
+      padding: EdgeInsets.fromLTRB(20, 20, 20, bottomPadding),
       decoration: const BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
@@ -631,35 +774,334 @@ class _Sheet extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Center(child: Container(width: 40, height: 4, decoration: BoxDecoration(color: const Color(0xFFE5E7EB), borderRadius: BorderRadius.circular(2)))),
+          // Handle
+          Center(child: Container(width: 40, height: 4,
+              decoration: BoxDecoration(color: const Color(0xFFE5E7EB), borderRadius: BorderRadius.circular(2)))),
           const SizedBox(height: 16),
-          Text(title, style: const TextStyle(fontSize: 17, fontWeight: FontWeight.bold, color: Color(0xFF111827))),
-          const SizedBox(height: 20),
-          ...children,
+
+          // ── Success state ──
+          if (_paid) ...[
+            const SizedBox(height: 8),
+            Center(
+              child: Column(children: [
+                Container(
+                  width: 64, height: 64,
+                  decoration: BoxDecoration(color: AppColors.financeGreen.withValues(alpha: 0.1), shape: BoxShape.circle),
+                  child: const Icon(Icons.check_circle_rounded, color: AppColors.financeGreen, size: 40),
+                ),
+                const SizedBox(height: 16),
+                const Text('Deposit Successful!',
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF111827))),
+                const SizedBox(height: 6),
+                Text('KES ${widget.amtCtrl.text} added to your wallet',
+                    style: const TextStyle(fontSize: 14, color: Color(0xFF6B7280))),
+                const SizedBox(height: 24),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton(
+                    onPressed: () => Navigator.pop(context),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.financeGreen,
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                    ),
+                    child: const Text('Done', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 15)),
+                  ),
+                ),
+              ]),
+            ),
+            const SizedBox(height: 8),
+
+          // ── Waiting for payment (STK sent) ──
+          ] else if (_checkoutRef != null) ...[
+            const SizedBox(height: 8),
+            Center(
+              child: Column(children: [
+                Container(
+                  width: 64, height: 64,
+                  decoration: BoxDecoration(color: AppColors.financeGreenV3.withValues(alpha: 0.1), shape: BoxShape.circle),
+                  child: const CircularProgressIndicator(color: AppColors.financeGreen, strokeWidth: 3),
+                ),
+                const SizedBox(height: 16),
+                const Text('Check your phone',
+                    style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold, color: Color(0xFF111827))),
+                const SizedBox(height: 6),
+                const Text('Enter your M-Pesa PIN to complete the deposit.\nWaiting for confirmation...',
+                    style: TextStyle(fontSize: 13, color: Color(0xFF6B7280), height: 1.5),
+                    textAlign: TextAlign.center),
+                const SizedBox(height: 24),
+                TextButton(
+                  onPressed: () => setState(() { _checkoutRef = null; _polling = false; }),
+                  child: const Text('Cancel / Try again', style: TextStyle(color: Colors.red)),
+                ),
+              ]),
+            ),
+            const SizedBox(height: 8),
+
+          // ── Input state ──
+          ] else ...[
+            const Text('Add Money via M-Pesa',
+                style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold, color: Color(0xFF111827))),
+            const SizedBox(height: 20),
+
+            // Amount
+            _field(widget.amtCtrl, 'Amount (KES)', isNumber: true,
+                prefix: const Text('KES ', style: TextStyle(fontWeight: FontWeight.w600, color: Color(0xFF374151)))),
+            const SizedBox(height: 12),
+
+            // Phone
+            _field(widget.phoneCtrl, 'M-Pesa Phone Number', isNumber: true,
+                prefix: const Icon(Icons.phone_android_rounded, size: 18, color: AppColors.financeGreen)),
+            const SizedBox(height: 6),
+            const Text('Your registered M-Pesa number',
+                style: TextStyle(fontSize: 11, color: Color(0xFF9CA3AF))),
+
+            // Error
+            if (_error != null) ...[
+              const SizedBox(height: 10),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                decoration: BoxDecoration(
+                  color: Colors.red.withValues(alpha: 0.08),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Row(children: [
+                  const Icon(Icons.error_outline, color: Colors.red, size: 16),
+                  const SizedBox(width: 8),
+                  Expanded(child: Text(_error!, style: const TextStyle(fontSize: 12, color: Colors.red))),
+                ]),
+              ),
+            ],
+
+            const SizedBox(height: 24),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                onPressed: _loading ? null : _sendSTK,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.financeGreen,
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                  elevation: 0,
+                ),
+                child: _loading
+                    ? const SizedBox(height: 20, width: 20,
+                        child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                    : const Text('Send STK Push',
+                        style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 15)),
+              ),
+            ),
+          ],
         ],
+      ),
+    );
+  }
+
+  Widget _field(TextEditingController ctrl, String hint,
+      {bool isNumber = false, Widget? prefix}) {
+    return TextField(
+      controller: ctrl,
+      keyboardType: isNumber ? TextInputType.number : TextInputType.text,
+      style: const TextStyle(fontSize: 15, color: Color(0xFF111827)),
+      decoration: InputDecoration(
+        hintText: hint,
+        hintStyle: const TextStyle(color: Color(0xFF9CA3AF)),
+        prefixIcon: prefix != null ? Padding(padding: const EdgeInsets.symmetric(horizontal: 12), child: prefix) : null,
+        prefixIconConstraints: const BoxConstraints(minWidth: 0, minHeight: 0),
+        filled: true,
+        fillColor: const Color(0xFFF9FAFB),
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12),
+            borderSide: const BorderSide(color: Color(0xFFE5E7EB))),
+        enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12),
+            borderSide: const BorderSide(color: Color(0xFFE5E7EB))),
+        focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12),
+            borderSide: const BorderSide(color: AppColors.financeGreen, width: 1.5)),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
       ),
     );
   }
 }
 
-class _GreenBtn extends StatelessWidget {
-  final String label;
-  final VoidCallback onTap;
-  const _GreenBtn({required this.label, required this.onTap});
+// ── Withdraw Sheet ────────────────────────────────────────────────────────────
+
+class _WithdrawSheet extends StatefulWidget {
+  final String userId;
+  final TextEditingController phoneCtrl;
+  final TextEditingController amtCtrl;
+  final VoidCallback onSuccess;
+  const _WithdrawSheet({
+    required this.userId,
+    required this.phoneCtrl,
+    required this.amtCtrl,
+    required this.onSuccess,
+  });
+
+  @override
+  State<_WithdrawSheet> createState() => _WithdrawSheetState();
+}
+
+class _WithdrawSheetState extends State<_WithdrawSheet> {
+  bool _loading = false;
+  String? _error;
+  bool _done = false;
+
+  Future<void> _withdraw() async {
+    final amt = double.tryParse(widget.amtCtrl.text.replaceAll(',', ''));
+    if (amt == null || amt < 10) {
+      setState(() => _error = 'Enter a valid amount (min KES 10)');
+      return;
+    }
+    setState(() { _loading = true; _error = null; });
+    try {
+      String phone = widget.phoneCtrl.text.trim();
+      if (phone.startsWith('0')) phone = '254${phone.substring(1)}';
+      if (phone.startsWith('+')) phone = phone.substring(1);
+
+      final res = await http.post(
+        Uri.parse(ApiConfig.getUrl('withdraw')),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({
+          'user_id': widget.userId,
+          'amount': amt.toInt(),
+          'phone': phone,
+        }),
+      ).timeout(const Duration(seconds: 20));
+
+      final data = jsonDecode(res.body);
+      if (res.statusCode == 200 && data['status'] == 'success') {
+        setState(() { _loading = false; _done = true; });
+        widget.onSuccess();
+      } else {
+        setState(() { _loading = false; _error = data['message'] ?? 'Withdrawal failed'; });
+      }
+    } catch (e) {
+      setState(() { _loading = false; _error = 'Network error — check your connection'; });
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
-    return SizedBox(
-      width: double.infinity,
-      child: ElevatedButton(
-        onPressed: onTap,
-        style: ElevatedButton.styleFrom(
-          backgroundColor: AppColors.financeGreen,
-          padding: const EdgeInsets.symmetric(vertical: 16),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-          elevation: 0,
-        ),
-        child: Text(label, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 15)),
+    final mq = MediaQuery.of(context);
+    final bottomPadding = mq.viewInsets.bottom + mq.padding.bottom + 24;
+
+    return Container(
+      padding: EdgeInsets.fromLTRB(20, 20, 20, bottomPadding),
+      decoration: const BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Center(child: Container(width: 40, height: 4,
+              decoration: BoxDecoration(color: const Color(0xFFE5E7EB), borderRadius: BorderRadius.circular(2)))),
+          const SizedBox(height: 16),
+
+          if (_done) ...[
+            Center(
+              child: Column(children: [
+                Container(
+                  width: 64, height: 64,
+                  decoration: BoxDecoration(color: AppColors.financeGreen.withValues(alpha: 0.1), shape: BoxShape.circle),
+                  child: const Icon(Icons.check_circle_rounded, color: AppColors.financeGreen, size: 40),
+                ),
+                const SizedBox(height: 16),
+                const Text('Withdrawal Sent!',
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF111827))),
+                const SizedBox(height: 6),
+                const Text('M-Pesa will confirm shortly.',
+                    style: TextStyle(fontSize: 14, color: Color(0xFF6B7280))),
+                const SizedBox(height: 24),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton(
+                    onPressed: () => Navigator.pop(context),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.financeGreen,
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                    ),
+                    child: const Text('Done', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                  ),
+                ),
+              ]),
+            ),
+          ] else ...[
+            Row(children: [
+              Container(
+                width: 40, height: 40,
+                decoration: BoxDecoration(color: const Color(0xFFDC2626).withValues(alpha: 0.1), borderRadius: BorderRadius.circular(12)),
+                child: const Icon(Icons.arrow_upward_rounded, color: Color(0xFFDC2626), size: 22),
+              ),
+              const SizedBox(width: 12),
+              const Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('Withdraw to M-Pesa', style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold, color: Color(0xFF111827))),
+                  Text('Funds sent directly to your phone', style: TextStyle(fontSize: 12, color: Color(0xFF6B7280))),
+                ],
+              ),
+            ]),
+            const SizedBox(height: 20),
+
+            _wField(widget.amtCtrl, 'Amount (KES)', isNumber: true,
+                prefix: const Text('KES ', style: TextStyle(fontWeight: FontWeight.w600, color: Color(0xFF374151)))),
+            const SizedBox(height: 12),
+            _wField(widget.phoneCtrl, 'M-Pesa Phone Number', isNumber: true,
+                prefix: const Icon(Icons.phone_android_rounded, size: 18, color: Color(0xFFDC2626))),
+
+            if (_error != null) ...[
+              const SizedBox(height: 10),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                decoration: BoxDecoration(color: Colors.red.withValues(alpha: 0.08), borderRadius: BorderRadius.circular(8)),
+                child: Row(children: [
+                  const Icon(Icons.error_outline, color: Colors.red, size: 16),
+                  const SizedBox(width: 8),
+                  Expanded(child: Text(_error!, style: const TextStyle(fontSize: 12, color: Colors.red))),
+                ]),
+              ),
+            ],
+
+            const SizedBox(height: 24),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                onPressed: _loading ? null : _withdraw,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFFDC2626),
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                  elevation: 0,
+                ),
+                child: _loading
+                    ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                    : const Text('Withdraw', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 15)),
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _wField(TextEditingController ctrl, String hint,
+      {bool isNumber = false, Widget? prefix}) {
+    return TextField(
+      controller: ctrl,
+      keyboardType: isNumber ? TextInputType.number : TextInputType.text,
+      style: const TextStyle(fontSize: 15, color: Color(0xFF111827)),
+      decoration: InputDecoration(
+        hintText: hint,
+        hintStyle: const TextStyle(color: Color(0xFF9CA3AF)),
+        prefixIcon: prefix != null ? Padding(padding: const EdgeInsets.symmetric(horizontal: 12), child: prefix) : null,
+        prefixIconConstraints: const BoxConstraints(minWidth: 0, minHeight: 0),
+        filled: true, fillColor: const Color(0xFFF9FAFB),
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Color(0xFFE5E7EB))),
+        enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Color(0xFFE5E7EB))),
+        focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Color(0xFFDC2626), width: 1.5)),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
       ),
     );
   }

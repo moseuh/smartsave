@@ -1,78 +1,15 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import '../constants/app_theme.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import '../constants/app_constants.dart';
-import 'package:pdf/widgets.dart' as pw;
-import 'package:path_provider/path_provider.dart';
-import 'package:open_file/open_file.dart';
-import 'dart:io';
 import 'dart:async';
-import '../widgets/graph.dart'; // SavingsDashboard
-import 'addtofavourites.dart';
-import 'homepage.dart';
 import 'favourites.dart';
-import 'profile.dart';
-import 'wallet_page.dart';
+import 'package:flutter_contacts/flutter_contacts.dart';
 
-class ProcessingDialog extends StatefulWidget {
-  final VoidCallback? onCancel;
-  const ProcessingDialog({super.key, this.onCancel});
-
-  @override
-  _ProcessingDialogState createState() => _ProcessingDialogState();
-}
-
-class _ProcessingDialogState extends State<ProcessingDialog> {
-  int remainingSeconds = 90;
-
-  @override
-  void initState() {
-    super.initState();
-    _startTimer();
-  }
-
-  void _startTimer() {
-    Timer.periodic(const Duration(seconds: 1), (timer) {
-      if (!mounted || remainingSeconds <= 0) {
-        timer.cancel();
-        return;
-      }
-      setState(() {
-        remainingSeconds--;
-      });
-    });
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return AlertDialog(
-      backgroundColor: AppTheme.textSecondary,
-      content: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          const CircularProgressIndicator(color: AppColors.financeGreenV3),
-          const SizedBox(height: 16),
-          Text(
-            'Waiting for PIN entry...\nPlease complete the M-PESA prompt.\nTime remaining: $remainingSeconds seconds',
-            style: const TextStyle(color: Colors.black, fontSize: 16),
-            textAlign: TextAlign.center,
-          ),
-          const SizedBox(height: 16),
-          if (widget.onCancel != null)
-            TextButton(
-              onPressed: widget.onCancel,
-              child: const Text(
-                'Cancel',
-                style: TextStyle(color: AppColors.financeGreenV3, fontSize: 16),
-              ),
-            ),
-        ],
-      ),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-    );
-  }
-}
+// ─────────────────────────────────────────────────────────────────
+//  BuyGoodsSelect — Payment Screen (Buy Goods · Pay Bill · Send Money)
+// ─────────────────────────────────────────────────────────────────
 
 class BuyGoodsSelect extends StatefulWidget {
   final String userId;
@@ -82,708 +19,89 @@ class BuyGoodsSelect extends StatefulWidget {
   State<BuyGoodsSelect> createState() => _BuyGoodsSelectState();
 }
 
-class _BuyGoodsSelectState extends State<BuyGoodsSelect> {
-  bool isBuyGoods = true;
-  bool showAddToFavourites = true;
-  final TextEditingController tillNumberController = TextEditingController();
-  final TextEditingController accountNumberController = TextEditingController();
-  final TextEditingController amountController = TextEditingController();
-  Map<String, dynamic>? lastPayment;
-  Map<String, dynamic>? roundupSettings;
+class _BuyGoodsSelectState extends State<BuyGoodsSelect>
+    with SingleTickerProviderStateMixin {
+  late TabController _tabCtrl;
+
+  // Shared state
   Map<String, dynamic>? userDetails;
-  double roundUpSavings = 0.0;
-  double paymentAmount = 0.0;
-  double totalAmount = 0.0;
-  bool isLoadingSettings = true;
-  bool isLoadingPayment = false;
-  bool isLoadingUserDetails = true;
+  Map<String, dynamic>? roundupSettings;
+  bool _loadingInit = true;
 
   @override
   void initState() {
     super.initState();
-    tillNumberController.text = '';
-    accountNumberController.text = '';
-    amountController.text = '';
-    fetchUserDetails();
-    fetchLastPayment();
-    fetchRoundupSettings();
-    amountController.addListener(() {
-      if (!isLoadingSettings) {
-        calculateRoundUp();
+    _tabCtrl = TabController(length: 3, vsync: this);
+    _init();
+  }
+
+  Future<void> _init() async {
+    await Future.wait([_fetchUser(), _fetchRoundup()]);
+    if (mounted) setState(() => _loadingInit = false);
+  }
+
+  Future<void> _fetchUser() async {
+    try {
+      final r = await http.get(
+        Uri.parse('${AppConstants.apiBaseUrl}/user-details/${widget.userId}'),
+      );
+      if (r.statusCode == 200) {
+        final d = jsonDecode(r.body);
+        if (d['status'] == 'success') userDetails = d['data'];
       }
-    });
+    } catch (_) {}
+  }
+
+  Future<void> _fetchRoundup() async {
+    try {
+      final r = await http.get(
+        Uri.parse('${AppConstants.apiBaseUrl}/roundup-settings/${widget.userId}'),
+      );
+      if (r.statusCode == 200) {
+        final d = jsonDecode(r.body);
+        d['is_enabled'] = (d['is_enabled'] == 1 || d['is_enabled'] == true);
+        d['pay_bill_round_up'] = (d['pay_bill_round_up'] == 1 || d['pay_bill_round_up'] == true);
+        d['buy_goods_round_up'] = (d['buy_goods_round_up'] == 1 || d['buy_goods_round_up'] == true);
+        roundupSettings = d;
+      }
+    } catch (_) {}
+  }
+
+  String get _userPhone {
+    if (userDetails == null) return '';
+    for (final k in ['phone_number', 'phone', 'msisdn', 'mobile']) {
+      final v = userDetails?[k]?.toString().trim() ?? '';
+      if (v.isNotEmpty) return v;
+    }
+    return '';
+  }
+
+  double _calcRoundUp(double amount, bool isBuyGoods) {
+    if (roundupSettings == null) return 0;
+    final enabled = roundupSettings!['is_enabled'] == true;
+    final applies = isBuyGoods
+        ? roundupSettings!['buy_goods_round_up'] == true
+        : roundupSettings!['pay_bill_round_up'] == true;
+    if (!enabled || !applies || amount <= 0) return 0;
+    final rv = double.tryParse(
+            roundupSettings!['rounding_value']?.toString().replaceAll(RegExp(r'[^0-9.]'), '') ?? '10') ??
+        10.0;
+    final maxRU = double.tryParse(roundupSettings!['max_round_up']?.toString() ?? '400') ?? 400.0;
+    final rounded = amount % rv == 0 ? amount + rv : (amount / rv).ceil() * rv;
+    return (rounded - amount).clamp(0, maxRU);
+  }
+
+  String _normalizePhone(String raw) {
+    var s = raw.trim().replaceAll(RegExp(r'[\s\-\(\)\+]'), '');
+    if (s.startsWith('0') && s.length >= 9) s = '254${s.substring(1)}';
+    if (s.startsWith('7') && s.length == 9) s = '254$s';
+    return s;
   }
 
   @override
   void dispose() {
-    tillNumberController.dispose();
-    accountNumberController.dispose();
-    amountController.removeListener(() {
-      if (!isLoadingSettings) {
-        calculateRoundUp();
-      }
-    });
-    amountController.dispose();
+    _tabCtrl.dispose();
     super.dispose();
-  }
-
-  Future<void> fetchUserDetails() async {
-    setState(() {
-      isLoadingUserDetails = true;
-    });
-
-    try {
-      final response = await http.get(
-        Uri.parse('${AppConstants.apiBaseUrl}/user-details/${widget.userId}'),
-        headers: {'Content-Type': 'application/json'},
-      );
-
-      if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
-        if (data['status'] == 'success') {
-          setState(() {
-            userDetails = data['data'];
-            isLoadingUserDetails = false;
-            debugPrint('User details fetched: $userDetails');
-          });
-        } else {
-          throw Exception(data['message'] ?? 'Failed to load user details');
-        }
-      } else {
-        throw Exception('Failed to load user details: ${response.statusCode}');
-      }
-    } catch (e) {
-      debugPrint('Error fetching user details: $e');
-      setState(() {
-        isLoadingUserDetails = false;
-      });
-    }
-  }
-
-  Future<void> fetchRoundupSettings() async {
-    setState(() {
-      isLoadingSettings = true;
-    });
-
-    try {
-      final response = await http.get(
-        Uri.parse('${AppConstants.apiBaseUrl}/roundup-settings/${widget.userId}'),
-        headers: {'Content-Type': 'application/json'},
-      );
-
-      if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
-        data['is_enabled'] = (data['is_enabled'] == 1 || data['is_enabled'] == true);
-        data['pay_bill_round_up'] = (data['pay_bill_round_up'] == 1 || data['pay_bill_round_up'] == true);
-        data['buy_goods_round_up'] = (data['buy_goods_round_up'] == 1 || data['buy_goods_round_up'] == true);
-        data['retail_purchases_round_up'] = (data['retail_purchases_round_up'] == 1 || data['retail_purchases_round_up'] == true);
-        setState(() {
-          roundupSettings = data;
-          isLoadingSettings = false;
-          debugPrint('Round-up settings fetched: $roundupSettings');
-        });
-        calculateRoundUp();
-      } else {
-        debugPrint('Failed to fetch round-up settings: ${response.statusCode}');
-        setState(() {
-          isLoadingSettings = false;
-        });
-      }
-    } catch (e) {
-      debugPrint('Error fetching round-up settings: $e');
-      setState(() {
-        isLoadingSettings = false;
-      });
-    }
-  }
-
-  Future<void> fetchLastPayment() async {
-    setState(() {
-      isLoadingPayment = true;
-    });
-
-    try {
-      final response = await http.get(
-        Uri.parse('${AppConstants.apiBaseUrl}/last-payment/${widget.userId}'),
-        headers: {'Content-Type': 'application/json'},
-      );
-
-      debugPrint('Last payment response: ${response.statusCode}, body: ${response.body}');
-
-      if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
-        if (data['status'] == 'success') {
-          setState(() {
-            lastPayment = data['data'];
-            debugPrint('Last payment fetched: $lastPayment');
-          });
-        } else {
-          setState(() {
-            lastPayment = null;
-            debugPrint('No payments found: ${data['message']}');
-          });
-        }
-      } else if (response.statusCode == 404) {
-        setState(() {
-          lastPayment = null;
-          debugPrint('No payments found: 404');
-        });
-      } else {
-        debugPrint('Failed to fetch last payment: ${response.statusCode}');
-        setState(() {
-          lastPayment = null;
-        });
-      }
-    } catch (e) {
-      debugPrint('Error fetching last payment: $e');
-      setState(() {
-        lastPayment = null;
-      });
-    } finally {
-      setState(() {
-        isLoadingPayment = false;
-      });
-    }
-  }
-
-  void calculateRoundUp() {
-    if (roundupSettings == null) {
-      debugPrint('Round-up settings not yet fetched, skipping calculation');
-      return;
-    }
-
-    double enteredAmount = double.tryParse(amountController.text) ?? 0.0;
-    double roundUpValue = 0.0;
-
-    bool isRoundUpEnabled = roundupSettings!['is_enabled'] ?? false;
-    bool applyRoundUp = isBuyGoods
-        ? (roundupSettings!['buy_goods_round_up'] ?? false)
-        : (roundupSettings!['pay_bill_round_up'] ?? false);
-
-    debugPrint('Calculating round-up: isRoundUpEnabled=$isRoundUpEnabled, applyRoundUp=$applyRoundUp');
-
-    if (isRoundUpEnabled && applyRoundUp && enteredAmount > 0) {
-      String roundingValueStr = roundupSettings!['rounding_value']?.toString() ?? '1';
-      double roundingValue = double.tryParse(roundingValueStr.replaceAll(RegExp(r'[^0-9.]'), '')) ?? 1.0;
-
-      if (roundingValue == 0) {
-        roundingValue = 1.0;
-        debugPrint('Rounding value is 0, defaulting to 1.0');
-      }
-
-      double maxRoundUp = double.tryParse(roundupSettings!['max_round_up']?.toString() ?? '400.00') ?? 400.00;
-
-      debugPrint('Payment Amount: $enteredAmount, Rounding Value: $roundingValue, Max Round-Up: $maxRoundUp');
-
-      double roundedAmount;
-      if (enteredAmount % roundingValue == 0) {
-        roundedAmount = enteredAmount + roundingValue;
-      } else {
-        roundedAmount = ((enteredAmount / roundingValue).ceil()) * roundingValue;
-      }
-      roundUpValue = roundedAmount - enteredAmount;
-
-      if (roundUpValue > maxRoundUp) {
-        roundUpValue = maxRoundUp;
-        roundedAmount = enteredAmount + roundUpValue;
-        debugPrint('Round-up value exceeds max_round_up, capping at $maxRoundUp');
-      }
-
-      debugPrint('Rounded Amount: $roundedAmount, Round-up Value: $roundUpValue');
-    } else {
-      debugPrint('Round-up not applied: isRoundUpEnabled=$isRoundUpEnabled, applyRoundUp=$applyRoundUp, enteredAmount=$enteredAmount');
-    }
-
-    setState(() {
-      paymentAmount = enteredAmount;
-      roundUpSavings = roundUpValue;
-      totalAmount = paymentAmount + roundUpSavings;
-      debugPrint('Updated UI: paymentAmount=$paymentAmount, roundUpSavings=$roundUpSavings, totalAmount=$totalAmount');
-    });
-  }
-
-  Future<Map<String, dynamic>?> fetchTransactionStatus(String transactionId) async {
-    const maxRetries = 3;
-    int attempt = 0;
-
-    while (attempt < maxRetries) {
-      try {
-        debugPrint('Fetching transaction status for ID: $transactionId (Attempt ${attempt + 1})');
-        final response = await http.get(
-          Uri.parse('${AppConstants.apiBaseUrl}/transaction-status/$transactionId'),
-          headers: {'Content-Type': 'application/json'},
-        ).timeout(const Duration(seconds: 5));
-
-        debugPrint('Transaction status response: ${response.statusCode}, body: ${response.body}');
-        if (response.statusCode == 200) {
-          final data = jsonDecode(response.body);
-          if (data['status'] == 'success') {
-            debugPrint('Transaction status fetched: ${data['data']}');
-            return data['data'];
-          } else {
-            debugPrint('Transaction not found: ${data['message']}');
-            return null;
-          }
-        } else {
-          debugPrint('Failed to fetch transaction status: ${response.statusCode}');
-          attempt++;
-          if (attempt >= maxRetries) return null;
-          await Future.delayed(const Duration(seconds: 2));
-        }
-      } catch (e) {
-        debugPrint('Error fetching transaction status: $e');
-        attempt++;
-        if (attempt >= maxRetries) return null;
-        await Future.delayed(const Duration(seconds: 2));
-      }
-    }
-    return null;
-  }
-
-  Future<void> savePaymentData() async {
-    if (tillNumberController.text.isEmpty || amountController.text.isEmpty) {
-      debugPrint('Validation error: Please fill in all required fields');
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Please fill all required fields'), backgroundColor: Colors.red));
-      return;
-    }
-
-    if (!RegExp(r'^\d{6}$').hasMatch(tillNumberController.text)) {
-      debugPrint('Validation error: Till number must be 6 digits');
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Till number must be 6 digits'), backgroundColor: Colors.red));
-      return;
-    }
-
-    double enteredAmount = double.tryParse(amountController.text) ?? 0.0;
-    if (enteredAmount <= 0) {
-      debugPrint('Validation error: Please enter a valid amount');
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Please enter a valid amount'), backgroundColor: Colors.red));
-      return;
-    }
-
-    if (!isBuyGoods && accountNumberController.text.isEmpty) {
-      debugPrint('Validation error: Please enter an account number for Pay Bill');
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Please enter an account number'), backgroundColor: Colors.red));
-      return;
-    }
-
-    // Robust phone extraction and normalization
-    final normalizedPhone = _extractAndNormalizePhone();
-    if (normalizedPhone == null || normalizedPhone.isEmpty) {
-      debugPrint('Validation error: User phone number not available or invalid');
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: const Text('Your phone number is missing or invalid. Please update it in your profile.'),
-          action: SnackBarAction(label: 'Profile', onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (c) => Profile(userId: widget.userId)))),
-          backgroundColor: Colors.red,
-        ),
-      );
-      return;
-    }
-
-    final url = Uri.parse('${AppConstants.apiBaseUrl}/process-paybill-payment');
-    final timestamp = DateTime.now();
-    final payload = {
-      'user_id': int.parse(widget.userId),
-      'phone_number': normalizedPhone,
-      'amount': totalAmount,
-      'savings_amount': roundUpSavings,
-      'merchant_paybill': tillNumberController.text,
-      'merchant_account': isBuyGoods ? '' : accountNumberController.text,
-    };
-
-    debugPrint('Saving payment data with payload: $payload');
-
-    try {
-      final response = await http.post(
-        url,
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode(payload),
-      );
-
-      debugPrint('Raw response body: ${response.body}');
-      debugPrint('Response status code: ${response.statusCode}');
-
-      Map<String, dynamic>? responseData;
-      try {
-        if (response.body.isNotEmpty) {
-          responseData = jsonDecode(response.body) as Map<String, dynamic>?;
-        }
-      } catch (e) {
-        debugPrint('JSON parsing error: $e');
-        showDialog(
-          context: context,
-          builder: (context) => AlertDialog(
-            backgroundColor: AppTheme.textSecondary,
-            content: TransactionResult(
-              status: 'error',
-              amount: totalAmount.toStringAsFixed(2),
-              transactionId: 'TRX${timestamp.millisecondsSinceEpoch}',
-              mpesaReceipt: 'N/A',
-              merchantReference: 'N/A',
-              errorMessage: 'Invalid server response: $e',
-              dateTime: timestamp.toLocal().toString().split('.')[0],
-              tillNumber: tillNumberController.text,
-              accountNumber: isBuyGoods ? '' : accountNumberController.text,
-              businessName: 'Global Tech Solutions',
-              isBuyGoods: isBuyGoods,
-              onExportPdf: null,
-            ),
-            contentPadding: EdgeInsets.zero,
-            insetPadding: const EdgeInsets.all(10),
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-          ),
-        );
-        return;
-      }
-
-      if (responseData == null) {
-        debugPrint('Response data is null or not a map');
-        showDialog(
-          context: context,
-          builder: (context) => AlertDialog(
-            backgroundColor: AppTheme.textSecondary,
-            content: TransactionResult(
-              status: 'error',
-              amount: totalAmount.toStringAsFixed(2),
-              transactionId: 'TRX${timestamp.millisecondsSinceEpoch}',
-              mpesaReceipt: 'N/A',
-              merchantReference: 'N/A',
-              errorMessage: 'Invalid server response: Empty or malformed data',
-              dateTime: timestamp.toLocal().toString().split('.')[0],
-              tillNumber: tillNumberController.text,
-              accountNumber: isBuyGoods ? '' : accountNumberController.text,
-              businessName: 'Global Tech Solutions',
-              isBuyGoods: isBuyGoods,
-              onExportPdf: null,
-            ),
-            contentPadding: EdgeInsets.zero,
-            insetPadding: const EdgeInsets.all(10),
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-          ),
-        );
-        return;
-      }
-
-      final initialStatus = responseData['status']?.toString().toLowerCase() ?? 'error';
-      final transactionId = responseData['transactionId']?.toString() ?? 'TRX${timestamp.millisecondsSinceEpoch}';
-
-      if (initialStatus != 'success') {
-        final errorMessage = responseData['error_message']?.toString() ??
-            responseData['message']?.toString() ??
-            'Failed to initiate payment';
-        showDialog(
-          context: context,
-          builder: (context) => AlertDialog(
-            backgroundColor: AppTheme.textSecondary,
-            content: TransactionResult(
-              status: 'error',
-              amount: totalAmount.toStringAsFixed(2),
-              transactionId: transactionId,
-              mpesaReceipt: 'N/A',
-              merchantReference: 'N/A',
-              errorMessage: errorMessage,
-              dateTime: timestamp.toLocal().toString().split('.')[0],
-              tillNumber: tillNumberController.text,
-              accountNumber: isBuyGoods ? '' : accountNumberController.text,
-              businessName: 'Global Tech Solutions',
-              isBuyGoods: isBuyGoods,
-              onExportPdf: null,
-            ),
-            contentPadding: EdgeInsets.zero,
-            insetPadding: const EdgeInsets.all(10),
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-          ),
-        );
-        return;
-      }
-
-      bool isCancelled = false;
-      showDialog(
-        context: context,
-        barrierDismissible: false,
-        builder: (context) => ProcessingDialog(
-          onCancel: () {
-            isCancelled = true;
-            Navigator.of(context).pop();
-          },
-        ),
-      );
-
-      Map<String, dynamic>? transaction;
-      String transactionStatus = 'error';
-      String? errorMessage;
-      String mpesaReceipt = 'N/A';
-      String merchantReference = 'N/A';
-      String amount = totalAmount.toStringAsFixed(2);
-      String dateTime = timestamp.toLocal().toString().split('.')[0];
-      String tillNumber = tillNumberController.text;
-      String accountNumber = isBuyGoods ? '' : accountNumberController.text;
-
-      const maxTimeoutSeconds = 90;
-      const pollIntervalSeconds = 10;
-      final startTime = DateTime.now();
-      while (DateTime.now().difference(startTime).inSeconds < maxTimeoutSeconds) {
-        if (isCancelled) {
-          transactionStatus = 'error';
-          errorMessage = 'Transaction cancelled by user';
-          debugPrint('Transaction cancelled by user');
-          break;
-        }
-
-        transaction = await fetchTransactionStatus(transactionId);
-        if (transaction != null) {
-          String status = transaction['transaction_status']?.toString().toLowerCase() ?? 'pending';
-          mpesaReceipt = transaction['mpesa_receipt']?.toString() ?? 'N/A';
-          merchantReference = transaction['merchant_reference']?.toString() ?? 'N/A';
-
-          debugPrint('Polling: status=$status, mpesa_receipt=$mpesaReceipt, merchant_reference=$merchantReference');
-
-          if (status == 'completed' || (mpesaReceipt != 'N/A' && merchantReference != 'N/A')) {
-            transactionStatus = 'success';
-            amount = transaction['total_amount']?.toStringAsFixed(2) ?? amount;
-            dateTime = transaction['created_at']?.toString() ?? dateTime;
-            tillNumber = transaction['merchant_paybill']?.toString() ?? tillNumber;
-            accountNumber = transaction['merchant_account']?.toString() ?? accountNumber;
-            debugPrint('Transaction successful');
-            break;
-          } else if (status == 'failed') {
-            transactionStatus = 'error';
-            errorMessage = transaction['error_message']?.toString() ?? 'Payment failed';
-            debugPrint('Transaction failed: $errorMessage');
-            break;
-          }
-        } else {
-          debugPrint('Polling: No transaction data');
-        }
-        await Future.delayed(const Duration(seconds: pollIntervalSeconds));
-      }
-
-      if (mounted && Navigator.of(context).canPop()) {
-        Navigator.of(context).pop();
-      }
-
-      if (transactionStatus != 'success' && errorMessage == null) {
-        errorMessage = isCancelled
-            ? 'Transaction cancelled by user'
-            : 'Payment timed out: Please try again after some time';
-        debugPrint('Transaction result: $errorMessage');
-      }
-
-      showDialog(
-        context: context,
-        builder: (context) => AlertDialog(
-          backgroundColor: AppTheme.textSecondary,
-          content: TransactionResult(
-            status: transactionStatus,
-            amount: amount,
-            transactionId: transactionId,
-            mpesaReceipt: mpesaReceipt,
-            merchantReference: merchantReference,
-            errorMessage: errorMessage,
-            dateTime: dateTime,
-            tillNumber: tillNumber,
-            accountNumber: accountNumber,
-            businessName: 'Global Tech Solutions',
-            isBuyGoods: isBuyGoods,
-            onExportPdf: transactionStatus == 'success'
-                ? () => generatePdf(
-                      amount: amount,
-                      transactionId: transactionId,
-                      mpesaReceipt: mpesaReceipt,
-                      merchantReference: merchantReference,
-                      dateTime: dateTime,
-                      tillNumber: tillNumber,
-                      accountNumber: accountNumber,
-                      businessName: 'Global Tech Solutions',
-                    )
-                : null,
-          ),
-          contentPadding: EdgeInsets.zero,
-          insetPadding: const EdgeInsets.all(10),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-        ),
-      );
-
-      if (transactionStatus == 'success') {
-        await fetchLastPayment();
-      }
-    } catch (e) {
-      debugPrint('Error saving payment data: $e');
-      showDialog(
-        context: context,
-        builder: (context) => AlertDialog(
-          backgroundColor: AppTheme.textSecondary,
-          content: TransactionResult(
-            status: 'error',
-            amount: totalAmount.toStringAsFixed(2),
-            transactionId: 'TRX${timestamp.millisecondsSinceEpoch}',
-            mpesaReceipt: 'N/A',
-            merchantReference: 'N/A',
-            errorMessage: 'Network error: $e',
-            dateTime: timestamp.toLocal().toString().split('.')[0],
-            tillNumber: tillNumberController.text,
-            accountNumber: isBuyGoods ? '' : accountNumberController.text,
-            businessName: 'Global Tech Solutions',
-            isBuyGoods: isBuyGoods,
-            onExportPdf: null,
-          ),
-          contentPadding: EdgeInsets.zero,
-          insetPadding: const EdgeInsets.all(10),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-        ),
-      );
-    }
-  }
-
-  Future<void> generatePdf({
-    required String amount,
-    required String transactionId,
-    required String mpesaReceipt,
-    required String merchantReference,
-    required String dateTime,
-    required String tillNumber,
-    required String accountNumber,
-    required String businessName,
-  }) async {
-    final pdf = pw.Document();
-
-    pdf.addPage(
-      pw.Page(
-        build: (pw.Context context) => pw.Column(
-          crossAxisAlignment: pw.CrossAxisAlignment.start,
-          children: [
-            pw.Text('Payment Receipt', style: pw.TextStyle(fontSize: 24, fontWeight: pw.FontWeight.bold)),
-            pw.SizedBox(height: 20),
-            pw.Text('Business Name: $businessName', style: pw.TextStyle(fontSize: 16)),
-            pw.Text('Date & Time: $dateTime', style: pw.TextStyle(fontSize: 16)),
-            pw.SizedBox(height: 10),
-            pw.Text('Amount: KSh $amount', style: pw.TextStyle(fontSize: 16)),
-            pw.Text('Transaction ID: $transactionId', style: pw.TextStyle(fontSize: 16)),
-            pw.Text('M-PESA Receipt: $mpesaReceipt', style: pw.TextStyle(fontSize: 16)),
-            pw.Text('Merchant Reference: $merchantReference', style: pw.TextStyle(fontSize: 16)),
-            pw.Text(isBuyGoods ? 'Till Number: $tillNumber' : 'Pay Bill Number: $tillNumber',
-                style: pw.TextStyle(fontSize: 16)),
-            if (accountNumber.isNotEmpty)
-              pw.Text('Account Number: $accountNumber', style: pw.TextStyle(fontSize: 16)),
-          ],
-        ),
-      ),
-    );
-
-    try {
-      final dir = await getTemporaryDirectory();
-      final file = File('${dir.path}/receipt_${transactionId}.pdf');
-      await file.writeAsBytes(await pdf.save());
-
-      final result = await OpenFile.open(file.path);
-      if (result.type != ResultType.done) {
-        debugPrint('Failed to open PDF: ${result.message}');
-      }
-    } catch (e) {
-      debugPrint('Error generating PDF: $e');
-    }
-  }
-
-  Future<void> saveToFavourites() async {
-    if (tillNumberController.text.isEmpty) {
-      debugPrint('Validation error: Please enter a till or pay bill number');
-      return;
-    }
-
-    if (!RegExp(r'^\d{6}$').hasMatch(tillNumberController.text)) {
-      debugPrint('Validation error: Till number must be 6 digits');
-      return;
-    }
-
-    final payload = {
-      'user_id': widget.userId,
-      'name': 'Favourite ${isBuyGoods ? 'Till' : 'Pay Bill'} - ${tillNumberController.text}',
-      'till_number': tillNumberController.text,
-      'account_number': isBuyGoods ? '' : accountNumberController.text,
-      'type': isBuyGoods ? 'buy_goods' : 'pay_bill',
-    };
-
-    debugPrint('Saving to favourites with payload: $payload');
-
-    try {
-      final response = await http.post(
-        Uri.parse('${AppConstants.apiBaseUrl}/favourites'),
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode(payload),
-      );
-
-      debugPrint('Save to favourites response: ${response.statusCode}, body: ${response.body}');
-
-      if (response.statusCode == 200 || response.statusCode == 201) {
-        final responseData = jsonDecode(response.body);
-        if (responseData['status'] == 'success') {
-          setState(() {
-            showAddToFavourites = false;
-          });
-          debugPrint('Added to favourites successfully');
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (context) => Favourites(userId: widget.userId),
-            ),
-          );
-        } else {
-          debugPrint('Failed to save to favourites: ${responseData['message'] ?? 'Unknown error'}');
-        }
-      } else {
-        final errorData = jsonDecode(response.body);
-        debugPrint('Failed to save favourite: ${response.statusCode}, Response: ${response.body}');
-      }
-    } catch (e) {
-      debugPrint('Error saving favourite: $e');
-    }
-  }
-
-  // helper to extract and normalize phone from userDetails
-  String? _extractAndNormalizePhone() {
-    if (userDetails == null) return null;
-    // common keys to check
-    final candidates = ['phone_number', 'phone', 'msisdn', 'mobile', 'telephone', 'contact'];
-    for (final key in candidates) {
-      final val = userDetails?[key];
-      if (val != null) {
-        final s = val.toString().trim();
-        if (s.isNotEmpty) {
-          // remove spaces, +, brackets, dashes
-          var cleaned = s.replaceAll(RegExp(r'[\s\-\(\)\+]'), '');
-          // If it's local format starting with 0 (e.g. 07xxxxxxx), convert to 2547xxxxxxx
-          if (cleaned.startsWith('0') && cleaned.length >= 9) {
-            cleaned = '254' + cleaned.substring(1);
-          } else if (cleaned.startsWith('7') && cleaned.length == 9) {
-            // e.g. 7XXXXXXXX -> 2547XXXXXXXX
-            cleaned = '254' + cleaned;
-          }
-          // final basic validation: must start with 254 and followed by 9 digits (Kenyan mobile)
-          if (RegExp(r'^2547\d{8}$').hasMatch(cleaned)) {
-            debugPrint('Normalized phone: $cleaned (from key: $key)');
-            return cleaned;
-          } else {
-            debugPrint('Phone found but failed normalization: "$s" -> "$cleaned" (key: $key)');
-            // still return cleaned if it's numeric and reasonably long - fallback
-            if (RegExp(r'^\d{8,15}$').hasMatch(cleaned)) return cleaned;
-          }
-        }
-      }
-    }
-    // try nested structures just in case
-    if (userDetails!['data'] is Map) {
-      final nested = userDetails!['data'] as Map;
-      for (final key in candidates) {
-        final val = nested[key];
-        if (val != null && val.toString().trim().isNotEmpty) {
-          var cleaned = val.toString().trim().replaceAll(RegExp(r'[\s\-\(\)\+]'), '');
-          if (cleaned.startsWith('0') && cleaned.length >= 9) cleaned = '254' + cleaned.substring(1);
-          if (RegExp(r'^2547\d{8}$').hasMatch(cleaned)) return cleaned;
-          if (RegExp(r'^\d{8,15}$').hasMatch(cleaned)) return cleaned;
-        }
-      }
-    }
-    return null;
   }
 
   @override
@@ -791,526 +109,1198 @@ class _BuyGoodsSelectState extends State<BuyGoodsSelect> {
     return Scaffold(
       backgroundColor: AppTheme.backgroundLight,
       appBar: AppBar(
-        backgroundColor: AppTheme.primaryColor,
+        backgroundColor: AppTheme.backgroundLight,
         elevation: 0,
-        title: const Text(
-          'Payment',
-          style: TextStyle(color: AppTheme.textLight, fontWeight: FontWeight.bold),
-        ),
+        surfaceTintColor: Colors.transparent,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: AppTheme.textLight),
-          onPressed: () {
-            Navigator.pushReplacement(
-              context,
-              MaterialPageRoute(
-                builder: (context) => SavingsDashboard(userId: widget.userId),
-              ),
-            );
-          },
+          icon: const Icon(Icons.arrow_back_rounded, color: Color(0xFF111827)),
+          // Back → go to MainShell (home), not SavingsDashboard
+          onPressed: () => Navigator.of(context).popUntil((r) => r.isFirst),
         ),
+        title: const Text('Pay',
+            style: TextStyle(color: Color(0xFF111827), fontWeight: FontWeight.bold, fontSize: 18)),
+        centerTitle: true,
         actions: [
-          Padding(
-            padding: const EdgeInsets.only(right: 16.0),
-            child: Image.asset(
-              'assets/logo.png',
-              width: 30,
-              height: 30,
-              color: AppTheme.textLight,
-              errorBuilder: (context, error, stackTrace) => const Icon(Icons.savings, color: AppTheme.textLight),
+          IconButton(
+            icon: const Icon(Icons.favorite_outline_rounded, color: AppColors.financeGreen),
+            tooltip: 'Saved Payees',
+            onPressed: () => Navigator.push(
+              context,
+              _slide(Favourites(userId: widget.userId)),
             ),
           ),
         ],
+        bottom: TabBar(
+          controller: _tabCtrl,
+          indicatorColor: AppColors.financeGreen,
+          indicatorWeight: 3,
+          labelColor: AppColors.financeGreen,
+          unselectedLabelColor: const Color(0xFF9CA3AF),
+          labelStyle: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
+          unselectedLabelStyle: const TextStyle(fontWeight: FontWeight.w500, fontSize: 13),
+          tabs: const [
+            Tab(text: 'Buy Goods'),
+            Tab(text: 'Pay Bill'),
+            Tab(text: 'Send Money'),
+          ],
+        ),
       ),
-      body: isLoadingSettings || isLoadingPayment || isLoadingUserDetails
-          ? const Center(child: CircularProgressIndicator(color: AppColors.financeGreenV3))
-          : SingleChildScrollView(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
-                    child: Row(
-                      children: [
-                        Expanded(
-                          child: GestureDetector(
-                            onTap: () {
-                              setState(() {
-                                isBuyGoods = true;
-                                if (!isLoadingSettings) {
-                                  calculateRoundUp();
-                                }
-                              });
-                            },
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(vertical: 12),
-                              decoration: BoxDecoration(
-                                color: isBuyGoods ? AppColors.financeGreenV3 : AppColors.coreWhiteW2,
-                                borderRadius: const BorderRadius.horizontal(left: Radius.circular(8)),
-                              ),
-                              child: Center(
-                                child: Text(
-                                  'Buy Goods',
-                                  style: TextStyle(
-                                    color: isBuyGoods ? AppTheme.textLight : AppTheme.textSecondary,
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ),
-                        ),
-                        Expanded(
-                          child: GestureDetector(
-                            onTap: () {
-                              setState(() {
-                                isBuyGoods = false;
-                                if (!isLoadingSettings) {
-                                  calculateRoundUp();
-                                }
-                              });
-                            },
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(vertical: 12),
-                              decoration: BoxDecoration(
-                                color: !isBuyGoods ? AppColors.financeGreenV3 : AppColors.coreWhiteW2,
-                                borderRadius: const BorderRadius.horizontal(right: Radius.circular(8)),
-                              ),
-                              child: Center(
-                                child: Text(
-                                  'Pay Bill',
-                                  style: TextStyle(
-                                    color: !isBuyGoods ? AppTheme.textLight : AppTheme.textSecondary,
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  if (showAddToFavourites) ...[
-                    Container(
-                      margin: const EdgeInsets.symmetric(horizontal: 16.0),
-                      decoration: BoxDecoration(
-                        color: AppTheme.cardLight,
-                        borderRadius: BorderRadius.circular(8),
-                        border: Border.all(color: AppColors.financeGreen.withValues(alpha: 0.2)),
-                        boxShadow: [
-                          BoxShadow(
-                            color: AppColors.coreWhiteW2.withValues(alpha: 0.15),
-                            spreadRadius: 0.5,
-                            blurRadius: 2,
-                            offset: const Offset(0, 1),
-                          ),
-                        ],
-                      ),
-                      padding: const EdgeInsets.all(16.0),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Text(
-                            'Add Favourite',
-                            style: TextStyle(
-                              color: AppTheme.textPrimary,
-                              fontSize: 14,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                          const SizedBox(height: 12),
-                          GestureDetector(
-                            onTap: saveToFavourites,
-                            child: Row(
-                              children: [
-                                const Icon(
-                                  Icons.add_circle_outline,
-                                  color: AppColors.financeGreenV3,
-                                  size: 16,
-                                ),
-                                const SizedBox(width: 8),
-                                Text(
-                                  isBuyGoods ? 'Save current till number' : 'Save current pay bill number',
-                                  style: const TextStyle(
-                                    color: AppColors.financeGreen,
-                                    fontSize: 12,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                  ],
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 16.0),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          isBuyGoods ? 'Till Number' : 'Pay Bill Number',
-                          style: const TextStyle(color: AppTheme.textPrimary, fontSize: 14),
-                        ),
-                        const SizedBox(height: 4),
-                        TextField(
-                          controller: tillNumberController,
-                          decoration: InputDecoration(
-                            hintText: isBuyGoods ? 'Enter till number' : 'Enter pay bill number',
-                            hintStyle: const TextStyle(color: AppTheme.textSecondary),
-                            filled: true,
-                            fillColor: AppTheme.cardLight,
-                            border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(8),
-                              borderSide: BorderSide(color: AppColors.financeGreen.withValues(alpha: 0.3)),
-                            ),
-                            enabledBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(8),
-                              borderSide: BorderSide(color: AppColors.financeGreen.withValues(alpha: 0.3)),
-                            ),
-                            focusedBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(8),
-                              borderSide: const BorderSide(color: AppColors.financeGreen),
-                            ),
-                          ),
-                          style: const TextStyle(color: AppTheme.textPrimary),
-                          keyboardType: TextInputType.number,
-                        ),
-                        if (!isBuyGoods) ...[
-                          const SizedBox(height: 12),
-                          const Text(
-                            'Account Number',
-                            style: TextStyle(color: AppTheme.textPrimary, fontSize: 14),
-                          ),
-                          const SizedBox(height: 4),
-                          TextField(
-                            controller: accountNumberController,
-                            decoration: InputDecoration(
-                              hintText: 'Enter account number',
-                              hintStyle: const TextStyle(color: AppTheme.textSecondary),
-                              filled: true,
-                              fillColor: AppTheme.textSecondary,
-                              border: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(8),
-                                borderSide: BorderSide.none,
-                              ),
-                            ),
-                            style: const TextStyle(color: Colors.black),
-                            keyboardType: TextInputType.text,
-                          ),
-                        ],
-                        const SizedBox(height: 12),
-                        const Text(
-                          'Amount',
-                          style: TextStyle(color: AppTheme.textPrimary, fontSize: 14),
-                        ),
-                        const SizedBox(height: 4),
-                        TextField(
-                          controller: amountController,
-                          decoration: InputDecoration(
-                            hintText: 'Enter amount',
-                            hintStyle: const TextStyle(color: AppTheme.textSecondary),
-                            filled: true,
-                            fillColor: AppTheme.cardLight,
-                            border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(8),
-                              borderSide: BorderSide(color: AppColors.financeGreen.withValues(alpha: 0.3)),
-                            ),
-                            enabledBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(8),
-                              borderSide: BorderSide(color: AppColors.financeGreen.withValues(alpha: 0.3)),
-                            ),
-                            focusedBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(8),
-                              borderSide: const BorderSide(color: AppColors.financeGreen),
-                            ),
-                          ),
-                          style: const TextStyle(color: AppTheme.textPrimary),
-                          keyboardType: TextInputType.numberWithOptions(decimal: true),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  Container(
-                    margin: const EdgeInsets.symmetric(horizontal: 16.0),
-                    decoration: BoxDecoration(
-                      color: AppTheme.cardLight,
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: AppColors.financeGreen.withValues(alpha: 0.2)),
-                      boxShadow: [
-                        BoxShadow(
-                          color: AppColors.financeGreen.withValues(alpha: 0.08),
-                          spreadRadius: 0.5,
-                          blurRadius: 6,
-                          offset: const Offset(0, 2),
-                        ),
-                      ],
-                    ),
-                    padding: const EdgeInsets.all(16),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Text(
-                          'Payment Summary',
-                          style: TextStyle(
-                            color: AppTheme.textPrimary,
-                            fontSize: 14,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-                        _buildSummaryItem('Payment Amount', 'KSh ${paymentAmount.toStringAsFixed(2)}'),
-                        _buildSummaryItem('Round-up Savings', 'KSh ${roundUpSavings.toStringAsFixed(2)}'),
-                        _buildSummaryItem('Total Amount', 'KSh ${totalAmount.toStringAsFixed(2)}', isBold: true),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 16.0),
-                    child: SizedBox(
-                      width: double.infinity,
-                      child: ElevatedButton(
-                        onPressed: savePaymentData,
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: AppColors.financeGreenV3,
-                          foregroundColor: Colors.black,
-                          padding: const EdgeInsets.symmetric(vertical: 15),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                        ),
-                        child: const Text(
-                          'Confirm Payment',
-                          style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                        ),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                ],
-              ),
+      body: _loadingInit
+          ? const Center(child: CircularProgressIndicator(color: AppColors.financeGreen))
+          : TabBarView(
+              controller: _tabCtrl,
+              children: [
+                _BuyGoodsTab(
+                  userId: widget.userId,
+                  userPhone: _userPhone,
+                  calcRoundUp: _calcRoundUp,
+                  normalizePhone: _normalizePhone,
+                  roundupSettings: roundupSettings,
+                ),
+                _PayBillTab(
+                  userId: widget.userId,
+                  userPhone: _userPhone,
+                  calcRoundUp: _calcRoundUp,
+                  normalizePhone: _normalizePhone,
+                  roundupSettings: roundupSettings,
+                ),
+                _SendMoneyTab(
+                  userId: widget.userId,
+                  userPhone: _userPhone,
+                  normalizePhone: _normalizePhone,
+                ),
+              ],
             ),
-      bottomNavigationBar: BottomNavigationBar(
-        backgroundColor: AppTheme.cardLight,
-            selectedItemColor: AppColors.financeGreenV3,
-            unselectedItemColor: AppTheme.textSecondary,
-            currentIndex: 2,
-            onTap: (index) {
-              if (index == 2) return;
-              final routes = [
-                MaterialPageRoute(builder: (context) => WalletPage(userId: widget.userId)),
-                MaterialPageRoute(builder: (context) => SavingsDashboard(userId: widget.userId)),
-                null,
-                MaterialPageRoute(builder: (context) => Profile(userId: widget.userId)),
-              ];
-              if (index < routes.length && routes[index] != null) {
-                Navigator.pushReplacement(context, routes[index]!);
-              }
-            },
-            type: BottomNavigationBarType.fixed,
-            items: const [
-              BottomNavigationBarItem(icon: Icon(Icons.account_balance_wallet_outlined), label: 'Wallet'),
-              BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Home'),
-              BottomNavigationBarItem(icon: Icon(Icons.payment), label: 'Payments'),
-              BottomNavigationBarItem(icon: Icon(Icons.person), label: 'Profile'),
-            ],
-          ),
-    );
-  }
-
-  Widget _buildSummaryItem(String label, String value, {bool isBold = false}) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4.0),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Text(label, style: const TextStyle(color: AppTheme.textSecondary, fontSize: 13)),
-          Text(
-            value,
-            style: TextStyle(
-              color: isBold ? AppColors.financeGreen : AppTheme.textPrimary,
-              fontSize: 13,
-              fontWeight: isBold ? FontWeight.bold : FontWeight.normal,
-            ),
-          ),
-        ],
-      ),
     );
   }
 }
 
-class TransactionResult extends StatelessWidget {
-  final String status;
-  final String amount;
-  final String transactionId;
-  final String mpesaReceipt;
-  final String merchantReference;
-  final String? errorMessage;
-  final String dateTime;
-  final String tillNumber;
-  final String accountNumber;
-  final String businessName;
-  final bool isBuyGoods;
-  final VoidCallback? onExportPdf;
+// ─────────────────────────────────────────────────────────────────
+//  BUY GOODS TAB
+// ─────────────────────────────────────────────────────────────────
 
-  const TransactionResult({
-    super.key,
-    required this.status,
-    required this.amount,
-    required this.transactionId,
-    required this.mpesaReceipt,
-    required this.merchantReference,
-    this.errorMessage,
-    required this.dateTime,
-    required this.tillNumber,
-    required this.accountNumber,
-    required this.businessName,
-    required this.isBuyGoods,
-    this.onExportPdf,
+class _BuyGoodsTab extends StatefulWidget {
+  final String userId, userPhone;
+  final double Function(double, bool) calcRoundUp;
+  final String Function(String) normalizePhone;
+  final Map<String, dynamic>? roundupSettings;
+  const _BuyGoodsTab({
+    required this.userId,
+    required this.userPhone,
+    required this.calcRoundUp,
+    required this.normalizePhone,
+    required this.roundupSettings,
   });
 
   @override
-  Widget build(BuildContext context) {
-    final isSuccess = status.toLowerCase() == 'success';
+  State<_BuyGoodsTab> createState() => _BuyGoodsTabState();
+}
 
-    return Container(
-      padding: const EdgeInsets.all(16.0),
-      decoration: BoxDecoration(
-        color: AppTheme.textSecondary,
-        borderRadius: BorderRadius.circular(10),
-      ),
-      width: MediaQuery.of(context).size.width * 0.9,
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Icon(
-                isSuccess ? Icons.check_circle : Icons.error,
-                color: isSuccess ? Colors.green : Colors.red,
-                size: 40,
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Text(
-                  isSuccess ? 'Payment Successful' : 'Payment Failed',
-                  style: const TextStyle(
-                    color: Colors.black,
-                    fontSize: 20,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ),
-            ],
+class _BuyGoodsTabState extends State<_BuyGoodsTab> {
+  final _tillCtrl = TextEditingController();
+  final _amtCtrl = TextEditingController();
+  bool _loading = false;
+  double _roundUp = 0;
+
+  List<Map<String, dynamic>> _favourites = [];
+
+  @override
+  void initState() {
+    super.initState();
+    _amtCtrl.addListener(_recalc);
+    _loadFavourites();
+  }
+
+  Future<void> _loadFavourites() async {
+    try {
+      final r = await http.get(
+          Uri.parse('${AppConstants.apiBaseUrl}/favourites/${widget.userId}'));
+      if (r.statusCode == 200) {
+        final d = jsonDecode(r.body);
+        if (d['status'] == 'success') {
+          setState(() {
+            _favourites = List<Map<String, dynamic>>.from(
+                (d['data'] as List).where((f) => f['type'] == 'buy_goods'));
+          });
+        }
+      }
+    } catch (_) {}
+  }
+
+  void _recalc() {
+    final amt = double.tryParse(_amtCtrl.text) ?? 0;
+    setState(() => _roundUp = widget.calcRoundUp(amt, true));
+  }
+
+  double get _payAmt => double.tryParse(_amtCtrl.text) ?? 0;
+  double get _total => _payAmt + _roundUp;
+
+  Future<void> _confirm() async {
+    final till = _tillCtrl.text.trim();
+    final amt = double.tryParse(_amtCtrl.text.trim()) ?? 0;
+    if (till.isEmpty || amt <= 0) {
+      _snack('Enter till number and amount');
+      return;
+    }
+    setState(() => _loading = true);
+    try {
+      final r = await http.post(
+        Uri.parse('${AppConstants.apiBaseUrl}/pay-merchant'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({
+          'user_id': int.tryParse(widget.userId) ?? widget.userId,
+          'till_number': till,
+          'amount': amt,
+          'round_up_savings': _roundUp,
+        }),
+      ).timeout(const Duration(seconds: 20));
+      final data = jsonDecode(r.body);
+      if (r.statusCode == 200 && data['status'] == 'success') {
+        _showSuccess(amt: _total, label: 'Till $till');
+        _tillCtrl.clear();
+        _amtCtrl.clear();
+        setState(() => _roundUp = 0);
+      } else {
+        _snack(data['message'] ?? 'Payment failed', error: true);
+      }
+    } catch (e) {
+      _snack('Network error — check connection', error: true);
+    }
+    if (mounted) setState(() => _loading = false);
+  }
+
+  void _showSuccess({required double amt, required String label}) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (_) => Container(
+        padding: const EdgeInsets.all(28),
+        decoration: const BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        ),
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          Container(
+            width: 64, height: 64,
+            decoration: BoxDecoration(color: AppColors.financeGreen.withValues(alpha: 0.1), shape: BoxShape.circle),
+            child: const Icon(Icons.check_circle_rounded, color: AppColors.financeGreen, size: 40),
           ),
           const SizedBox(height: 16),
-          if (isSuccess) ...[
-            _buildDetailRow('Amount', 'KSh $amount'),
-            _buildDetailRow('M-PESA Receipt', mpesaReceipt),
-            _buildDetailRow('Merchant Reference', merchantReference),
-            _buildDetailRow('Transaction ID', transactionId),
-            _buildDetailRow('Date & Time', dateTime),
-            _buildDetailRow(isBuyGoods ? 'Till Number' : 'Pay Bill Number', tillNumber),
-            if (accountNumber.isNotEmpty) _buildDetailRow('Account Number', accountNumber),
-            _buildDetailRow('Business Name', businessName),
-          ] else ...[
-            _buildDetailRow('Reason', errorMessage ?? 'Unknown error'),
-            _buildDetailRow('Amount Attempted', 'KSh $amount'),
-            _buildDetailRow('Date & Time', dateTime),
-            _buildDetailRow(isBuyGoods ? 'Till Number' : 'Pay Bill Number', tillNumber),
-            if (accountNumber.isNotEmpty) _buildDetailRow('Account Number', accountNumber),
-          ],
-          const SizedBox(height: 20),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              if (isSuccess && onExportPdf != null)
-                Padding(
-                  padding: const EdgeInsets.only(right: 10.0),
-                  child: ElevatedButton(
-                    onPressed: onExportPdf,
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: AppColors.coreWhiteW2,
-                      foregroundColor: AppTheme.textPrimary,
-                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                    ),
-                    child: const Text(
-                      'Export to PDF',
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ),
-                ),
-              ElevatedButton(
-                onPressed: () {
-                  Navigator.of(context).pop();
-                  if (isSuccess) {
-                    Navigator.of(context).pop();
-                  }
-                },
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: isSuccess ? AppColors.financeGreenV3 : AppColors.coreWhiteW2,
-                  foregroundColor: isSuccess ? Colors.black : AppTheme.cardLight,
-                  padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 12),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                ),
-                child: Text(
-                  isSuccess ? 'Done' : 'Try Again',
-                  style: const TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
+          const Text('Payment Successful!', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF111827))),
+          const SizedBox(height: 6),
+          Text('KES ${amt.toStringAsFixed(2)} paid to $label', style: const TextStyle(fontSize: 13, color: Color(0xFF6B7280))),
+          const SizedBox(height: 8),
+          const Text('Funds deducted from your Nebo wallet.', style: TextStyle(fontSize: 12, color: Color(0xFF9CA3AF))),
+          const SizedBox(height: 24),
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton(
+              onPressed: () => Navigator.pop(context),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.financeGreen,
+                padding: const EdgeInsets.symmetric(vertical: 14),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                elevation: 0,
               ),
-            ],
+              child: const Text('Done', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+            ),
           ),
-        ],
+        ]),
       ),
     );
   }
 
-  Widget _buildDetailRow(String label, String value) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4.0),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Text(
-            label,
-            style: const TextStyle(
-              color: Colors.black54,
-              fontSize: 14,
-            ),
-          ),
-          Flexible(
-            child: Text(
-              value,
-              style: const TextStyle(
-                color: Colors.black,
-                fontSize: 14,
-                fontWeight: FontWeight.w500,
+  Future<void> _saveFavourite() async {
+    if (_tillCtrl.text.trim().isEmpty) return;
+    try {
+      await http.post(
+        Uri.parse('${AppConstants.apiBaseUrl}/favourites'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({
+          'user_id': widget.userId,
+          'name': 'Till ${_tillCtrl.text.trim()}',
+          'till_number': _tillCtrl.text.trim(),
+          'account_number': '',
+          'type': 'buy_goods',
+        }),
+      );
+      _snack('Saved to favourites ✓');
+      _loadFavourites();
+    } catch (_) {}
+  }
+
+  void _snack(String msg, {bool error = false}) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      content: Text(msg),
+      backgroundColor: error ? Colors.red : AppColors.financeGreen,
+      behavior: SnackBarBehavior.floating,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+    ));
+  }
+
+  @override
+  void dispose() {
+    _tillCtrl.dispose();
+    _amtCtrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final mq = MediaQuery.of(context);
+    return Scaffold(
+      backgroundColor: AppTheme.backgroundLight,
+      body: SingleChildScrollView(
+        padding: EdgeInsets.fromLTRB(16, 16, 16, mq.padding.bottom + 16),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          // Saved favourites row
+          if (_favourites.isNotEmpty) ...[
+            const Text('Saved', style: TextStyle(fontSize: 12, color: Color(0xFF9CA3AF), fontWeight: FontWeight.w600)),
+            const SizedBox(height: 8),
+            SizedBox(
+              height: 66,
+              child: ListView.builder(
+                scrollDirection: Axis.horizontal,
+                itemCount: _favourites.length,
+                itemBuilder: (_, i) {
+                  final f = _favourites[i];
+                  return GestureDetector(
+                    onTap: () => setState(() => _tillCtrl.text = f['till_number']?.toString() ?? ''),
+                    child: Container(
+                      margin: const EdgeInsets.only(right: 10),
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(14),
+                        border: Border.all(color: AppColors.financeGreen.withValues(alpha: 0.25)),
+                        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.04), blurRadius: 6)],
+                      ),
+                      child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+                        const Icon(Icons.store_rounded, color: AppColors.financeGreen, size: 18),
+                        const SizedBox(height: 4),
+                        Text(f['till_number']?.toString() ?? '',
+                            style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Color(0xFF111827))),
+                      ]),
+                    ),
+                  );
+                },
               ),
-              textAlign: TextAlign.right,
-              overflow: TextOverflow.ellipsis,
             ),
-          ),
-        ],
+            const SizedBox(height: 16),
+          ],
+
+          _label('Till Number'),
+          _field(_tillCtrl, 'e.g. 123456',
+              keyboardType: TextInputType.number,
+              suffix: GestureDetector(
+                onTap: _saveFavourite,
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 10),
+                  child: Row(mainAxisSize: MainAxisSize.min, children: [
+                    Icon(Icons.favorite_outline_rounded, color: AppColors.financeGreen.withValues(alpha: 0.7), size: 16),
+                    const SizedBox(width: 4),
+                    Text('Save', style: TextStyle(fontSize: 11, color: AppColors.financeGreen.withValues(alpha: 0.8))),
+                  ]),
+                ),
+              )),
+          const SizedBox(height: 14),
+
+          _label('Amount (KES)'),
+          _field(_amtCtrl, '0.00',
+              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+              prefix: const Text('KES ', style: TextStyle(fontWeight: FontWeight.w600, color: Color(0xFF374151)))),
+          const SizedBox(height: 20),
+
+          _SummaryCard(payAmt: _payAmt, roundUp: _roundUp, total: _total),
+        ]),
+      ),
+      bottomNavigationBar: Padding(
+        padding: EdgeInsets.fromLTRB(16, 8, 16, mq.padding.bottom + 16),
+        child: _ConfirmBtn(loading: _loading, onTap: _confirm, label: 'Confirm Payment'),
       ),
     );
   }
 }
 
+// ─────────────────────────────────────────────────────────────────
+//  PAY BILL TAB
+// ─────────────────────────────────────────────────────────────────
 
+class _PayBillTab extends StatefulWidget {
+  final String userId, userPhone;
+  final double Function(double, bool) calcRoundUp;
+  final String Function(String) normalizePhone;
+  final Map<String, dynamic>? roundupSettings;
+  const _PayBillTab({
+    required this.userId,
+    required this.userPhone,
+    required this.calcRoundUp,
+    required this.normalizePhone,
+    required this.roundupSettings,
+  });
 
+  @override
+  State<_PayBillTab> createState() => _PayBillTabState();
+}
 
+class _PayBillTabState extends State<_PayBillTab> {
+  final _paybillCtrl = TextEditingController();
+  final _accountCtrl = TextEditingController();
+  final _amtCtrl = TextEditingController();
+  bool _loading = false;
+  double _roundUp = 0;
+
+  List<Map<String, dynamic>> _favourites = [];
+
+  @override
+  void initState() {
+    super.initState();
+    _amtCtrl.addListener(_recalc);
+    _loadFavourites();
+  }
+
+  Future<void> _loadFavourites() async {
+    try {
+      final r = await http.get(
+          Uri.parse('${AppConstants.apiBaseUrl}/favourites/${widget.userId}'));
+      if (r.statusCode == 200) {
+        final d = jsonDecode(r.body);
+        if (d['status'] == 'success') {
+          setState(() {
+            _favourites = List<Map<String, dynamic>>.from(
+                (d['data'] as List).where((f) => f['type'] == 'pay_bill'));
+          });
+        }
+      }
+    } catch (_) {}
+  }
+
+  void _recalc() {
+    final amt = double.tryParse(_amtCtrl.text) ?? 0;
+    setState(() => _roundUp = widget.calcRoundUp(amt, false));
+  }
+
+  double get _payAmt => double.tryParse(_amtCtrl.text) ?? 0;
+  double get _total => _payAmt + _roundUp;
+
+  Future<void> _confirm() async {
+    final paybill = _paybillCtrl.text.trim();
+    final account = _accountCtrl.text.trim();
+    final amt = double.tryParse(_amtCtrl.text.trim()) ?? 0;
+    if (paybill.isEmpty || amt <= 0) {
+      _snack('Enter paybill number and amount');
+      return;
+    }
+    setState(() => _loading = true);
+    try {
+      final r = await http.post(
+        Uri.parse('${AppConstants.apiBaseUrl}/process-paybill-payment'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({
+          'user_id': int.tryParse(widget.userId) ?? widget.userId,
+          'amount': amt,
+          'merchant_paybill': paybill,
+          'merchant_account': account,
+        }),
+      ).timeout(const Duration(seconds: 20));
+      final data = jsonDecode(r.body);
+      if (r.statusCode == 200 && data['status'] == 'success') {
+        _showSuccess(amt: amt, label: 'PayBill $paybill');
+        _paybillCtrl.clear();
+        _accountCtrl.clear();
+        _amtCtrl.clear();
+        setState(() => _roundUp = 0);
+      } else {
+        _snack(data['message'] ?? 'Payment failed', error: true);
+      }
+    } catch (e) {
+      _snack('Network error — check connection', error: true);
+    }
+    if (mounted) setState(() => _loading = false);
+  }
+
+  void _showSuccess({required double amt, required String label}) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (_) => Container(
+        padding: const EdgeInsets.all(28),
+        decoration: const BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        ),
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          Container(
+            width: 64, height: 64,
+            decoration: BoxDecoration(color: AppColors.financeGreen.withValues(alpha: 0.1), shape: BoxShape.circle),
+            child: const Icon(Icons.check_circle_rounded, color: AppColors.financeGreen, size: 40),
+          ),
+          const SizedBox(height: 16),
+          const Text('Payment Successful!', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF111827))),
+          const SizedBox(height: 6),
+          Text('KES ${amt.toStringAsFixed(2)} paid to $label', style: const TextStyle(fontSize: 13, color: Color(0xFF6B7280))),
+          const SizedBox(height: 8),
+          const Text('Funds deducted from your Nebo wallet.', style: TextStyle(fontSize: 12, color: Color(0xFF9CA3AF))),
+          const SizedBox(height: 24),
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton(
+              onPressed: () => Navigator.pop(context),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.financeGreen,
+                padding: const EdgeInsets.symmetric(vertical: 14),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                elevation: 0,
+              ),
+              child: const Text('Done', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+            ),
+          ),
+        ]),
+      ),
+    );
+  }
+
+  Future<void> _saveFavourite() async {
+    if (_paybillCtrl.text.trim().isEmpty) return;
+    try {
+      await http.post(
+        Uri.parse('${AppConstants.apiBaseUrl}/favourites'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({
+          'user_id': widget.userId,
+          'name': 'Paybill ${_paybillCtrl.text.trim()}',
+          'till_number': _paybillCtrl.text.trim(),
+          'account_number': _accountCtrl.text.trim(),
+          'type': 'pay_bill',
+        }),
+      );
+      _snack('Saved to favourites ✓');
+      _loadFavourites();
+    } catch (_) {}
+  }
+
+  void _snack(String msg, {bool error = false}) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      content: Text(msg),
+      backgroundColor: error ? Colors.red : AppColors.financeGreen,
+      behavior: SnackBarBehavior.floating,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+    ));
+  }
+
+  @override
+  void dispose() {
+    _paybillCtrl.dispose();
+    _accountCtrl.dispose();
+    _amtCtrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final mq = MediaQuery.of(context);
+    return Scaffold(
+      backgroundColor: AppTheme.backgroundLight,
+      body: SingleChildScrollView(
+        padding: EdgeInsets.fromLTRB(16, 16, 16, mq.padding.bottom + 16),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          if (_favourites.isNotEmpty) ...[
+            const Text('Saved', style: TextStyle(fontSize: 12, color: Color(0xFF9CA3AF), fontWeight: FontWeight.w600)),
+            const SizedBox(height: 8),
+            SizedBox(
+              height: 66,
+              child: ListView.builder(
+                scrollDirection: Axis.horizontal,
+                itemCount: _favourites.length,
+                itemBuilder: (_, i) {
+                  final f = _favourites[i];
+                  return GestureDetector(
+                    onTap: () => setState(() {
+                      _paybillCtrl.text = f['till_number']?.toString() ?? '';
+                      _accountCtrl.text = f['account_number']?.toString() ?? '';
+                    }),
+                    child: Container(
+                      margin: const EdgeInsets.only(right: 10),
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(14),
+                        border: Border.all(color: AppColors.financeGreen.withValues(alpha: 0.25)),
+                        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.04), blurRadius: 6)],
+                      ),
+                      child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+                        const Icon(Icons.receipt_long_rounded, color: AppColors.financeGreen, size: 18),
+                        const SizedBox(height: 4),
+                        Text(f['till_number']?.toString() ?? '',
+                            style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Color(0xFF111827))),
+                      ]),
+                    ),
+                  );
+                },
+              ),
+            ),
+            const SizedBox(height: 16),
+          ],
+
+          _label('Pay Bill Number'),
+          _field(_paybillCtrl, 'e.g. 400200',
+              keyboardType: TextInputType.number,
+              suffix: GestureDetector(
+                onTap: _saveFavourite,
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 10),
+                  child: Row(mainAxisSize: MainAxisSize.min, children: [
+                    Icon(Icons.favorite_outline_rounded, color: AppColors.financeGreen.withValues(alpha: 0.7), size: 16),
+                    const SizedBox(width: 4),
+                    Text('Save', style: TextStyle(fontSize: 11, color: AppColors.financeGreen.withValues(alpha: 0.8))),
+                  ]),
+                ),
+              )),
+          const SizedBox(height: 14),
+
+          _label('Account Number'),
+          _field(_accountCtrl, 'e.g. your account / reference',
+              keyboardType: TextInputType.text),
+          const SizedBox(height: 14),
+
+          _label('Amount (KES)'),
+          _field(_amtCtrl, '0.00',
+              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+              prefix: const Text('KES ', style: TextStyle(fontWeight: FontWeight.w600, color: Color(0xFF374151)))),
+          const SizedBox(height: 20),
+
+          _SummaryCard(payAmt: _payAmt, roundUp: _roundUp, total: _total),
+        ]),
+      ),
+      bottomNavigationBar: Padding(
+        padding: EdgeInsets.fromLTRB(16, 8, 16, mq.padding.bottom + 16),
+        child: _ConfirmBtn(loading: _loading, onTap: _confirm, label: 'Confirm Payment'),
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────
+//  SEND MONEY TAB
+// ─────────────────────────────────────────────────────────────────
+
+class _SendMoneyTab extends StatefulWidget {
+  final String userId, userPhone;
+  final String Function(String) normalizePhone;
+  const _SendMoneyTab({
+    required this.userId,
+    required this.userPhone,
+    required this.normalizePhone,
+  });
+
+  @override
+  State<_SendMoneyTab> createState() => _SendMoneyTabState();
+}
+
+class _SendMoneyTabState extends State<_SendMoneyTab> {
+  final _phoneCtrl = TextEditingController();
+  final _amtCtrl = TextEditingController();
+  final _noteCtrl = TextEditingController();
+  final _searchCtrl = TextEditingController();
+  bool _loading = false;
+
+  // Recently sent (from favourites type=send_money)
+  List<Map<String, dynamic>> _recent = [];
+  // Contacts
+  List<Contact> _contacts = [];
+  List<Contact> _filtered = [];
+  bool _loadingContacts = false;
+  bool _showContacts = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadRecent();
+    _searchCtrl.addListener(_filterContacts);
+  }
+
+  Future<void> _loadRecent() async {
+    try {
+      final r = await http.get(
+          Uri.parse('${AppConstants.apiBaseUrl}/favourites/${widget.userId}'));
+      if (r.statusCode == 200) {
+        final d = jsonDecode(r.body);
+        if (d['status'] == 'success') {
+          setState(() {
+            _recent = List<Map<String, dynamic>>.from(
+                (d['data'] as List).where((f) => f['type'] == 'send_money'));
+          });
+        }
+      }
+    } catch (_) {}
+  }
+
+  Future<void> _pickContact() async {
+    setState(() => _loadingContacts = true);
+    try {
+      final granted = await FlutterContacts.requestPermission();
+      if (!granted) {
+        if (mounted) setState(() => _loadingContacts = false);
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+            content: Text('Contacts permission denied. Please enable it in Settings.'),
+            backgroundColor: Colors.red,
+            behavior: SnackBarBehavior.floating,
+          ));
+        }
+        return;
+      }
+      _contacts = await FlutterContacts.getContacts(withProperties: true);
+      _filtered = List.from(_contacts);
+    } catch (_) {}
+    if (mounted) {
+      setState(() {
+        _loadingContacts = false;
+        _showContacts = true;
+        _searchCtrl.clear();
+      });
+    }
+  }
+
+  void _filterContacts() {
+    final q = _searchCtrl.text.toLowerCase();
+    setState(() {
+      _filtered = _contacts.where((c) {
+        final name = c.displayName.toLowerCase();
+        final phone = c.phones.map((p) => p.number).join(' ').toLowerCase();
+        return name.contains(q) || phone.contains(q);
+      }).toList();
+    });
+  }
+
+  void _selectContact(Contact c) {
+    final phone = c.phones.isNotEmpty ? c.phones.first.number : '';
+    setState(() {
+      _phoneCtrl.text = phone;
+      _showContacts = false;
+    });
+  }
+
+  Future<void> _send() async {
+    final phone = _phoneCtrl.text.trim();
+    final amt = double.tryParse(_amtCtrl.text.trim()) ?? 0;
+    if (phone.isEmpty || amt <= 0) {
+      _snack('Enter phone number and amount');
+      return;
+    }
+    final normalized = widget.normalizePhone(phone);
+    setState(() => _loading = true);
+    try {
+      final r = await http.post(
+        Uri.parse('${AppConstants.apiBaseUrl}/withdraw'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({
+          'user_id': int.tryParse(widget.userId) ?? widget.userId,
+          'amount': amt.toInt(),
+          'phone': normalized,
+        }),
+      ).timeout(const Duration(seconds: 20));
+      final data = jsonDecode(r.body);
+      if (r.statusCode == 200 && data['status'] == 'success') {
+        _saveRecent(phone, normalized);
+        _showSuccess(amt, phone);
+      } else {
+        _snack(data['message'] ?? 'Transfer failed', error: true);
+      }
+    } catch (e) {
+      _snack('Network error — check connection', error: true);
+    }
+    if (mounted) setState(() => _loading = false);
+  }
+
+  Future<void> _saveRecent(String displayPhone, String normalized) async {
+    try {
+      await http.post(
+        Uri.parse('${AppConstants.apiBaseUrl}/favourites'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({
+          'user_id': widget.userId,
+          'name': displayPhone,
+          'till_number': normalized,
+          'account_number': '',
+          'type': 'send_money',
+        }),
+      );
+      _loadRecent();
+    } catch (_) {}
+  }
+
+  void _showSuccess(double amt, String phone) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (_) => Container(
+        padding: const EdgeInsets.all(28),
+        decoration: const BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        ),
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          Container(
+            width: 64, height: 64,
+            decoration: BoxDecoration(
+                color: AppColors.financeGreen.withValues(alpha: 0.1), shape: BoxShape.circle),
+            child: const Icon(Icons.check_circle_rounded, color: AppColors.financeGreen, size: 40),
+          ),
+          const SizedBox(height: 16),
+          const Text('Transfer Initiated!',
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF111827))),
+          const SizedBox(height: 6),
+          Text('KES ${amt.toStringAsFixed(2)} → $phone',
+              style: const TextStyle(fontSize: 13, color: Color(0xFF6B7280))),
+          const SizedBox(height: 8),
+          const Text('Check your M-Pesa for the PIN prompt.',
+              style: TextStyle(fontSize: 12, color: Color(0xFF9CA3AF))),
+          const SizedBox(height: 24),
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton(
+              onPressed: () {
+                Navigator.pop(context);
+                _phoneCtrl.clear();
+                _amtCtrl.clear();
+                _noteCtrl.clear();
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.financeGreen,
+                padding: const EdgeInsets.symmetric(vertical: 14),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+              ),
+              child: const Text('Done', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+            ),
+          ),
+        ]),
+      ),
+    );
+  }
+
+  void _snack(String msg, {bool error = false}) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      content: Text(msg),
+      backgroundColor: error ? Colors.red : AppColors.financeGreen,
+      behavior: SnackBarBehavior.floating,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+    ));
+  }
+
+  @override
+  void dispose() {
+    _phoneCtrl.dispose();
+    _amtCtrl.dispose();
+    _noteCtrl.dispose();
+    _searchCtrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final mq = MediaQuery.of(context);
+
+    // Show contacts picker overlay
+    if (_showContacts) {
+      return Column(children: [
+        Container(
+          color: Colors.white,
+          padding: EdgeInsets.fromLTRB(16, 12, 16, 8),
+          child: Row(children: [
+            GestureDetector(
+              onTap: () => setState(() => _showContacts = false),
+              child: const Icon(Icons.close_rounded, color: Color(0xFF111827)),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: TextField(
+                controller: _searchCtrl,
+                autofocus: true,
+                decoration: InputDecoration(
+                  hintText: 'Search contacts...',
+                  hintStyle: const TextStyle(color: Color(0xFF9CA3AF)),
+                  prefixIcon: const Icon(Icons.search_rounded, color: AppColors.financeGreen),
+                  filled: true,
+                  fillColor: const Color(0xFFF9FAFB),
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+                  contentPadding: const EdgeInsets.symmetric(vertical: 10),
+                ),
+              ),
+            ),
+          ]),
+        ),
+        Expanded(
+          child: _loadingContacts
+              ? const Center(child: CircularProgressIndicator(color: AppColors.financeGreen))
+              : _filtered.isEmpty
+                  ? const Center(child: Text('No contacts found', style: TextStyle(color: Color(0xFF9CA3AF))))
+                  : ListView.builder(
+                      itemCount: _filtered.length,
+                      itemBuilder: (_, i) {
+                        final c = _filtered[i];
+                        final phone = c.phones.isNotEmpty ? c.phones.first.number : '';
+                        return ListTile(
+                          leading: CircleAvatar(
+                            backgroundColor: AppColors.financeGreen.withValues(alpha: 0.1),
+                            child: Text(
+                              c.displayName.isNotEmpty ? c.displayName[0].toUpperCase() : '?',
+                              style: const TextStyle(color: AppColors.financeGreen, fontWeight: FontWeight.bold),
+                            ),
+                          ),
+                          title: Text(c.displayName, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14)),
+                          subtitle: Text(phone, style: const TextStyle(fontSize: 12, color: Color(0xFF6B7280))),
+                          onTap: () => _selectContact(c),
+                        );
+                      },
+                    ),
+        ),
+      ]);
+    }
+
+    return Scaffold(
+      backgroundColor: AppTheme.backgroundLight,
+      body: SingleChildScrollView(
+        padding: EdgeInsets.fromLTRB(16, 16, 16, mq.padding.bottom + 16),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          // Recently sent
+          if (_recent.isNotEmpty) ...[
+            const Text('Recent', style: TextStyle(fontSize: 12, color: Color(0xFF9CA3AF), fontWeight: FontWeight.w600)),
+            const SizedBox(height: 8),
+            SizedBox(
+              height: 74,
+              child: ListView.builder(
+                scrollDirection: Axis.horizontal,
+                itemCount: _recent.length,
+                itemBuilder: (_, i) {
+                  final f = _recent[i];
+                  final num = f['name']?.toString() ?? f['till_number']?.toString() ?? '';
+                  return GestureDetector(
+                    onTap: () => setState(() => _phoneCtrl.text = num),
+                    child: Container(
+                      margin: const EdgeInsets.only(right: 10),
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(14),
+                        border: Border.all(color: AppColors.financeGreen.withValues(alpha: 0.25)),
+                        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.04), blurRadius: 6)],
+                      ),
+                      child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+                        const Icon(Icons.person_rounded, color: AppColors.financeGreen, size: 18),
+                        const SizedBox(height: 4),
+                        Text(num.length > 10 ? num.substring(num.length - 9) : num,
+                            style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Color(0xFF111827))),
+                      ]),
+                    ),
+                  );
+                },
+              ),
+            ),
+            const SizedBox(height: 16),
+          ],
+
+          _label('Recipient Phone'),
+          Row(children: [
+            Expanded(
+              child: _field(_phoneCtrl, 'e.g. 0712345678',
+                  keyboardType: TextInputType.phone,
+                  prefix: const Icon(Icons.phone_android_rounded, size: 18, color: AppColors.financeGreen)),
+            ),
+            const SizedBox(width: 8),
+            GestureDetector(
+              onTap: _loadingContacts ? null : _pickContact,
+              child: Container(
+                width: 48, height: 52,
+                decoration: BoxDecoration(
+                  color: AppColors.financeGreen.withValues(alpha: 0.08),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: AppColors.financeGreen.withValues(alpha: 0.2)),
+                ),
+                child: _loadingContacts
+                    ? const Padding(
+                        padding: EdgeInsets.all(14),
+                        child: CircularProgressIndicator(color: AppColors.financeGreen, strokeWidth: 2),
+                      )
+                    : const Icon(Icons.contacts_rounded, color: AppColors.financeGreen, size: 22),
+              ),
+            ),
+          ]),
+          const SizedBox(height: 14),
+
+          _label('Amount (KES)'),
+          _field(_amtCtrl, '0.00',
+              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+              prefix: const Text('KES ', style: TextStyle(fontWeight: FontWeight.w600, color: Color(0xFF374151)))),
+          const SizedBox(height: 14),
+
+          _label('Note (optional)'),
+          _field(_noteCtrl, 'e.g. Rent for June',
+              keyboardType: TextInputType.text),
+        ]),
+      ),
+      bottomNavigationBar: Padding(
+        padding: EdgeInsets.fromLTRB(16, 8, 16, mq.padding.bottom + 16),
+        child: _ConfirmBtn(loading: _loading, onTap: _send, label: 'Send Money'),
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────
+//  PROCESSING SHEET — polls transaction status
+// ─────────────────────────────────────────────────────────────────
+
+class _ProcessingSheet extends StatefulWidget {
+  final String txId, userId;
+  final double amount;
+  final bool isBuyGoods;
+  final String till, account;
+  final VoidCallback onDone;
+  const _ProcessingSheet({
+    required this.txId,
+    required this.amount,
+    required this.isBuyGoods,
+    required this.till,
+    required this.account,
+    required this.userId,
+    required this.onDone,
+  });
+
+  @override
+  State<_ProcessingSheet> createState() => _ProcessingSheetState();
+}
+
+class _ProcessingSheetState extends State<_ProcessingSheet> {
+  bool _polling = true;
+  bool _success = false;
+  bool _failed = false;
+  String? _error;
+  int _elapsed = 0;
+  Timer? _timer;
+
+  @override
+  void initState() {
+    super.initState();
+    _startPolling();
+  }
+
+  void _startPolling() {
+    _timer = Timer.periodic(const Duration(seconds: 5), (_) async {
+      if (!_polling || !mounted) return;
+      _elapsed += 5;
+      if (_elapsed >= 90) {
+        setState(() { _polling = false; _failed = true; _error = 'Payment timed out. Try again.'; });
+        _timer?.cancel();
+        return;
+      }
+      try {
+        final r = await http.get(
+          Uri.parse('${AppConstants.apiBaseUrl}/transaction-status/${widget.txId}'),
+        ).timeout(const Duration(seconds: 8));
+        final d = jsonDecode(r.body);
+        final status = ((d['data']?['transaction_status'] ?? d['payment_status'] ?? d['status'] ?? '')).toString().toLowerCase();
+        if (status == 'completed' || status == 'success') {
+          _timer?.cancel();
+          if (mounted) setState(() { _polling = false; _success = true; });
+          widget.onDone();
+        } else if (status == 'failed' || status == 'cancelled') {
+          _timer?.cancel();
+          if (mounted) setState(() { _polling = false; _failed = true; _error = 'Payment failed. Try again.'; });
+        }
+      } catch (_) {}
+    });
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final mq = MediaQuery.of(context);
+    return Container(
+      padding: EdgeInsets.fromLTRB(24, 20, 24, mq.padding.bottom + 24),
+      decoration: const BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      child: Column(mainAxisSize: MainAxisSize.min, children: [
+        Container(width: 40, height: 4, decoration: BoxDecoration(color: const Color(0xFFE5E7EB), borderRadius: BorderRadius.circular(2))),
+        const SizedBox(height: 24),
+
+        if (_success) ...[
+          Container(width: 64, height: 64,
+            decoration: BoxDecoration(color: AppColors.financeGreen.withValues(alpha: 0.1), shape: BoxShape.circle),
+            child: const Icon(Icons.check_circle_rounded, color: AppColors.financeGreen, size: 40)),
+          const SizedBox(height: 16),
+          const Text('Payment Successful!', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF111827))),
+          const SizedBox(height: 6),
+          Text('KES ${widget.amount.toStringAsFixed(2)} paid to ${widget.till}',
+              style: const TextStyle(fontSize: 13, color: Color(0xFF6B7280))),
+          const SizedBox(height: 24),
+          _greenBtn('Done', () { Navigator.pop(context); }),
+
+        ] else if (_failed) ...[
+          Container(width: 64, height: 64,
+            decoration: BoxDecoration(color: Colors.red.withValues(alpha: 0.1), shape: BoxShape.circle),
+            child: const Icon(Icons.cancel_rounded, color: Colors.red, size: 40)),
+          const SizedBox(height: 16),
+          const Text('Payment Failed', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF111827))),
+          const SizedBox(height: 6),
+          Text(_error ?? 'Something went wrong.', style: const TextStyle(fontSize: 13, color: Color(0xFF6B7280)), textAlign: TextAlign.center),
+          const SizedBox(height: 24),
+          _greenBtn('Try Again', () => Navigator.pop(context)),
+
+        ] else ...[
+          Container(
+            width: 64, height: 64,
+            decoration: BoxDecoration(color: AppColors.financeGreen.withValues(alpha: 0.08), shape: BoxShape.circle),
+            child: const Padding(padding: EdgeInsets.all(14), child: CircularProgressIndicator(color: AppColors.financeGreen, strokeWidth: 3))),
+          const SizedBox(height: 16),
+          const Text('Waiting for PIN', style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold, color: Color(0xFF111827))),
+          const SizedBox(height: 6),
+          const Text('Enter your M-Pesa PIN to complete payment.\nChecking every 5 seconds...',
+              style: TextStyle(fontSize: 13, color: Color(0xFF6B7280), height: 1.5), textAlign: TextAlign.center),
+          const SizedBox(height: 20),
+          TextButton(
+            onPressed: () { _polling = false; _timer?.cancel(); Navigator.pop(context); },
+            child: const Text('Cancel', style: TextStyle(color: Colors.red)),
+          ),
+        ],
+      ]),
+    );
+  }
+
+  Widget _greenBtn(String label, VoidCallback onTap) => SizedBox(
+    width: double.infinity,
+    child: ElevatedButton(
+      onPressed: onTap,
+      style: ElevatedButton.styleFrom(
+        backgroundColor: AppColors.financeGreen,
+        padding: const EdgeInsets.symmetric(vertical: 14),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+        elevation: 0,
+      ),
+      child: Text(label, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 15)),
+    ),
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────
+//  SHARED WIDGETS
+// ─────────────────────────────────────────────────────────────────
+
+Widget _label(String text) => Padding(
+      padding: const EdgeInsets.only(bottom: 6),
+      child: Text(text,
+          style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Color(0xFF374151))),
+    );
+
+Widget _field(
+  TextEditingController ctrl,
+  String hint, {
+  TextInputType keyboardType = TextInputType.text,
+  Widget? prefix,
+  Widget? suffix,
+}) {
+  return TextField(
+    controller: ctrl,
+    keyboardType: keyboardType,
+    style: const TextStyle(fontSize: 15, color: Color(0xFF111827)),
+    decoration: InputDecoration(
+      hintText: hint,
+      hintStyle: const TextStyle(color: Color(0xFF9CA3AF)),
+      prefixIcon: prefix != null
+          ? Padding(padding: const EdgeInsets.symmetric(horizontal: 12), child: prefix)
+          : null,
+      prefixIconConstraints: const BoxConstraints(minWidth: 0, minHeight: 0),
+      suffixIcon: suffix,
+      filled: true,
+      fillColor: Colors.white,
+      border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: const BorderSide(color: Color(0xFFE5E7EB))),
+      enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: const BorderSide(color: Color(0xFFE5E7EB))),
+      focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: const BorderSide(color: AppColors.financeGreen, width: 1.5)),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+    ),
+  );
+}
+
+class _SummaryCard extends StatelessWidget {
+  final double payAmt, roundUp, total;
+  const _SummaryCard({required this.payAmt, required this.roundUp, required this.total});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.05), blurRadius: 8, offset: const Offset(0, 2))],
+      ),
+      child: Column(children: [
+        _row('Payment Amount', 'KES ${payAmt.toStringAsFixed(2)}', bold: false),
+        const SizedBox(height: 6),
+        _row('Round-up Savings', 'KES ${roundUp.toStringAsFixed(2)}', bold: false),
+        const Padding(padding: EdgeInsets.symmetric(vertical: 8), child: Divider(height: 1)),
+        _row('Total', 'KES ${total.toStringAsFixed(2)}', bold: true),
+      ]),
+    );
+  }
+
+  Widget _row(String label, String value, {required bool bold}) => Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(label, style: TextStyle(fontSize: 13, color: bold ? const Color(0xFF111827) : const Color(0xFF6B7280), fontWeight: bold ? FontWeight.bold : FontWeight.normal)),
+          Text(value, style: TextStyle(fontSize: 13, color: bold ? AppColors.financeGreen : const Color(0xFF374151), fontWeight: bold ? FontWeight.bold : FontWeight.normal)),
+        ],
+      );
+}
+
+class _ConfirmBtn extends StatelessWidget {
+  final bool loading;
+  final VoidCallback onTap;
+  final String label;
+  const _ConfirmBtn({required this.loading, required this.onTap, required this.label});
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: double.infinity,
+      child: ElevatedButton(
+        onPressed: loading ? null : onTap,
+        style: ElevatedButton.styleFrom(
+          backgroundColor: AppColors.financeGreen,
+          padding: const EdgeInsets.symmetric(vertical: 16),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+          elevation: 0,
+        ),
+        child: loading
+            ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+            : Text(label, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 15)),
+      ),
+    );
+  }
+}
+
+Route _slide(Widget page) => PageRouteBuilder(
+      pageBuilder: (_, __, ___) => page,
+      transitionsBuilder: (_, a, __, child) => SlideTransition(
+        position: Tween(begin: const Offset(1, 0), end: Offset.zero)
+            .animate(CurvedAnimation(parent: a, curve: Curves.easeOut)),
+        child: child,
+      ),
+      transitionDuration: const Duration(milliseconds: 300),
+    );

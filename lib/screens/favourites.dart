@@ -3,7 +3,6 @@ import '../constants/app_theme.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import '../constants/app_constants.dart';
-import '../widgets/graph.dart'; // SavingsDashboard
 
 class Favourites extends StatefulWidget {
   final String userId;
@@ -107,16 +106,16 @@ class _FavouritesState extends State<Favourites> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.coreDark,
+      backgroundColor: AppTheme.backgroundLight,
       appBar: AppBar(
-        backgroundColor: AppColors.coreDark,
+        backgroundColor: AppTheme.backgroundLight,
         elevation: 0,
         title: const Text(
           'Favourites',
-          style: TextStyle(color: AppTheme.cardLight),
+          style: TextStyle(color: Color(0xFF111827), fontWeight: FontWeight.w600),
         ),
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: AppTheme.cardLight),
+          icon: const Icon(Icons.arrow_back, color: Color(0xFF111827)),
           onPressed: () {
             Navigator.pop(context); // Go back to BuyGoodsSelect
           },

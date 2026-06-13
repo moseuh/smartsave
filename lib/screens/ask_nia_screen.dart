@@ -1,4 +1,6 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
 import '../constants/app_theme.dart';
 import '../services/sms_finance_service.dart';
 
@@ -82,7 +84,58 @@ class _AskNiaScreenState extends State<AskNiaScreen> {
   String _fmt(double v) => v.toStringAsFixed(0).replaceAllMapped(
       RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (m) => '${m[1]},');
 
-  void _send(String text) {
+  /// Build a rich financial context string from the user's SMS transactions
+  String _buildFinancialContext() {
+    if (_transactions.isEmpty) return 'No transaction data available yet.';
+
+    final now = DateTime.now();
+    final thisMonth = _transactions.where(
+        (t) => t.date.year == now.year && t.date.month == now.month).toList();
+    final income6m = SmsFinanceService.totalIncome(_transactions);
+    final expenses6m = SmsFinanceService.totalExpenses(_transactions);
+    final savings6m = income6m - expenses6m;
+    final rate6m = income6m > 0 ? (savings6m / income6m * 100) : 0;
+    final avgMonthly = income6m / 6;
+
+    final incomeThisMonth = SmsFinanceService.totalIncome(thisMonth);
+    final expensesThisMonth = SmsFinanceService.totalExpenses(thisMonth);
+
+    final cats = SmsFinanceService.expensesByCategory(_transactions);
+    final topCats = cats.entries.take(5)
+        .map((e) => '  - ${e.key}: KES ${e.value.toStringAsFixed(0)}')
+        .join('\n');
+
+    final byMonth = SmsFinanceService.groupByMonth(_transactions);
+    final months = byMonth.keys.toList()..sort((a, b) => b.compareTo(a));
+    final monthlyTrend = months.take(4).map((m) {
+      final mTxs = byMonth[m]!;
+      final inc = SmsFinanceService.totalIncome(mTxs);
+      final exp = SmsFinanceService.totalExpenses(mTxs);
+      return '  - $m: income KES ${inc.toStringAsFixed(0)}, expenses KES ${exp.toStringAsFixed(0)}, net KES ${(inc - exp).toStringAsFixed(0)}';
+    }).join('\n');
+
+    return '''
+User Financial Summary (last 6 months, from M-Pesa SMS):
+- Total transactions parsed: ${_transactions.length}
+- Total income: KES ${income6m.toStringAsFixed(0)}
+- Total expenses: KES ${expenses6m.toStringAsFixed(0)}
+- Net savings: KES ${savings6m.toStringAsFixed(0)}
+- Savings rate: ${rate6m.toStringAsFixed(1)}%
+- Average monthly income: KES ${avgMonthly.toStringAsFixed(0)}
+
+This month (${now.month}/${now.year}):
+- Income: KES ${incomeThisMonth.toStringAsFixed(0)}
+- Expenses: KES ${expensesThisMonth.toStringAsFixed(0)}
+
+Top spending categories (6 months):
+$topCats
+
+Monthly trend (most recent first):
+$monthlyTrend
+''';
+  }
+
+  Future<void> _send(String text) async {
     if (text.trim().isEmpty) return;
     setState(() {
       _messages.add(_Message(text: text.trim(), isNia: false));
@@ -91,179 +144,91 @@ class _AskNiaScreenState extends State<AskNiaScreen> {
     _controller.clear();
     _scrollToBottom();
 
-    Future.delayed(const Duration(milliseconds: 1200), () {
-      if (!mounted) return;
-      setState(() {
-        _isTyping = false;
-        _messages.add(_Message(text: _respond(text.trim()), isNia: true));
-      });
-      _scrollToBottom();
+    final reply = await _askClaude(text.trim());
+    if (!mounted) return;
+    setState(() {
+      _isTyping = false;
+      _messages.add(_Message(text: reply, isNia: true));
     });
+    _scrollToBottom();
   }
 
-  String _respond(String input) {
+  Future<String> _askClaude(String userMessage) async {
+    const apiKey = 'YOUR_ANTHROPIC_API_KEY'; // Replace with env/config
+    const model = 'claude-haiku-4-5-20251001';
+
+    final systemPrompt = '''You are Nia, a warm, smart personal financial assistant built into the Nebo SmartSave app — a Kenyan mobile savings and finance app. You help users understand their M-Pesa spending, improve savings habits, and make better financial decisions.
+
+Rules:
+- Always be concise, friendly, and practical
+- Use KES (Kenyan Shillings) for all money amounts
+- Reference the user's actual data when available — don't make up numbers
+- Use emojis sparingly but warmly
+- Keep answers under 200 words unless doing a detailed breakdown
+- If data is unavailable, still give useful general advice
+- You know about M-Pesa, Fuliza, Paybill, Buy Goods, NHIF, NSSF, and Kenyan financial norms
+
+${_buildFinancialContext()}''';
+
+    try {
+      final res = await http.post(
+        Uri.parse('https://api.anthropic.com/v1/messages'),
+        headers: {
+          'x-api-key': apiKey,
+          'anthropic-version': '2023-06-01',
+          'content-type': 'application/json',
+        },
+        body: jsonEncode({
+          'model': model,
+          'max_tokens': 512,
+          'system': systemPrompt,
+          'messages': [
+            // Include recent conversation history for context
+            ..._messages.skip(_messages.length > 6 ? _messages.length - 6 : 0).map((m) => {
+              'role': m.isNia ? 'assistant' : 'user',
+              'content': m.text,
+            }),
+            {'role': 'user', 'content': userMessage},
+          ],
+        }),
+      ).timeout(const Duration(seconds: 30));
+
+      if (res.statusCode == 200) {
+        final data = jsonDecode(res.body);
+        return data['content']?[0]?['text']?.toString() ??
+            'Sorry, I had trouble responding. Please try again.';
+      } else {
+        // Fallback to local smart response on API error
+        return _localFallback(userMessage);
+      }
+    } catch (_) {
+      return _localFallback(userMessage);
+    }
+  }
+
+  /// Fallback when API is unreachable — still uses real SMS data
+  String _localFallback(String input) {
     final q = input.toLowerCase();
-
-    // Data-driven responses if we have transactions
-    if (_transactions.isNotEmpty) {
-      if (q.contains('spend') || q.contains('spent') || q.contains('expenses') || q.contains('expenditure')) {
-        return _spendingResponse();
-      }
-      if (q.contains('income') || q.contains('earn') || q.contains('salary') || q.contains('receive')) {
-        return _incomeResponse();
-      }
-      if (q.contains('saving') || q.contains('savings') || q.contains('save') || q.contains('rate')) {
-        return _savingsResponse();
-      }
-      if (q.contains('budget') || q.contains('plan')) {
-        return _budgetResponse();
-      }
-      if (q.contains('category') || q.contains('categories') || q.contains('most') || q.contains('top')) {
-        return _categoryResponse();
-      }
-      if (q.contains('month') || q.contains('trend') || q.contains('history') || q.contains('pattern')) {
-        return _trendResponse();
-      }
-      if (q.contains('mpesa') || q.contains('m-pesa')) {
-        return _mpesaResponse();
-      }
-      if (q.contains('goal') || q.contains('target')) {
-        return _goalResponse();
-      }
+    if (_transactions.isEmpty) {
+      return "I need your M-Pesa SMS data to give you personalised advice. Grant SMS permission in the Finance → Expenditure screen, then come back!";
     }
-
-    // Generic responses
-    if (q.contains('save') || q.contains('saving')) {
-      return "Great question! Here are 3 quick wins:\n\n1. **Round-ups** — every M-Pesa transaction, we round up and save the change automatically.\n2. **Set a goal** — users with a savings goal save 3x more on average.\n3. **50/30/20 rule** — 50% needs, 30% wants, 20% savings.\n\nWant me to analyse your actual spending to find where you can cut back?";
-    }
-    if (q.contains('budget')) {
-      return "A budget is just telling your money where to go before it disappears 😄\n\nCheck the **Finance Manager** tab — it shows your income vs expenses and a 50/30/20 budget breakdown based on your actual M-Pesa and bank transactions.";
-    }
-    if (q.contains('credit') || q.contains('score')) {
-      return "Your credit score here is powered by 1,800+ data points including:\n\n• Savings consistency\n• Loan repayment history\n• M-Pesa transaction patterns\n\nThe best way to improve it? Save regularly and repay loans on time.";
-    }
-    if (q.contains('loan') || q.contains('borrow')) {
-      return "Before taking a loan, ask yourself:\n\n1. Is this for an income-generating asset?\n2. Can I repay within the tenure?\n3. Is the interest manageable?\n\nCheck the Loans tab for your eligibility based on your transaction history.";
-    }
-    return "That's a great topic! Based on your financial data, I'd suggest:\n\n• Review your spending in the Finance Manager\n• Check if you're hitting your 20% savings target\n• Set a specific savings goal in the Goals tab\n\nWhat specific area would you like help with?";
-  }
-
-  String _spendingResponse() {
-    final now = DateTime.now();
-    final thisMonth = _transactions.where((t) =>
-        !t.isIncome && t.date.year == now.year && t.date.month == now.month).toList();
-    final total = SmsFinanceService.totalExpenses(thisMonth);
-    final cats = SmsFinanceService.expensesByCategory(thisMonth);
-    final top = cats.entries.take(3).map((e) => '  • ${e.key}: KES ${_fmt(e.value)}').join('\n');
-
-    return "This month's spending so far:\n\n"
-        "💸 Total: **KES ${_fmt(total)}** across ${thisMonth.length} transactions\n\n"
-        "Top categories:\n$top\n\n"
-        "${_spendingTip(cats)}";
-  }
-
-  String _spendingTip(Map<String, double> cats) {
-    if (cats.isEmpty) return "No categorised expenses found yet.";
-    final top = cats.entries.first;
-    return "💡 Your biggest spend is **${top.key}** at KES ${_fmt(top.value)}. Want tips on reducing this?";
-  }
-
-  String _incomeResponse() {
-    final now = DateTime.now();
-    final thisMonth = _transactions.where((t) =>
-        t.isIncome && t.date.year == now.year && t.date.month == now.month).toList();
-    final total = SmsFinanceService.totalIncome(thisMonth);
-    final allIncome = SmsFinanceService.totalIncome(_transactions);
-    final avgMonthly = allIncome / 6;
-
-    return "Your income summary:\n\n"
-        "📥 This month: **KES ${_fmt(total)}** (${thisMonth.length} transactions)\n"
-        "📊 6-month total: KES ${_fmt(allIncome)}\n"
-        "📈 Monthly average: KES ${_fmt(avgMonthly)}\n\n"
-        "${total >= avgMonthly ? '🎉 Great — you\'re above your monthly average!' : '📉 This month is below your usual income. Any irregular month?'}";
-  }
-
-  String _savingsResponse() {
     final income = SmsFinanceService.totalIncome(_transactions);
     final expenses = SmsFinanceService.totalExpenses(_transactions);
     final savings = income - expenses;
     final rate = income > 0 ? (savings / income * 100) : 0;
 
-    String advice;
-    if (rate >= 20) {
-      advice = "🎉 Excellent! You're hitting the recommended 20% savings rate. Keep it up!";
-    } else if (rate >= 10) {
-      advice = "👍 Good start! To hit 20%, try cutting KES ${_fmt((income * 0.20) - savings)} more per month.";
-    } else if (rate > 0) {
-      advice = "⚠️ Your savings rate is low. Target is 20% — that's KES ${_fmt(income * 0.20)} per month.";
-    } else {
-      advice = "🚨 You're spending more than you earn. Let's find where to cut back.";
+    if (q.contains('spend') || q.contains('expens')) {
+      final cats = SmsFinanceService.expensesByCategory(_transactions);
+      final top = cats.entries.take(3).map((e) => '• ${e.key}: KES ${_fmt(e.value)}').join('\n');
+      return "Your top expenses (6 months):\n\n$top\n\nTotal spent: KES ${_fmt(expenses)}";
     }
-
-    return "Your 6-month savings picture:\n\n"
-        "💰 Total income: KES ${_fmt(income)}\n"
-        "💸 Total expenses: KES ${_fmt(expenses)}\n"
-        "✅ Net saved: KES ${_fmt(savings)}\n"
-        "📊 Savings rate: **${rate.toStringAsFixed(1)}%**\n\n"
-        "$advice";
-  }
-
-  String _budgetResponse() {
-    final income = SmsFinanceService.totalIncome(_transactions);
-    final monthly = income / 6;
-    final needs = monthly * 0.50;
-    final wants = monthly * 0.30;
-    final savingsTarget = monthly * 0.20;
-
-    return "Based on your average monthly income of **KES ${_fmt(monthly)}**, here's your ideal 50/30/20 budget:\n\n"
-        "🏠 Needs (50%): KES ${_fmt(needs)}\n"
-        "   Rent, food, transport, utilities, health\n\n"
-        "🎬 Wants (30%): KES ${_fmt(wants)}\n"
-        "   Entertainment, dining out, shopping\n\n"
-        "💰 Savings (20%): KES ${_fmt(savingsTarget)}\n"
-        "   Emergency fund, goals, investments\n\n"
-        "Open the **Finance Manager → Budgets** tab to see how you're tracking against this!";
-  }
-
-  String _categoryResponse() {
-    final cats = SmsFinanceService.expensesByCategory(_transactions);
-    if (cats.isEmpty) return "No expense categories found in your SMS data yet.";
-    final top5 = cats.entries.take(5).map((e) => '  ${cats.keys.toList().indexOf(e.key) + 1}. ${e.key}: KES ${_fmt(e.value)}').join('\n');
-    return "Your top spending categories (last 6 months):\n\n$top5\n\n"
-        "💡 Tip: The 50/30/20 rule suggests keeping wants (entertainment, dining, shopping) under 30% of income.";
-  }
-
-  String _trendResponse() {
-    final byMonth = SmsFinanceService.groupByMonth(_transactions);
-    final months = byMonth.keys.toList()..sort((a, b) => b.compareTo(a));
-    final lines = months.take(4).map((m) {
-      final mTxs = byMonth[m]!;
-      final inc = SmsFinanceService.totalIncome(mTxs);
-      final exp = SmsFinanceService.totalExpenses(mTxs);
-      return '  $m → Saved: KES ${_fmt(inc - exp)}';
-    }).join('\n');
-    return "Your recent monthly savings trend:\n\n$lines\n\nOpen the Finance Manager for the full 6-month breakdown with charts.";
-  }
-
-  String _mpesaResponse() {
-    final mpesa = _transactions.where((t) => t.source == 'M-Pesa').toList();
-    final income = SmsFinanceService.totalIncome(mpesa);
-    final expenses = SmsFinanceService.totalExpenses(mpesa);
-    return "Your M-Pesa activity (last 6 months):\n\n"
-        "📲 Total M-Pesa transactions: ${mpesa.length}\n"
-        "📥 Money received: KES ${_fmt(income)}\n"
-        "📤 Money sent/paid: KES ${_fmt(expenses)}\n\n"
-        "M-Pesa is your ${income > expenses ? 'main income channel 💪' : 'main spending channel — make sure to top up your savings too!'}";
-  }
-
-  String _goalResponse() {
-    final income = SmsFinanceService.totalIncome(_transactions);
-    final monthly = income / 6;
-    final savingsTarget = monthly * 0.20;
-    return "Setting goals is powerful! Research shows people with specific savings goals are 42% more likely to save.\n\n"
-        "Based on your income, you could save **KES ${_fmt(savingsTarget)}** per month (20% rule).\n\n"
-        "🎯 Go to Goals → tap + → give it a name, target amount, and deadline. We track progress automatically!\n\n"
-        "Some popular goals:\n• Emergency fund (3 months expenses)\n• Rent deposit\n• Business capital\n• Education fees";
+    if (q.contains('income') || q.contains('earn')) {
+      return "📥 6-month income: KES ${_fmt(income)}\n📈 Monthly avg: KES ${_fmt(income / 6)}";
+    }
+    if (q.contains('sav')) {
+      return "💰 Net saved (6 months): KES ${_fmt(savings)}\n📊 Savings rate: ${rate.toStringAsFixed(1)}%\n\n${rate >= 20 ? '🎉 Great job hitting 20%+!' : '🎯 Target is 20% — you need KES ${_fmt(income * 0.20 / 6)} more saved per month.'}";
+    }
+    return "Based on your data: income KES ${_fmt(income / 6)}/month, expenses KES ${_fmt(expenses / 6)}/month, savings rate ${rate.toStringAsFixed(1)}%. What would you like to explore?";
   }
 
   void _scrollToBottom() {
@@ -291,27 +256,26 @@ class _AskNiaScreenState extends State<AskNiaScreen> {
       resizeToAvoidBottomInset: false,
       backgroundColor: AppTheme.backgroundLight,
       appBar: AppBar(
-        backgroundColor: AppColors.financeGreen,
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.white),
+          icon: const Icon(Icons.arrow_back),
           onPressed: () => Navigator.pop(context),
         ),
         title: Row(
           children: [
             Container(
               width: 36, height: 36,
-              decoration: BoxDecoration(color: AppColors.financeGreenV3, shape: BoxShape.circle),
+              decoration: BoxDecoration(color: AppColors.financeGreen, shape: BoxShape.circle),
               child: const Icon(Icons.smart_toy_outlined, color: Colors.white, size: 20),
             ),
             const SizedBox(width: 10),
             Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text('Ask Nia', style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
+                const Text('Ask Nia', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
                 Text(
                   _loadingData ? 'Loading your data...' : '${_transactions.length} transactions loaded',
-                  style: const TextStyle(color: Colors.white70, fontSize: 11),
+                  style: const TextStyle(color: Color(0xFF9CA3AF), fontSize: 11),
                 ),
               ],
             ),
@@ -383,7 +347,7 @@ class _AskNiaScreenState extends State<AskNiaScreen> {
 
           // Input bar
           Container(
-            padding: EdgeInsets.fromLTRB(12, 8, 12, 16 + MediaQuery.of(context).viewInsets.bottom),
+            padding: EdgeInsets.fromLTRB(12, 8, 12, MediaQuery.of(context).viewInsets.bottom + MediaQuery.of(context).padding.bottom + 16),
             decoration: BoxDecoration(
               color: Colors.white,
               boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.06), blurRadius: 10, offset: const Offset(0, -2))],

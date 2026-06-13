@@ -8,7 +8,7 @@ class InsufficientFunds extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        backgroundColor: Colors.black,
+        backgroundColor: AppTheme.backgroundLight,
         elevation: 0,
         title: Row(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -22,7 +22,7 @@ class InsufficientFunds extends StatelessWidget {
         ),
         actions: [
           IconButton(
-            icon: const Icon(Icons.close, color: AppTheme.cardLight),
+            icon: const Icon(Icons.close, color: Color(0xFF111827)),
             onPressed: () => Navigator.pop(context),
           ),
         ],

@@ -12,10 +12,7 @@ import 'package:path_provider/path_provider.dart';
 // Changed to open_file
 import 'package:open_file/open_file.dart';
 import 'dart:io';
-import '../widgets/graph.dart' as graph;
-import 'buygoodselect.dart';
 import 'modern_login_screen.dart';
-import 'profile.dart';
 
 class LoansPage extends StatefulWidget {
   final String userId;
@@ -31,7 +28,6 @@ class _LoansPageState extends State<LoansPage> {
   List<dynamic>? loanDetails;
   Map<String, dynamic>? loanEligibility;
   bool isLoading = true;
-  int _selectedIndex = 1;
   final _formKey = GlobalKey<FormState>();
   String _selectedLoanType = 'salary_advance';
   final _amountController = TextEditingController();
@@ -302,34 +298,6 @@ class _LoansPageState extends State<LoansPage> {
     }
   }
 
-  void _onItemTapped(int index) {
-    if (!mounted) return;
-    setState(() {
-      _selectedIndex = index;
-    });
-
-    if (index == 0) {
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(builder: (context) => graph.SavingsDashboard(userId: widget.userId)),
-      );
-    } else if (index == 1) {
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(builder: (context) => LoansPage(userId: widget.userId)),
-      );
-    } else if (index == 2) {
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(builder: (context) => BuyGoodsSelect(userId: widget.userId)),
-      );
-    } else if (index == 3) {
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(builder: (context) => Profile(userId: widget.userId)),
-      );
-    }
-  }
 
   Future<void> generateLoanReport() async {
     final pdf = pw.Document();
@@ -728,17 +696,17 @@ class _LoansPageState extends State<LoansPage> {
 
     return Scaffold(
       key: _scaffoldKey,
-      backgroundColor: AppColors.coreDark,
+      backgroundColor: AppTheme.backgroundLight,
       appBar: PreferredSize(
         preferredSize: const Size.fromHeight(70.0),
         child: Container(
-          decoration: const BoxDecoration(
-            color: AppTheme.cardLight,
+          decoration: BoxDecoration(
+            color: AppTheme.backgroundLight,
             boxShadow: [
               BoxShadow(
-                color: Colors.black26,
+                color: Colors.black.withValues(alpha: 0.05),
                 blurRadius: 4,
-                offset: Offset(0, 2),
+                offset: const Offset(0, 2),
               ),
             ],
           ),
@@ -747,7 +715,7 @@ class _LoansPageState extends State<LoansPage> {
             child: Row(
               children: [
                 IconButton(
-                  icon: const Icon(Icons.menu, color: AppTheme.cardLight),
+                  icon: const Icon(Icons.menu, color: Color(0xFF111827)),
                   onPressed: () {
                     _scaffoldKey.currentState?.openDrawer();
                   },
@@ -760,7 +728,7 @@ class _LoansPageState extends State<LoansPage> {
                       Text(
                         userDetails != null ? userDetails!['full_name'] ?? 'User' : 'Loading...',
                         style: const TextStyle(
-                          color: AppTheme.textPrimary,
+                          color: Color(0xFF111827),
                           fontSize: 18,
                           fontWeight: FontWeight.bold,
                         ),
@@ -768,7 +736,7 @@ class _LoansPageState extends State<LoansPage> {
                       const Text(
                         'Member since 2022',
                         style: TextStyle(
-                          color: AppTheme.textSecondary,
+                          color: Color(0xFF9CA3AF),
                           fontSize: 12,
                         ),
                       ),
@@ -776,7 +744,7 @@ class _LoansPageState extends State<LoansPage> {
                   ),
                 ),
                 IconButton(
-                  icon: const Icon(Icons.notifications, color: AppTheme.cardLight),
+                  icon: const Icon(Icons.notifications, color: AppColors.financeGreen),
                   onPressed: () {},
                 ),
               ],
@@ -1055,63 +1023,29 @@ class _LoansPageState extends State<LoansPage> {
                 ],
               ),
             ),
-      bottomNavigationBar: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Container(
-            color: AppTheme.cardLight,
-            padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Expanded(
-                  child: ElevatedButton(
-                    onPressed: generateLoanReport,
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: AppColors.financeGreenV3,
-                      foregroundColor: Colors.black,
-                      padding: const EdgeInsets.symmetric(vertical: 15),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      elevation: 2,
-                    ),
-                    child: const Text(
-                      'Download Report',
-                      style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                    ),
+      bottomNavigationBar: SafeArea(
+        child: Container(
+          color: AppTheme.backgroundLight,
+          padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Expanded(
+                child: ElevatedButton(
+                  onPressed: generateLoanReport,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.financeGreenV3,
+                    foregroundColor: Colors.black,
+                    padding: const EdgeInsets.symmetric(vertical: 15),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    elevation: 2,
                   ),
+                  child: const Text('Download Report', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
                 ),
-              ],
-            ),
-          ),
-          BottomNavigationBar(
-                backgroundColor: AppTheme.cardLight,
-                selectedItemColor: AppColors.financeGreenV3,
-                unselectedItemColor: AppTheme.textSecondary,
-                currentIndex: _selectedIndex,
-                onTap: _onItemTapped,
-                type: BottomNavigationBarType.fixed,
-                items: const [
-                  BottomNavigationBarItem(
-                    icon: Icon(Icons.home),
-                    label: 'Home',
-                  ),
-                  BottomNavigationBarItem(
-                    icon: Icon(Icons.account_balance),
-                    label: 'Loans',
-                  ),
-                  BottomNavigationBarItem(
-                    icon: Icon(Icons.payment),
-                    label: 'Payments',
-                  ),
-                  BottomNavigationBarItem(
-                    icon: Icon(Icons.person),
-                    label: 'Profile',
-                  ),
-                ],
               ),
-        ],
+            ],
+          ),
+        ),
       ),
     );
   }
