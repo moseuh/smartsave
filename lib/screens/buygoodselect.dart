@@ -23,9 +23,9 @@ class _BuyGoodsSelectState extends State<BuyGoodsSelect>
     with SingleTickerProviderStateMixin {
   late TabController _tabCtrl;
 
-  // Shared state
   Map<String, dynamic>? userDetails;
   Map<String, dynamic>? roundupSettings;
+  List<Map<String, dynamic>> roundupRules = [];
   bool _loadingInit = true;
 
   @override
@@ -63,6 +63,7 @@ class _BuyGoodsSelectState extends State<BuyGoodsSelect>
         d['pay_bill_round_up'] = (d['pay_bill_round_up'] == 1 || d['pay_bill_round_up'] == true);
         d['buy_goods_round_up'] = (d['buy_goods_round_up'] == 1 || d['buy_goods_round_up'] == true);
         roundupSettings = d;
+        roundupRules = List<Map<String, dynamic>>.from(d['rules'] ?? []);
       }
     } catch (_) {}
   }
@@ -76,6 +77,7 @@ class _BuyGoodsSelectState extends State<BuyGoodsSelect>
     return '';
   }
 
+  // Returns fixed round-up savings amount based on settings
   double _calcRoundUp(double amount, bool isBuyGoods) {
     if (roundupSettings == null) return 0;
     final enabled = roundupSettings!['is_enabled'] == true;
@@ -114,7 +116,6 @@ class _BuyGoodsSelectState extends State<BuyGoodsSelect>
         surfaceTintColor: Colors.transparent,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back_rounded, color: Color(0xFF111827)),
-          // Back → go to MainShell (home), not SavingsDashboard
           onPressed: () => Navigator.of(context).popUntil((r) => r.isFirst),
         ),
         title: const Text('Pay',
@@ -156,6 +157,7 @@ class _BuyGoodsSelectState extends State<BuyGoodsSelect>
                   calcRoundUp: _calcRoundUp,
                   normalizePhone: _normalizePhone,
                   roundupSettings: roundupSettings,
+                  roundupRules: roundupRules,
                 ),
                 _PayBillTab(
                   userId: widget.userId,
@@ -163,6 +165,7 @@ class _BuyGoodsSelectState extends State<BuyGoodsSelect>
                   calcRoundUp: _calcRoundUp,
                   normalizePhone: _normalizePhone,
                   roundupSettings: roundupSettings,
+                  roundupRules: roundupRules,
                 ),
                 _SendMoneyTab(
                   userId: widget.userId,
@@ -184,12 +187,14 @@ class _BuyGoodsTab extends StatefulWidget {
   final double Function(double, bool) calcRoundUp;
   final String Function(String) normalizePhone;
   final Map<String, dynamic>? roundupSettings;
+  final List<Map<String, dynamic>> roundupRules;
   const _BuyGoodsTab({
     required this.userId,
     required this.userPhone,
     required this.calcRoundUp,
     required this.normalizePhone,
     required this.roundupSettings,
+    required this.roundupRules,
   });
 
   @override
@@ -201,6 +206,8 @@ class _BuyGoodsTabState extends State<_BuyGoodsTab> {
   final _amtCtrl = TextEditingController();
   bool _loading = false;
   double _roundUp = 0;
+  bool _useMpesa = true;       // M-Pesa checked by default
+  bool _useRoundSavings = false; // round savings opt-in
 
   List<Map<String, dynamic>> _favourites = [];
 
@@ -209,6 +216,9 @@ class _BuyGoodsTabState extends State<_BuyGoodsTab> {
     super.initState();
     _amtCtrl.addListener(_recalc);
     _loadFavourites();
+    // Auto-enable round savings if user has it configured for buy_goods
+    _useRoundSavings = widget.roundupSettings?['is_enabled'] == true &&
+        widget.roundupSettings?['buy_goods_round_up'] == true;
   }
 
   Future<void> _loadFavourites() async {
@@ -229,11 +239,17 @@ class _BuyGoodsTabState extends State<_BuyGoodsTab> {
 
   void _recalc() {
     final amt = double.tryParse(_amtCtrl.text) ?? 0;
-    setState(() => _roundUp = widget.calcRoundUp(amt, true));
+    final ru = _useRoundSavings ? widget.calcRoundUp(amt, true) : 0.0;
+    setState(() => _roundUp = ru);
   }
 
   double get _payAmt => double.tryParse(_amtCtrl.text) ?? 0;
   double get _total => _payAmt + _roundUp;
+
+  bool get _hasRoundupConfig =>
+      widget.roundupSettings != null &&
+      widget.roundupSettings!['is_enabled'] == true &&
+      widget.roundupSettings!['buy_goods_round_up'] == true;
 
   Future<void> _confirm() async {
     final till = _tillCtrl.text.trim();
@@ -244,24 +260,48 @@ class _BuyGoodsTabState extends State<_BuyGoodsTab> {
     }
     setState(() => _loading = true);
     try {
-      final r = await http.post(
-        Uri.parse('${AppConstants.apiBaseUrl}/pay-merchant'),
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({
-          'user_id': int.tryParse(widget.userId) ?? widget.userId,
-          'till_number': till,
-          'amount': amt,
-          'round_up_savings': _roundUp,
-        }),
-      ).timeout(const Duration(seconds: 20));
-      final data = jsonDecode(r.body);
-      if (r.statusCode == 200 && data['status'] == 'success') {
-        _showSuccess(amt: _total, label: 'Till $till');
-        _tillCtrl.clear();
-        _amtCtrl.clear();
-        setState(() => _roundUp = 0);
+      if (_useMpesa) {
+        // STK push flow: M-Pesa → wallet → till
+        final r = await http.post(
+          Uri.parse('${AppConstants.apiBaseUrl}/buy-goods-payment'),
+          headers: {'Content-Type': 'application/json'},
+          body: jsonEncode({
+            'user_id': int.tryParse(widget.userId) ?? widget.userId,
+            'till_number': till,
+            'amount': amt,
+            'round_up_savings': _roundUp,
+          }),
+        ).timeout(const Duration(seconds: 20));
+        final data = jsonDecode(r.body);
+        if (r.statusCode == 200 && data['status'] == 'success') {
+          final txId = data['transactionId']?.toString() ?? '';
+          if (mounted) setState(() => _loading = false);
+          _showMpesaProcessing(txId: txId, amt: _total, label: 'Till $till');
+          return;
+        } else {
+          _snack(_friendlyError(data['message']), error: true);
+        }
       } else {
-        _snack(data['message'] ?? 'Payment failed', error: true);
+        // Wallet direct flow
+        final r = await http.post(
+          Uri.parse('${AppConstants.apiBaseUrl}/pay-merchant'),
+          headers: {'Content-Type': 'application/json'},
+          body: jsonEncode({
+            'user_id': int.tryParse(widget.userId) ?? widget.userId,
+            'till_number': till,
+            'amount': amt,
+            'round_up_savings': _roundUp,
+          }),
+        ).timeout(const Duration(seconds: 20));
+        final data = jsonDecode(r.body);
+        if (r.statusCode == 200 && data['status'] == 'success') {
+          _showSuccess(amt: _total, label: 'Till $till');
+          _tillCtrl.clear();
+          _amtCtrl.clear();
+          setState(() => _roundUp = 0);
+        } else {
+          _snack(_friendlyError(data['message']), error: true);
+        }
       }
     } catch (e) {
       _snack('Network error — check connection', error: true);
@@ -269,44 +309,40 @@ class _BuyGoodsTabState extends State<_BuyGoodsTab> {
     if (mounted) setState(() => _loading = false);
   }
 
+  String _friendlyError(String? raw) {
+    if (raw == null || raw.isEmpty) return 'Payment failed. Please try again.';
+    if (raw.toLowerCase().contains('insufficient')) return raw;
+    if (raw.toLowerCase().contains('balance')) return raw;
+    return raw;
+  }
+
+  void _showMpesaProcessing({required String txId, required double amt, required String label}) {
+    showModalBottomSheet(
+      context: context,
+      isDismissible: false,
+      enableDrag: false,
+      backgroundColor: Colors.transparent,
+      builder: (_) => _ProcessingSheet(
+        txId: txId,
+        userId: widget.userId,
+        amount: amt,
+        isBuyGoods: true,
+        till: label,
+        account: '',
+        onDone: () {
+          _tillCtrl.clear();
+          _amtCtrl.clear();
+          setState(() => _roundUp = 0);
+        },
+      ),
+    );
+  }
+
   void _showSuccess({required double amt, required String label}) {
     showModalBottomSheet(
       context: context,
       backgroundColor: Colors.transparent,
-      builder: (_) => Container(
-        padding: const EdgeInsets.all(28),
-        decoration: const BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-        ),
-        child: Column(mainAxisSize: MainAxisSize.min, children: [
-          Container(
-            width: 64, height: 64,
-            decoration: BoxDecoration(color: AppColors.financeGreen.withValues(alpha: 0.1), shape: BoxShape.circle),
-            child: const Icon(Icons.check_circle_rounded, color: AppColors.financeGreen, size: 40),
-          ),
-          const SizedBox(height: 16),
-          const Text('Payment Successful!', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF111827))),
-          const SizedBox(height: 6),
-          Text('KES ${amt.toStringAsFixed(2)} paid to $label', style: const TextStyle(fontSize: 13, color: Color(0xFF6B7280))),
-          const SizedBox(height: 8),
-          const Text('Funds deducted from your Nebo wallet.', style: TextStyle(fontSize: 12, color: Color(0xFF9CA3AF))),
-          const SizedBox(height: 24),
-          SizedBox(
-            width: double.infinity,
-            child: ElevatedButton(
-              onPressed: () => Navigator.pop(context),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.financeGreen,
-                padding: const EdgeInsets.symmetric(vertical: 14),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-                elevation: 0,
-              ),
-              child: const Text('Done', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-            ),
-          ),
-        ]),
-      ),
+      builder: (_) => _SuccessSheet(amt: amt, label: label, fromWallet: true),
     );
   }
 
@@ -324,7 +360,7 @@ class _BuyGoodsTabState extends State<_BuyGoodsTab> {
           'type': 'buy_goods',
         }),
       );
-      _snack('Saved to favourites ✓');
+      _snack('Saved to favourites');
       _loadFavourites();
     } catch (_) {}
   }
@@ -333,7 +369,7 @@ class _BuyGoodsTabState extends State<_BuyGoodsTab> {
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(
       content: Text(msg),
-      backgroundColor: error ? Colors.red : AppColors.financeGreen,
+      backgroundColor: error ? Colors.red.shade700 : AppColors.financeGreen,
       behavior: SnackBarBehavior.floating,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
     ));
@@ -412,7 +448,29 @@ class _BuyGoodsTabState extends State<_BuyGoodsTab> {
               prefix: const Text('KES ', style: TextStyle(fontWeight: FontWeight.w600, color: Color(0xFF374151)))),
           const SizedBox(height: 20),
 
-          _SummaryCard(payAmt: _payAmt, roundUp: _roundUp, total: _total),
+          // Payment source & round savings options
+          _PaymentOptions(
+            useMpesa: _useMpesa,
+            useRoundSavings: _useRoundSavings,
+            hasRoundupConfig: _hasRoundupConfig,
+            onMpesaChanged: (v) => setState(() => _useMpesa = v),
+            onRoundSavingsChanged: (v) {
+              setState(() {
+                _useRoundSavings = v;
+                _recalc();
+              });
+            },
+            roundupSettings: widget.roundupSettings,
+            roundupRules: widget.roundupRules,
+          ),
+
+          const SizedBox(height: 16),
+          _SummaryCard(
+            payAmt: _payAmt,
+            roundUp: _roundUp,
+            total: _total,
+            source: _useMpesa ? 'M-Pesa → Wallet → Till' : 'Wallet → Till',
+          ),
         ]),
       ),
       bottomNavigationBar: Padding(
@@ -432,12 +490,14 @@ class _PayBillTab extends StatefulWidget {
   final double Function(double, bool) calcRoundUp;
   final String Function(String) normalizePhone;
   final Map<String, dynamic>? roundupSettings;
+  final List<Map<String, dynamic>> roundupRules;
   const _PayBillTab({
     required this.userId,
     required this.userPhone,
     required this.calcRoundUp,
     required this.normalizePhone,
     required this.roundupSettings,
+    required this.roundupRules,
   });
 
   @override
@@ -450,6 +510,8 @@ class _PayBillTabState extends State<_PayBillTab> {
   final _amtCtrl = TextEditingController();
   bool _loading = false;
   double _roundUp = 0;
+  bool _useMpesa = true;
+  bool _useRoundSavings = false;
 
   List<Map<String, dynamic>> _favourites = [];
 
@@ -458,6 +520,8 @@ class _PayBillTabState extends State<_PayBillTab> {
     super.initState();
     _amtCtrl.addListener(_recalc);
     _loadFavourites();
+    _useRoundSavings = widget.roundupSettings?['is_enabled'] == true &&
+        widget.roundupSettings?['pay_bill_round_up'] == true;
   }
 
   Future<void> _loadFavourites() async {
@@ -478,11 +542,17 @@ class _PayBillTabState extends State<_PayBillTab> {
 
   void _recalc() {
     final amt = double.tryParse(_amtCtrl.text) ?? 0;
-    setState(() => _roundUp = widget.calcRoundUp(amt, false));
+    final ru = _useRoundSavings ? widget.calcRoundUp(amt, false) : 0.0;
+    setState(() => _roundUp = ru);
   }
 
   double get _payAmt => double.tryParse(_amtCtrl.text) ?? 0;
   double get _total => _payAmt + _roundUp;
+
+  bool get _hasRoundupConfig =>
+      widget.roundupSettings != null &&
+      widget.roundupSettings!['is_enabled'] == true &&
+      widget.roundupSettings!['pay_bill_round_up'] == true;
 
   Future<void> _confirm() async {
     final paybill = _paybillCtrl.text.trim();
@@ -494,25 +564,62 @@ class _PayBillTabState extends State<_PayBillTab> {
     }
     setState(() => _loading = true);
     try {
-      final r = await http.post(
-        Uri.parse('${AppConstants.apiBaseUrl}/process-paybill-payment'),
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({
-          'user_id': int.tryParse(widget.userId) ?? widget.userId,
-          'amount': amt,
-          'merchant_paybill': paybill,
-          'merchant_account': account,
-        }),
-      ).timeout(const Duration(seconds: 20));
-      final data = jsonDecode(r.body);
-      if (r.statusCode == 200 && data['status'] == 'success') {
-        _showSuccess(amt: amt, label: 'PayBill $paybill');
-        _paybillCtrl.clear();
-        _accountCtrl.clear();
-        _amtCtrl.clear();
-        setState(() => _roundUp = 0);
+      if (_useMpesa) {
+        // STK push: M-Pesa deposits to wallet, then wallet pays paybill
+        // We use deposit endpoint then paybill — or a combined endpoint.
+        // For now: STK push total (merchant + savings), then on callback it'll pay paybill.
+        // Use buy-goods-payment pattern adapted for paybill:
+        // Actually, call deposit STK for total, then on callback paybill is paid from wallet.
+        // Simpler: just deposit total via STK, show processing, user re-confirms after.
+        // Best UX: STK push amount, then once confirmed show "M-Pesa received, paying bill..."
+        // We call /deposit for the total (amt + roundup), then after success call /process-paybill-payment.
+        final totalToDeposit = _total;
+        final depositR = await http.post(
+          Uri.parse('${AppConstants.apiBaseUrl}/deposit'),
+          headers: {'Content-Type': 'application/json'},
+          body: jsonEncode({
+            'user_id': int.tryParse(widget.userId) ?? widget.userId,
+            'amount': totalToDeposit,
+          }),
+        ).timeout(const Duration(seconds: 20));
+        final depositData = jsonDecode(depositR.body);
+        if (depositR.statusCode == 200 && depositData['status'] == 'success') {
+          final txId = depositData['deposit_id']?.toString() ?? '';
+          if (mounted) setState(() => _loading = false);
+          _showMpesaProcessingPaybill(
+            txId: txId,
+            paybill: paybill,
+            account: account,
+            amt: amt,
+            roundUp: _roundUp,
+          );
+          return;
+        } else {
+          _snack(_friendlyError(depositData['message']), error: true);
+        }
       } else {
-        _snack(data['message'] ?? 'Payment failed', error: true);
+        // Wallet direct
+        final r = await http.post(
+          Uri.parse('${AppConstants.apiBaseUrl}/process-paybill-payment'),
+          headers: {'Content-Type': 'application/json'},
+          body: jsonEncode({
+            'user_id': int.tryParse(widget.userId) ?? widget.userId,
+            'amount': amt,
+            'merchant_paybill': paybill,
+            'merchant_account': account,
+            'round_up_savings': _roundUp,
+          }),
+        ).timeout(const Duration(seconds: 20));
+        final data = jsonDecode(r.body);
+        if (r.statusCode == 200 && data['status'] == 'success') {
+          _showSuccess(amt: amt, roundUp: _roundUp, label: 'PayBill $paybill');
+          _paybillCtrl.clear();
+          _accountCtrl.clear();
+          _amtCtrl.clear();
+          setState(() => _roundUp = 0);
+        } else {
+          _snack(_friendlyError(data['message']), error: true);
+        }
       }
     } catch (e) {
       _snack('Network error — check connection', error: true);
@@ -520,44 +627,45 @@ class _PayBillTabState extends State<_PayBillTab> {
     if (mounted) setState(() => _loading = false);
   }
 
-  void _showSuccess({required double amt, required String label}) {
+  String _friendlyError(String? raw) {
+    if (raw == null || raw.isEmpty) return 'Payment failed. Please try again.';
+    return raw;
+  }
+
+  void _showMpesaProcessingPaybill({
+    required String txId,
+    required String paybill,
+    required String account,
+    required double amt,
+    required double roundUp,
+  }) {
+    showModalBottomSheet(
+      context: context,
+      isDismissible: false,
+      enableDrag: false,
+      backgroundColor: Colors.transparent,
+      builder: (_) => _PaybillMpesaSheet(
+        txId: txId,
+        userId: widget.userId,
+        paybill: paybill,
+        account: account,
+        amt: amt,
+        roundUp: roundUp,
+        onDone: () {
+          _paybillCtrl.clear();
+          _accountCtrl.clear();
+          _amtCtrl.clear();
+          setState(() => _roundUp = 0);
+        },
+      ),
+    );
+  }
+
+  void _showSuccess({required double amt, required double roundUp, required String label}) {
     showModalBottomSheet(
       context: context,
       backgroundColor: Colors.transparent,
-      builder: (_) => Container(
-        padding: const EdgeInsets.all(28),
-        decoration: const BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-        ),
-        child: Column(mainAxisSize: MainAxisSize.min, children: [
-          Container(
-            width: 64, height: 64,
-            decoration: BoxDecoration(color: AppColors.financeGreen.withValues(alpha: 0.1), shape: BoxShape.circle),
-            child: const Icon(Icons.check_circle_rounded, color: AppColors.financeGreen, size: 40),
-          ),
-          const SizedBox(height: 16),
-          const Text('Payment Successful!', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF111827))),
-          const SizedBox(height: 6),
-          Text('KES ${amt.toStringAsFixed(2)} paid to $label', style: const TextStyle(fontSize: 13, color: Color(0xFF6B7280))),
-          const SizedBox(height: 8),
-          const Text('Funds deducted from your Nebo wallet.', style: TextStyle(fontSize: 12, color: Color(0xFF9CA3AF))),
-          const SizedBox(height: 24),
-          SizedBox(
-            width: double.infinity,
-            child: ElevatedButton(
-              onPressed: () => Navigator.pop(context),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.financeGreen,
-                padding: const EdgeInsets.symmetric(vertical: 14),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-                elevation: 0,
-              ),
-              child: const Text('Done', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-            ),
-          ),
-        ]),
-      ),
+      builder: (_) => _SuccessSheet(amt: amt + roundUp, label: label, fromWallet: true),
     );
   }
 
@@ -575,7 +683,7 @@ class _PayBillTabState extends State<_PayBillTab> {
           'type': 'pay_bill',
         }),
       );
-      _snack('Saved to favourites ✓');
+      _snack('Saved to favourites');
       _loadFavourites();
     } catch (_) {}
   }
@@ -584,7 +692,7 @@ class _PayBillTabState extends State<_PayBillTab> {
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(
       content: Text(msg),
-      backgroundColor: error ? Colors.red : AppColors.financeGreen,
+      backgroundColor: error ? Colors.red.shade700 : AppColors.financeGreen,
       behavior: SnackBarBehavior.floating,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
     ));
@@ -671,7 +779,28 @@ class _PayBillTabState extends State<_PayBillTab> {
               prefix: const Text('KES ', style: TextStyle(fontWeight: FontWeight.w600, color: Color(0xFF374151)))),
           const SizedBox(height: 20),
 
-          _SummaryCard(payAmt: _payAmt, roundUp: _roundUp, total: _total),
+          _PaymentOptions(
+            useMpesa: _useMpesa,
+            useRoundSavings: _useRoundSavings,
+            hasRoundupConfig: _hasRoundupConfig,
+            onMpesaChanged: (v) => setState(() => _useMpesa = v),
+            onRoundSavingsChanged: (v) {
+              setState(() {
+                _useRoundSavings = v;
+                _recalc();
+              });
+            },
+            roundupSettings: widget.roundupSettings,
+            roundupRules: widget.roundupRules,
+          ),
+
+          const SizedBox(height: 16),
+          _SummaryCard(
+            payAmt: _payAmt,
+            roundUp: _roundUp,
+            total: _total,
+            source: _useMpesa ? 'M-Pesa → Wallet → PayBill' : 'Wallet → PayBill',
+          ),
         ]),
       ),
       bottomNavigationBar: Padding(
@@ -706,9 +835,7 @@ class _SendMoneyTabState extends State<_SendMoneyTab> {
   final _searchCtrl = TextEditingController();
   bool _loading = false;
 
-  // Recently sent (from favourites type=send_money)
   List<Map<String, dynamic>> _recent = [];
-  // Contacts
   List<Contact> _contacts = [];
   List<Contact> _filtered = [];
   bool _loadingContacts = false;
@@ -807,7 +934,7 @@ class _SendMoneyTabState extends State<_SendMoneyTab> {
         _saveRecent(phone, normalized);
         _showSuccess(amt, phone);
       } else {
-        _snack(data['message'] ?? 'Transfer failed', error: true);
+        _snack(data['message'] ?? 'Transfer failed. Please try again.', error: true);
       }
     } catch (e) {
       _snack('Network error — check connection', error: true);
@@ -856,8 +983,8 @@ class _SendMoneyTabState extends State<_SendMoneyTab> {
           Text('KES ${amt.toStringAsFixed(2)} → $phone',
               style: const TextStyle(fontSize: 13, color: Color(0xFF6B7280))),
           const SizedBox(height: 8),
-          const Text('Check your M-Pesa for the PIN prompt.',
-              style: TextStyle(fontSize: 12, color: Color(0xFF9CA3AF))),
+          const Text('The recipient will receive an M-Pesa deposit shortly.',
+              style: TextStyle(fontSize: 12, color: Color(0xFF9CA3AF)), textAlign: TextAlign.center),
           const SizedBox(height: 24),
           SizedBox(
             width: double.infinity,
@@ -885,7 +1012,7 @@ class _SendMoneyTabState extends State<_SendMoneyTab> {
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(
       content: Text(msg),
-      backgroundColor: error ? Colors.red : AppColors.financeGreen,
+      backgroundColor: error ? Colors.red.shade700 : AppColors.financeGreen,
       behavior: SnackBarBehavior.floating,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
     ));
@@ -904,12 +1031,11 @@ class _SendMoneyTabState extends State<_SendMoneyTab> {
   Widget build(BuildContext context) {
     final mq = MediaQuery.of(context);
 
-    // Show contacts picker overlay
     if (_showContacts) {
       return Column(children: [
         Container(
           color: Colors.white,
-          padding: EdgeInsets.fromLTRB(16, 12, 16, 8),
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
           child: Row(children: [
             GestureDetector(
               onTap: () => setState(() => _showContacts = false),
@@ -966,7 +1092,6 @@ class _SendMoneyTabState extends State<_SendMoneyTab> {
       body: SingleChildScrollView(
         padding: EdgeInsets.fromLTRB(16, 16, 16, mq.padding.bottom + 16),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          // Recently sent
           if (_recent.isNotEmpty) ...[
             const Text('Recent', style: TextStyle(fontSize: 12, color: Color(0xFF9CA3AF), fontWeight: FontWeight.w600)),
             const SizedBox(height: 8),
@@ -1051,7 +1176,138 @@ class _SendMoneyTabState extends State<_SendMoneyTab> {
 }
 
 // ─────────────────────────────────────────────────────────────────
-//  PROCESSING SHEET — polls transaction status
+//  PAYMENT OPTIONS WIDGET (M-Pesa checkbox + Round Savings checkbox)
+// ─────────────────────────────────────────────────────────────────
+
+class _PaymentOptions extends StatelessWidget {
+  final bool useMpesa;
+  final bool useRoundSavings;
+  final bool hasRoundupConfig;
+  final ValueChanged<bool> onMpesaChanged;
+  final ValueChanged<bool> onRoundSavingsChanged;
+  final Map<String, dynamic>? roundupSettings;
+  final List<Map<String, dynamic>> roundupRules;
+
+  const _PaymentOptions({
+    required this.useMpesa,
+    required this.useRoundSavings,
+    required this.hasRoundupConfig,
+    required this.onMpesaChanged,
+    required this.onRoundSavingsChanged,
+    required this.roundupSettings,
+    required this.roundupRules,
+  });
+
+  String get _roundupLabel {
+    if (roundupSettings == null) return 'Round Savings';
+    final rv = roundupSettings!['rounding_value']?.toString() ?? '';
+    final maxRu = roundupSettings!['max_round_up']?.toString() ?? '';
+    if (rv.isNotEmpty && rv != 'null') return 'Round Savings (round up to KES $rv)';
+    if (maxRu.isNotEmpty && maxRu != 'null') return 'Round Savings (max KES $maxRu/txn)';
+    return 'Round Savings';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: const Color(0xFFE5E7EB)),
+      ),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        const Text('Payment Options',
+            style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: Color(0xFF374151))),
+        const SizedBox(height: 8),
+
+        // M-Pesa checkbox
+        InkWell(
+          onTap: () => onMpesaChanged(!useMpesa),
+          borderRadius: BorderRadius.circular(8),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 6),
+            child: Row(children: [
+              _checkbox(useMpesa),
+              const SizedBox(width: 10),
+              const Icon(Icons.phone_android_rounded, size: 16, color: Color(0xFF374151)),
+              const SizedBox(width: 6),
+              const Expanded(
+                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Text('Pay via M-Pesa', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Color(0xFF111827))),
+                  Text('STK push to your phone — M-Pesa deposits to wallet first',
+                      style: TextStyle(fontSize: 11, color: Color(0xFF9CA3AF))),
+                ]),
+              ),
+            ]),
+          ),
+        ),
+
+        if (!useMpesa) ...[
+          const SizedBox(height: 2),
+          Padding(
+            padding: const EdgeInsets.only(left: 34),
+            child: Row(children: [
+              const Icon(Icons.account_balance_wallet_rounded, size: 14, color: AppColors.financeGreen),
+              const SizedBox(width: 4),
+              Text('Paying from wallet balance',
+                  style: TextStyle(fontSize: 11, color: AppColors.financeGreen.withValues(alpha: 0.8), fontWeight: FontWeight.w500)),
+            ]),
+          ),
+        ],
+
+        // Round savings — only show if user has it configured
+        if (hasRoundupConfig) ...[
+          const Padding(
+            padding: EdgeInsets.symmetric(vertical: 8),
+            child: Divider(height: 1, color: Color(0xFFF3F4F6)),
+          ),
+          InkWell(
+            onTap: () => onRoundSavingsChanged(!useRoundSavings),
+            borderRadius: BorderRadius.circular(8),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 6),
+              child: Row(children: [
+                _checkbox(useRoundSavings),
+                const SizedBox(width: 10),
+                const Icon(Icons.savings_rounded, size: 16, color: AppColors.financeGreen),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    Text(_roundupLabel,
+                        style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Color(0xFF111827))),
+                    const Text('Extra amount added on top and saved to your goal',
+                        style: TextStyle(fontSize: 11, color: Color(0xFF9CA3AF))),
+                  ]),
+                ),
+              ]),
+            ),
+          ),
+        ],
+      ]),
+    );
+  }
+
+  Widget _checkbox(bool checked) => AnimatedContainer(
+        duration: const Duration(milliseconds: 150),
+        width: 20,
+        height: 20,
+        decoration: BoxDecoration(
+          color: checked ? AppColors.financeGreen : Colors.white,
+          borderRadius: BorderRadius.circular(5),
+          border: Border.all(
+            color: checked ? AppColors.financeGreen : const Color(0xFFD1D5DB),
+            width: 1.5,
+          ),
+        ),
+        child: checked
+            ? const Icon(Icons.check_rounded, size: 13, color: Colors.white)
+            : null,
+      );
+}
+
+// ─────────────────────────────────────────────────────────────────
+//  PROCESSING SHEET — polls transaction status (for M-Pesa STK on till)
 // ─────────────────────────────────────────────────────────────────
 
 class _ProcessingSheet extends StatefulWidget {
@@ -1093,7 +1349,7 @@ class _ProcessingSheetState extends State<_ProcessingSheet> {
       if (!_polling || !mounted) return;
       _elapsed += 5;
       if (_elapsed >= 90) {
-        setState(() { _polling = false; _failed = true; _error = 'Payment timed out. Try again.'; });
+        setState(() { _polling = false; _failed = true; _error = 'Payment timed out. Please try again.'; });
         _timer?.cancel();
         return;
       }
@@ -1109,7 +1365,8 @@ class _ProcessingSheetState extends State<_ProcessingSheet> {
           widget.onDone();
         } else if (status == 'failed' || status == 'cancelled') {
           _timer?.cancel();
-          if (mounted) setState(() { _polling = false; _failed = true; _error = 'Payment failed. Try again.'; });
+          final errMsg = d['data']?['error_message'] ?? d['message'] ?? 'Payment failed. Please try again.';
+          if (mounted) setState(() { _polling = false; _failed = true; _error = errMsg.toString(); });
         }
       } catch (_) {}
     });
@@ -1153,7 +1410,8 @@ class _ProcessingSheetState extends State<_ProcessingSheet> {
           const SizedBox(height: 16),
           const Text('Payment Failed', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF111827))),
           const SizedBox(height: 6),
-          Text(_error ?? 'Something went wrong.', style: const TextStyle(fontSize: 13, color: Color(0xFF6B7280)), textAlign: TextAlign.center),
+          Text(_error ?? 'Something went wrong. Please try again.',
+              style: const TextStyle(fontSize: 13, color: Color(0xFF6B7280)), textAlign: TextAlign.center),
           const SizedBox(height: 24),
           _greenBtn('Try Again', () => Navigator.pop(context)),
 
@@ -1163,9 +1421,9 @@ class _ProcessingSheetState extends State<_ProcessingSheet> {
             decoration: BoxDecoration(color: AppColors.financeGreen.withValues(alpha: 0.08), shape: BoxShape.circle),
             child: const Padding(padding: EdgeInsets.all(14), child: CircularProgressIndicator(color: AppColors.financeGreen, strokeWidth: 3))),
           const SizedBox(height: 16),
-          const Text('Waiting for PIN', style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold, color: Color(0xFF111827))),
+          const Text('Check Your Phone', style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold, color: Color(0xFF111827))),
           const SizedBox(height: 6),
-          const Text('Enter your M-Pesa PIN to complete payment.\nChecking every 5 seconds...',
+          const Text('Enter your M-Pesa PIN to complete the payment.\nMoney will deposit to your wallet then pay the merchant.',
               style: TextStyle(fontSize: 13, color: Color(0xFF6B7280), height: 1.5), textAlign: TextAlign.center),
           const SizedBox(height: 20),
           TextButton(
@@ -1190,6 +1448,244 @@ class _ProcessingSheetState extends State<_ProcessingSheet> {
       child: Text(label, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 15)),
     ),
   );
+}
+
+// ─────────────────────────────────────────────────────────────────
+//  PAYBILL M-PESA PROCESSING SHEET
+//  Polls deposit transaction → once completed, auto-pays paybill from wallet
+// ─────────────────────────────────────────────────────────────────
+
+class _PaybillMpesaSheet extends StatefulWidget {
+  final String txId, userId, paybill, account;
+  final double amt, roundUp;
+  final VoidCallback onDone;
+
+  const _PaybillMpesaSheet({
+    required this.txId,
+    required this.userId,
+    required this.paybill,
+    required this.account,
+    required this.amt,
+    required this.roundUp,
+    required this.onDone,
+  });
+
+  @override
+  State<_PaybillMpesaSheet> createState() => _PaybillMpesaSheetState();
+}
+
+class _PaybillMpesaSheetState extends State<_PaybillMpesaSheet> {
+  // stages: waiting_pin → depositing → paying_paybill → success / failed
+  String _stage = 'waiting_pin';
+  String? _error;
+  int _elapsed = 0;
+  Timer? _timer;
+
+  @override
+  void initState() {
+    super.initState();
+    _pollDeposit();
+  }
+
+  void _pollDeposit() {
+    _timer = Timer.periodic(const Duration(seconds: 5), (_) async {
+      if (!mounted) return;
+      _elapsed += 5;
+      if (_elapsed >= 120) {
+        _timer?.cancel();
+        if (mounted) setState(() { _stage = 'failed'; _error = 'Payment timed out. Please try again.'; });
+        return;
+      }
+      try {
+        final r = await http.get(
+          Uri.parse('${AppConstants.apiBaseUrl}/transaction-status/${widget.txId}'),
+        ).timeout(const Duration(seconds: 8));
+        final d = jsonDecode(r.body);
+        final status = ((d['data']?['transaction_status'] ?? d['payment_status'] ?? d['status'] ?? '')).toString().toLowerCase();
+        if (status == 'completed' || status == 'success') {
+          _timer?.cancel();
+          if (mounted) setState(() => _stage = 'paying_paybill');
+          await _payPaybill();
+        } else if (status == 'failed' || status == 'cancelled') {
+          _timer?.cancel();
+          final errMsg = d['data']?['error_message'] ?? d['message'] ?? 'M-Pesa payment failed.';
+          if (mounted) setState(() { _stage = 'failed'; _error = errMsg.toString(); });
+        }
+      } catch (_) {}
+    });
+  }
+
+  Future<void> _payPaybill() async {
+    try {
+      final r = await http.post(
+        Uri.parse('${AppConstants.apiBaseUrl}/process-paybill-payment'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({
+          'user_id': int.tryParse(widget.userId) ?? widget.userId,
+          'amount': widget.amt,
+          'merchant_paybill': widget.paybill,
+          'merchant_account': widget.account,
+          'round_up_savings': widget.roundUp,
+        }),
+      ).timeout(const Duration(seconds: 20));
+      final data = jsonDecode(r.body);
+      if (r.statusCode == 200 && data['status'] == 'success') {
+        if (mounted) setState(() => _stage = 'success');
+        widget.onDone();
+      } else {
+        if (mounted) setState(() { _stage = 'failed'; _error = data['message'] ?? 'Failed to pay PayBill. Please try again.'; });
+      }
+    } catch (e) {
+      if (mounted) setState(() { _stage = 'failed'; _error = 'Network error. Please try again.'; });
+    }
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final mq = MediaQuery.of(context);
+    return Container(
+      padding: EdgeInsets.fromLTRB(24, 20, 24, mq.padding.bottom + 24),
+      decoration: const BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      child: Column(mainAxisSize: MainAxisSize.min, children: [
+        Container(width: 40, height: 4, decoration: BoxDecoration(color: const Color(0xFFE5E7EB), borderRadius: BorderRadius.circular(2))),
+        const SizedBox(height: 24),
+
+        if (_stage == 'success') ...[
+          Container(width: 64, height: 64,
+            decoration: BoxDecoration(color: AppColors.financeGreen.withValues(alpha: 0.1), shape: BoxShape.circle),
+            child: const Icon(Icons.check_circle_rounded, color: AppColors.financeGreen, size: 40)),
+          const SizedBox(height: 16),
+          const Text('Payment Successful!', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF111827))),
+          const SizedBox(height: 6),
+          Text('KES ${widget.amt.toStringAsFixed(2)} paid to PayBill ${widget.paybill}',
+              style: const TextStyle(fontSize: 13, color: Color(0xFF6B7280))),
+          if (widget.roundUp > 0) ...[
+            const SizedBox(height: 4),
+            Text('+ KES ${widget.roundUp.toStringAsFixed(2)} saved to your goal',
+                style: TextStyle(fontSize: 12, color: AppColors.financeGreen.withValues(alpha: 0.8))),
+          ],
+          const SizedBox(height: 24),
+          _greenBtn('Done', () => Navigator.pop(context)),
+
+        ] else if (_stage == 'failed') ...[
+          Container(width: 64, height: 64,
+            decoration: BoxDecoration(color: Colors.red.withValues(alpha: 0.1), shape: BoxShape.circle),
+            child: const Icon(Icons.cancel_rounded, color: Colors.red, size: 40)),
+          const SizedBox(height: 16),
+          const Text('Payment Failed', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF111827))),
+          const SizedBox(height: 6),
+          Text(_error ?? 'Something went wrong. Please try again.',
+              style: const TextStyle(fontSize: 13, color: Color(0xFF6B7280)), textAlign: TextAlign.center),
+          const SizedBox(height: 24),
+          _greenBtn('Close', () => Navigator.pop(context)),
+
+        ] else ...[
+          Container(
+            width: 64, height: 64,
+            decoration: BoxDecoration(color: AppColors.financeGreen.withValues(alpha: 0.08), shape: BoxShape.circle),
+            child: const Padding(padding: EdgeInsets.all(14), child: CircularProgressIndicator(color: AppColors.financeGreen, strokeWidth: 3))),
+          const SizedBox(height: 16),
+          Text(
+            _stage == 'paying_paybill' ? 'Paying PayBill...' : 'Check Your Phone',
+            style: const TextStyle(fontSize: 17, fontWeight: FontWeight.bold, color: Color(0xFF111827)),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            _stage == 'paying_paybill'
+                ? 'M-Pesa confirmed. Paying PayBill ${widget.paybill} from your wallet...'
+                : 'Enter your M-Pesa PIN to deposit to wallet.\nWe\'ll pay PayBill ${widget.paybill} automatically.',
+            style: const TextStyle(fontSize: 13, color: Color(0xFF6B7280), height: 1.5),
+            textAlign: TextAlign.center,
+          ),
+          if (_stage == 'waiting_pin') ...[
+            const SizedBox(height: 20),
+            TextButton(
+              onPressed: () { _timer?.cancel(); Navigator.pop(context); },
+              child: const Text('Cancel', style: TextStyle(color: Colors.red)),
+            ),
+          ],
+        ],
+      ]),
+    );
+  }
+
+  Widget _greenBtn(String label, VoidCallback onTap) => SizedBox(
+    width: double.infinity,
+    child: ElevatedButton(
+      onPressed: onTap,
+      style: ElevatedButton.styleFrom(
+        backgroundColor: AppColors.financeGreen,
+        padding: const EdgeInsets.symmetric(vertical: 14),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+        elevation: 0,
+      ),
+      child: Text(label, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 15)),
+    ),
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────
+//  SUCCESS SHEET (wallet-direct payments)
+// ─────────────────────────────────────────────────────────────────
+
+class _SuccessSheet extends StatelessWidget {
+  final double amt;
+  final String label;
+  final bool fromWallet;
+
+  const _SuccessSheet({required this.amt, required this.label, required this.fromWallet});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(28),
+      decoration: const BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      child: Column(mainAxisSize: MainAxisSize.min, children: [
+        Container(
+          width: 64, height: 64,
+          decoration: BoxDecoration(color: AppColors.financeGreen.withValues(alpha: 0.1), shape: BoxShape.circle),
+          child: const Icon(Icons.check_circle_rounded, color: AppColors.financeGreen, size: 40),
+        ),
+        const SizedBox(height: 16),
+        const Text('Payment Successful!',
+            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF111827))),
+        const SizedBox(height: 6),
+        Text('KES ${amt.toStringAsFixed(2)} paid to $label',
+            style: const TextStyle(fontSize: 13, color: Color(0xFF6B7280))),
+        const SizedBox(height: 8),
+        Text(
+          fromWallet ? 'Funds deducted from your Nebo wallet.' : 'Payment processed.',
+          style: const TextStyle(fontSize: 12, color: Color(0xFF9CA3AF)),
+        ),
+        const SizedBox(height: 24),
+        SizedBox(
+          width: double.infinity,
+          child: ElevatedButton(
+            onPressed: () => Navigator.pop(context),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.financeGreen,
+              padding: const EdgeInsets.symmetric(vertical: 14),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+              elevation: 0,
+            ),
+            child: const Text('Done', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+          ),
+        ),
+      ]),
+    );
+  }
 }
 
 // ─────────────────────────────────────────────────────────────────
@@ -1239,7 +1735,8 @@ Widget _field(
 
 class _SummaryCard extends StatelessWidget {
   final double payAmt, roundUp, total;
-  const _SummaryCard({required this.payAmt, required this.roundUp, required this.total});
+  final String source;
+  const _SummaryCard({required this.payAmt, required this.roundUp, required this.total, required this.source});
 
   @override
   Widget build(BuildContext context) {
@@ -1252,19 +1749,33 @@ class _SummaryCard extends StatelessWidget {
       ),
       child: Column(children: [
         _row('Payment Amount', 'KES ${payAmt.toStringAsFixed(2)}', bold: false),
-        const SizedBox(height: 6),
-        _row('Round-up Savings', 'KES ${roundUp.toStringAsFixed(2)}', bold: false),
+        if (roundUp > 0) ...[
+          const SizedBox(height: 6),
+          _row('Round Savings', '+ KES ${roundUp.toStringAsFixed(2)}', bold: false, accent: true),
+        ],
         const Padding(padding: EdgeInsets.symmetric(vertical: 8), child: Divider(height: 1)),
         _row('Total', 'KES ${total.toStringAsFixed(2)}', bold: true),
+        const SizedBox(height: 8),
+        Row(children: [
+          Icon(Icons.info_outline_rounded, size: 12, color: const Color(0xFF9CA3AF)),
+          const SizedBox(width: 4),
+          Expanded(child: Text(source, style: const TextStyle(fontSize: 11, color: Color(0xFF9CA3AF)))),
+        ]),
       ]),
     );
   }
 
-  Widget _row(String label, String value, {required bool bold}) => Row(
+  Widget _row(String label, String value, {required bool bold, bool accent = false}) => Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Text(label, style: TextStyle(fontSize: 13, color: bold ? const Color(0xFF111827) : const Color(0xFF6B7280), fontWeight: bold ? FontWeight.bold : FontWeight.normal)),
-          Text(value, style: TextStyle(fontSize: 13, color: bold ? AppColors.financeGreen : const Color(0xFF374151), fontWeight: bold ? FontWeight.bold : FontWeight.normal)),
+          Text(label, style: TextStyle(
+            fontSize: 13,
+            color: bold ? const Color(0xFF111827) : const Color(0xFF6B7280),
+            fontWeight: bold ? FontWeight.bold : FontWeight.normal)),
+          Text(value, style: TextStyle(
+            fontSize: 13,
+            color: bold ? AppColors.financeGreen : (accent ? AppColors.financeGreen : const Color(0xFF374151)),
+            fontWeight: bold ? FontWeight.bold : FontWeight.normal)),
         ],
       );
 }
