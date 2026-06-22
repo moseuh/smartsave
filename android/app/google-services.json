@@ -12,7 +12,20 @@
           "package_name": "com.nebo.user"
         }
       },
-      "oauth_client": [],
+      "oauth_client": [
+        {
+          "client_id": "1020426440691-bprtj2ir68ate5iffbrbj1r4obfkn9g7.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.nebo.user",
+            "certificate_hash": "fef0f8a03bd06cca147fd42ba1460c9d3766a0e3"
+          }
+        },
+        {
+          "client_id": "1020426440691-iorc3u6h3gakd0ka95fmlvtueisf3a90.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
       "api_key": [
         {
           "current_key": "AIzaSyDx873UJPkynwCRfSv-oHwOSF3neOPSGdk"
@@ -20,7 +33,12 @@
       ],
       "services": {
         "appinvite_service": {
-          "other_platform_oauth_client": []
+          "other_platform_oauth_client": [
+            {
+              "client_id": "1020426440691-2h1lkmu995u590m9rh6g1ffbrktmaa4v.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
         }
       }
     }

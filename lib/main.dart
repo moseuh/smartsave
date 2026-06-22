@@ -13,6 +13,7 @@ import 'screens/main_shell.dart';
 import 'providers/auth_provider.dart' as app_auth;
 import 'providers/wallet_provider.dart';
 import 'constants/app_theme.dart';
+import 'widgets/session_gate.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -67,6 +68,7 @@ class MainApp extends StatelessWidget {
           '/sign_in': (context) => const ModernLoginScreen(),
           '/home': (context) => const HomePage(),
         },
+        builder: (context, child) => SessionGate(child: child ?? const SizedBox.shrink()),
       ),
     );
   }

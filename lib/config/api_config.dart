@@ -87,6 +87,9 @@ class ApiConfig {
   // Auth
   static String get googleLogin => getUrl('google-login');
 
+  // OpenAI / Nia AI
+  static const String openAiApiKey = String.fromEnvironment('OPENAI_API_KEY', defaultValue: '');
+
   // P2P / Lending
   static String get loanRequest => getUrl('request');
   static String p2pPortfolio(String userId) => getUrl('p2p-portfolio/$userId');

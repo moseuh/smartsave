@@ -7,6 +7,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter_spinkit/flutter_spinkit.dart';
 import 'package:smartsave/constants/app_theme.dart';
 import '../constants/app_constants.dart';
+import '../services/transaction_auth_service.dart';
 import 'loan_products.dart';
 import 'loans_credit_score.dart';
 import 'profile.dart';
@@ -560,10 +561,12 @@ class _WalletPageState extends State<WalletPage> {
                             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
                             elevation: 0,
                           ),
-                          onPressed: _retryCountdown ? null : () {
+                          onPressed: _retryCountdown ? null : () async {
                             final amt = double.tryParse(amtCtrl.text);
                             final phone = phoneCtrl.text.trim();
-                            if (amt != null && amt > 0 && phone.isNotEmpty) {
+                            if (amt != null && amt >= 10 && phone.isNotEmpty) {
+                              final authed = await TransactionAuthService.authenticate(ctx);
+                              if (!authed || !ctx.mounted) return;
                               Navigator.pop(ctx);
                               final normalizedPhone = phone.startsWith('0')
                                   ? '254${phone.substring(1)}'
@@ -690,11 +693,14 @@ class _WalletPageState extends State<WalletPage> {
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
                     elevation: 0,
                   ),
-                  onPressed: () {
+                  onPressed: () async {
                     final amt = double.tryParse(amtCtrl.text);
                     final phone = phoneCtrl.text.trim();
-                    if (amt != null && amt > 0 && phone.isNotEmpty) {
-                      Navigator.pop(context);
+                    if (amt != null && amt >= 10 && phone.isNotEmpty) {
+                      final nav = Navigator.of(context);
+                      final authed = await TransactionAuthService.authenticate(context);
+                      if (!authed) return;
+                      nav.pop();
                       withdraw(amt, phone);
                     }
                   },
@@ -785,12 +791,16 @@ class _WalletPageState extends State<WalletPage> {
               onPressed: () async {
                 final amt = double.tryParse(amountCtrl.text) ?? 0;
                 final round = double.tryParse(roundCtrl.text) ?? 0;
-                if (amt <= 0) return;
+                if (amt < 10) return;
 
                 int? selectedGoalId;
                 if (!_isPayBillMode && round > 0) {
                   selectedGoalId = await showGoalPicker();
                 }
+
+                if (!context.mounted) return;
+                final authed = await TransactionAuthService.authenticate(context);
+                if (!authed || !context.mounted) return;
 
                 Navigator.pop(context);
 
@@ -1208,12 +1218,18 @@ class _GlobalSendFlowState extends State<GlobalSendFlow> {
 
   bool _canProceedStep2() => recipientPhone.trim().length >= 9 && recipientName.trim().isNotEmpty;
 
-  bool _canProceedStep3() => double.tryParse(amount) != null && double.tryParse(amount)! > 0;
+  bool _canProceedStep3() => double.tryParse(amount) != null && double.tryParse(amount)! >= 10;
 
   Future<void> _sendMoney() async {
     setState(() => _isLoading = true);
     final amt = double.tryParse(amount) ?? 0;
     if (amt <= 0) {
+      setState(() => _isLoading = false);
+      return;
+    }
+
+    final authed = await TransactionAuthService.authenticate(context);
+    if (!authed) {
       setState(() => _isLoading = false);
       return;
     }

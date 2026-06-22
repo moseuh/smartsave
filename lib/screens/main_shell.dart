@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../constants/app_theme.dart';
+import '../widgets/session_gate.dart';
+import '../services/tab_refresh_registry.dart';
 import 'home_tab.dart';
 import 'save_tab.dart';
 import 'finance_tab.dart';
@@ -15,7 +17,7 @@ class MainShell extends StatefulWidget {
   State<MainShell> createState() => _MainShellState();
 }
 
-class _MainShellState extends State<MainShell> with TickerProviderStateMixin {
+class _MainShellState extends State<MainShell> with TickerProviderStateMixin, WidgetsBindingObserver {
   int _current = 0;
   late final List<Widget> _pages;
 
@@ -33,6 +35,7 @@ class _MainShellState extends State<MainShell> with TickerProviderStateMixin {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _pages = [
       HomeTab(userId: widget.userId),
       SaveTab(userId: widget.userId),
@@ -50,20 +53,39 @@ class _MainShellState extends State<MainShell> with TickerProviderStateMixin {
         .toList();
 
     _iconControllers[0].forward();
+
+    // Offer biometric enrollment once after first PIN setup
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) BiometricEnrollPrompt.showIfApplicable(context);
+    });
   }
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     for (final c in _iconControllers) c.dispose();
     super.dispose();
   }
 
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      TabRefreshRegistry.refresh(_current);
+    }
+  }
+
   void _onTap(int index) {
-    if (index == _current) return;
+    if (index == _current) {
+      // Tapping the active tab refreshes it
+      HapticFeedback.lightImpact();
+      TabRefreshRegistry.refresh(_current);
+      return;
+    }
     HapticFeedback.lightImpact();
     _iconControllers[_current].reverse();
     _iconControllers[index].forward();
     setState(() => _current = index);
+    TabRefreshRegistry.refresh(index);
   }
 
   @override

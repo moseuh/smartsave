@@ -1,18 +1,16 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import '../constants/app_theme.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import '../constants/app_constants.dart';
-import 'dart:async';
-import 'package:shared_preferences/shared_preferences.dart';
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  Goal Creation Screen — clean full-page form
+// ─────────────────────────────────────────────────────────────────────────────
 
 class GoalCreationScreen extends StatefulWidget {
   final String userId;
-
-  const GoalCreationScreen({
-    super.key,
-    required this.userId,
-  });
+  const GoalCreationScreen({super.key, required this.userId});
 
   @override
   State<GoalCreationScreen> createState() => _GoalCreationScreenState();
@@ -20,882 +18,324 @@ class GoalCreationScreen extends StatefulWidget {
 
 class _GoalCreationScreenState extends State<GoalCreationScreen> {
   final _formKey = GlobalKey<FormState>();
-  String? selectedGoalType;
-  String? selectedOption;
-  double? goalAmount;
-  String? goalName;
-  int? durationDays;
-  List<Map<String, dynamic>> leaderboard = [];
-  List<Map<String, dynamic>> recentSavings = [];
-  List<String> badges = [];
-  bool isLoading = false;
-  double currentSavings = 0.0;
-  double savingsRate = 0.0;
-  double probability = 0.0;
+  final _nameCtrl  = TextEditingController();
+  final _amtCtrl   = TextEditingController();
+  final _daysCtrl  = TextEditingController();
+  String _goalType = 'General';
+  bool _saving = false;
 
-  // Gamified Challenges
-  Map<String, dynamic> activeChallenges = {};
-  String? selectedReminderFrequency;
-  int selected52WeekStart = 100;
-
-  // User's phone number fetched from API
-  String userPhone = '';
-
-  final List<int> startingAmounts = [50, 100, 200, 500];
-
-  final List<Map<String, dynamic>> challenges = [
-    {
-      'id': '52_week',
-      'title': '52-Week Money Challenge',
-      'description': 'Double your savings every week for a year',
-      'icon': Icons.trending_up,
-      'color': Colors.deepPurple,
-    },
-    {
-      'id': 'round_up',
-      'title': 'Round-Up Challenge',
-      'description': 'Round up every purchase and save the change',
-      'icon': Icons.payments,
-      'color': Colors.teal,
-    },
-    {
-      'id': 'no_spend_weekend',
-      'title': 'No-Spend Weekend Challenge',
-      'description': 'Skip non-essential spending every weekend',
-      'icon': Icons.block,
-      'color': Colors.orange,
-    },
-    {
-      'id': 'daily_100',
-      'title': 'Daily KSh 100 Challenge',
-      'description': 'Save at least KSh 100 every single day',
-      'icon': Icons.local_fire_department,
-      'color': Colors.red,
-    },
+  static const _goalTypes = [
+    ('General',       Icons.savings_outlined),
+    ('Emergency',     Icons.health_and_safety_outlined),
+    ('Education',     Icons.school_outlined),
+    ('Travel',        Icons.flight_outlined),
+    ('Home',          Icons.home_outlined),
+    ('Business',      Icons.business_center_outlined),
+    ('Retirement',    Icons.elderly_outlined),
   ];
 
-  final List<String> reminderOptions = ['Daily', 'Weekly', 'Monthly', 'None'];
-
-  final List<String> goalTypes = [
-    'Save',
-    'Save to Invest',
-    'Pay Loan',
-    'Pay for Event',
-    'Pay School Fees',
-    'Pay for Shamba',
+  static const _durations = [
+    ('30 days',   30),
+    ('60 days',   60),
+    ('90 days',   90),
+    ('6 months',  180),
+    ('1 year',    365),
   ];
 
-  final List<Map<String, dynamic>> loanProviders = [
-    {'name': 'HELB', 'description': 'Higher Education Loans Board', 'icon': Icons.school},
-    {'name': 'Tala', 'description': 'Mobile-based loans', 'icon': Icons.phone_android},
-    {'name': 'Branch', 'description': 'Quick digital loans', 'icon': Icons.account_balance},
-    {'name': 'KCB M-Pesa', 'description': 'Bank-backed mobile loans', 'icon': Icons.account_balance_wallet},
-  ];
-
-  final List<Map<String, dynamic>> events = [
-    {
-      'name': 'Nairobi Tech Week',
-      'date': '2025-09-10',
-      'cost': 5000.0,
-      'time': '09:00 AM',
-      'image': 'assets/images/tech_week.jpg',
-    },
-    {
-      'name': 'Charity Marathon',
-      'date': '2025-10-15',
-      'cost': 2000.0,
-      'time': '07:00 AM',
-      'image': 'assets/images/marathon.jpg',
-    },
-  ];
-
-  final List<Map<String, dynamic>> investments = [
-    {
-      'name': 'Money Market Fund',
-      'description': 'Low-risk, stable returns',
-      'expected_return': '8-10% p.a.',
-      'icon': Icons.savings,
-    },
-    {
-      'name': 'High-Risk Investment',
-      'description': 'Stocks and crypto, high returns',
-      'expected_return': '15-25% p.a.',
-      'icon': Icons.trending_up,
-    },
-  ];
+  int? _quickDays; // null = custom
 
   @override
-  void initState() {
-    super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _fetchAllData();
-      _loadActiveChallenges();
-      _fetchUserPhone();
-    });
+  void dispose() {
+    _nameCtrl.dispose();
+    _amtCtrl.dispose();
+    _daysCtrl.dispose();
+    super.dispose();
   }
 
-  Future<void> _fetchUserPhone() async {
-    try {
-      final response = await http.get(
-        Uri.parse('${AppConstants.apiBaseUrl}/user-details/${widget.userId}'),
-        headers: {"Content-Type": "application/json"},
-      );
+  Color _typeColor(String t) => AppColors.financeGreen;
 
-      if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
-        if (data['status'] == 'success') {
-          final rawPhone = data['data']['phone_number']?.toString() ?? '';
-          if (rawPhone.isNotEmpty) {
-            String cleaned = rawPhone.replaceAll(RegExp(r'\D'), '');
-            if (cleaned.startsWith('0')) {
-              cleaned = '254' + cleaned.substring(1);
-            } else if (cleaned.length == 9) {
-              cleaned = '254' + cleaned;
-            }
-            setState(() {
-              userPhone = cleaned;
-            });
-          }
-        }
-      }
-    } catch (e) {
-      debugPrint('Failed to fetch user phone: $e');
-      // Fallback - you can show a message or ask user to enter phone if needed
-    }
-  }
-
-  Future<void> _loadActiveChallenges() async {
-    final prefs = await SharedPreferences.getInstance();
-    final saved = prefs.getString('active_challenges_${widget.userId}');
-    if (saved != null && mounted) {
-      setState(() {
-        activeChallenges = jsonDecode(saved);
-      });
-    }
-  }
-
-  Future<void> _joinChallenge(String challengeId) async {
-    if (selectedReminderFrequency == null || selectedReminderFrequency == 'None') {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please select a reminder frequency first')),
-      );
-      return;
-    }
-
-    try {
-      final response = await http.post(
-        Uri.parse('${AppConstants.apiBaseUrl}/challengesjoin'),
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({
-          'user_id': widget.userId,
-          'challenge_id': challengeId,
-          'starting_amount': challengeId == '52_week' ? selected52WeekStart : 0,
-          'reminder': selectedReminderFrequency,
-        }),
-      );
-
-      if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
-        if (data['status'] == 'success') {
-          setState(() {
-            activeChallenges[challengeId] = {
-              'starting_amount': selected52WeekStart,
-              'reminder': selectedReminderFrequency,
-              'current_week': 0,
-              'total_saved': 0.0,
-            };
-          });
-          final prefs = await SharedPreferences.getInstance();
-          await prefs.setString('active_challenges_${widget.userId}', jsonEncode(activeChallenges));
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Challenge joined successfully!'), backgroundColor: Colors.green),
-          );
-        }
-      } else {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: ${response.body}')));
-      }
-    } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Network error: $e')));
-    }
-  }
-
-  Future<void> _contributeToChallenge(String challengeId) async {
-    if (userPhone.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Phone number not available. Please try again later.')),
-      );
-      return;
-    }
-
-    final controller = TextEditingController();
-
-    final result = await showDialog<Map<String, dynamic>?>(
-      context: context,
-      builder: (_) => AlertDialog(
-        backgroundColor: AppTheme.cardLight,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: const Text('Contribute to Challenge', style: TextStyle(color: AppTheme.textPrimary, fontWeight: FontWeight.bold)),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Text('How much do you want to contribute?', style: TextStyle(color: AppTheme.textSecondary)),
-            const SizedBox(height: 16),
-            TextField(
-              controller: controller,
-              keyboardType: TextInputType.number,
-              style: const TextStyle(color: AppTheme.cardLight),
-              decoration: InputDecoration(
-                hintText: 'e.g., 500',
-                filled: true,
-                fillColor: AppColors.coreDark,
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide.none),
-              ),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel', style: TextStyle(color: AppTheme.textSecondary)),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              final text = controller.text.trim();
-              if (text.isEmpty) return;
-              final amount = double.tryParse(text);
-              if (amount != null && amount > 0) {
-                Navigator.pop(context, {'amount': amount});
-              } else {
-                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Enter a valid amount')));
-              }
-            },
-            style: ElevatedButton.styleFrom(backgroundColor: AppColors.financeGreenV3),
-            child: const Text('Pay Now', style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold)),
-          ),
-        ],
-      ),
-    );
-
-    if (result == null) return;
-
-    final double amount = result['amount'];
-
-    try {
-      final response = await http.post(
-        Uri.parse('${AppConstants.apiBaseUrl}/challengescontribute'),
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({
-          'user_id': widget.userId,
-          'challenge_id': challengeId,
-          'amount': amount,
-          'phone_number': userPhone,
-        }),
-      );
-
-      final data = jsonDecode(response.body);
-
-      if (data['status'] == 'success') {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('STK Push sent! Please complete payment on your phone.'),
-            backgroundColor: Colors.orange,
-            duration: Duration(seconds: 8),
-          ),
-        );
-      } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(data['message'] ?? 'Failed to send STK Push')),
-        );
-      }
-    } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error: $e')),
-      );
-    }
-  }
-
-  void _showChallengeProgress(String challengeId) {
-    final challenge = challenges.firstWhere((c) => c['id'] == challengeId);
-    final data = activeChallenges[challengeId] ?? {};
-    final currentWeek = data['current_week'] ?? 0;
-    final totalSaved = data['total_saved']?.toDouble() ?? 0.0;
-    final startingAmount = data['starting_amount'] ?? 100;
-
-    double expectedThisWeek = 0.0;
-    double totalExpected = 0.0;
-    if (challengeId == '52_week') {
-      expectedThisWeek = startingAmount * (currentWeek + 1);
-      totalExpected = startingAmount * (52 * 53) / 2;
-    }
-
-    showDialog(
-      context: context,
-      builder: (_) => AlertDialog(
-        backgroundColor: AppTheme.cardLight,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: Text(challenge['title'], style: const TextStyle(color: AppTheme.textPrimary, fontWeight: FontWeight.bold)),
-        content: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              if (challengeId == '52_week') ...[
-                Text('Current Week: ${currentWeek + 1} / 52', style: const TextStyle(color: AppTheme.textPrimary, fontSize: 18)),
-                const SizedBox(height: 12),
-                Text('Amount due this week: KSh ${expectedThisWeek.toStringAsFixed(0)}',
-                    style: const TextStyle(color: AppColors.financeGreenV3, fontSize: 16, fontWeight: FontWeight.bold)),
-                const SizedBox(height: 16),
-                LinearProgressIndicator(
-                  value: currentWeek / 52,
-                  backgroundColor: AppColors.coreWhiteW2,
-                  valueColor: const AlwaysStoppedAnimation<Color>(AppColors.financeGreenV3),
-                  minHeight: 10,
-                ),
-                const SizedBox(height: 8),
-                Text('$currentWeek weeks completed', style: const TextStyle(color: AppTheme.textSecondary)),
-                const SizedBox(height: 20),
-                Text('Total saved: KSh ${totalSaved.toStringAsFixed(0)}',
-                    style: const TextStyle(color: Colors.green, fontSize: 18)),
-                Text('Goal: KSh ${totalExpected.toStringAsFixed(0)}', style: const TextStyle(color: AppTheme.textSecondary)),
-              ] else ...[
-                Text('Total saved so far: KSh ${totalSaved.toStringAsFixed(0)}',
-                    style: const TextStyle(color: Colors.green, fontSize: 20)),
-                const SizedBox(height: 20),
-                const Text('Keep up the great work!', style: TextStyle(color: AppTheme.textSecondary)),
-              ],
-              const SizedBox(height: 30),
-              ElevatedButton.icon(
-                onPressed: () => _contributeToChallenge(challengeId),
-                icon: const Icon(Icons.payment, color: Colors.black),
-                label: const Text('Contribute Now via M-PESA',
-                    style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold)),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.financeGreenV3,
-                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                ),
-              ),
-            ],
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Close', style: TextStyle(color: AppTheme.textSecondary)),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Future<void> _fetchAllData() async {
-    setState(() => isLoading = true);
-    await Future.wait([
-      _retryApiCall(fetchLeaderboard),
-      _retryApiCall(fetchRecentSavings),
-      _retryApiCall(loadBadges),
-    ]);
-    if (mounted) {
-      setState(() => isLoading = false);
-    }
-  }
-
-  Future<void> _retryApiCall(Future<void> Function() apiCall) async {
-    const maxRetries = 3;
-    for (var attempt = 1; attempt <= maxRetries; attempt++) {
-      try {
-        await apiCall();
-        return;
-      } catch (e) {
-        debugPrint('Attempt $attempt failed: $e');
-        if (attempt == maxRetries) {
-          debugPrint('Max retries reached');
-        }
-        await Future.delayed(Duration(seconds: attempt * 2));
-      }
-    }
-  }
-
-  Future<void> fetchLeaderboard() async {
-    try {
-      final response = await http.get(
-        Uri.parse('${AppConstants.apiBaseUrl}/leaderboard/top-10-weekly'),
-        headers: {"Content-Type": "application/json"},
-      ).timeout(const Duration(seconds: 15));
-
-      if (response.statusCode == 200) {
-        final data = jsonDecode(response.body) as Map<String, dynamic>;
-        if (data['status'] == 'success' && data['data'] is List) {
-          if (mounted) {
-            setState(() {
-              leaderboard = List<Map<String, dynamic>>.from(data['data']).map((entry) {
-                return {
-                  'user_name': entry['user_name']?.toString() ?? 'Unknown',
-                  'total_savings': entry['total_savings'] is num ? entry['total_savings'].toDouble() : 0.0,
-                };
-              }).toList();
-            });
-          }
-        }
-      }
-    } catch (e) {
-      debugPrint('Error fetching leaderboard: $e');
-    }
-  }
-
-  Future<void> fetchRecentSavings() async {
-    try {
-      final response = await http.get(
-        Uri.parse('${AppConstants.apiBaseUrl}/savings-recent/${widget.userId}'),
-        headers: {"Content-Type": "application/json"},
-      ).timeout(const Duration(seconds: 15));
-
-      if (response.statusCode == 200) {
-        final data = jsonDecode(response.body) as Map<String, dynamic>;
-        if (data['status'] == 'success' && data['data'] is List) {
-          if (mounted) {
-            setState(() {
-              recentSavings = List<Map<String, dynamic>>.from(data['data']).map((entry) {
-                return {
-                  'amount': entry['amount'] is num ? entry['amount'].toDouble() : 0.0,
-                  'created_at': entry['created_at']?.toString() ?? '',
-                };
-              }).toList();
-              currentSavings = recentSavings.fold(0.0, (sum, item) => sum + item['amount']);
-            });
-          }
-        }
-      }
-    } catch (e) {
-      debugPrint('Error fetching recent savings: $e');
-    }
-  }
-
-  Future<void> loadBadges() async {
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      final savedBadges = prefs.getStringList('badges_${widget.userId}') ?? [];
-      if (mounted) {
-        setState(() {
-          badges = savedBadges;
-          if (!badges.contains('Goal Starter')) {
-            badges.add('Goal Starter');
-            prefs.setStringList('badges_${widget.userId}', badges);
-          }
-        });
-      }
-    } catch (e) {
-      debugPrint('Error loading badges: $e');
-    }
-  }
-
-  Future<void> showCatalogueDialog(String goalType) async {
-    List<Map<String, dynamic>> items;
-    String title;
-    switch (goalType) {
-      case 'Pay Loan':
-        items = loanProviders;
-        title = 'Select Loan Provider';
-        break;
-      case 'Pay for Event':
-        items = events;
-        title = 'Select Event';
-        break;
-      case 'Save to Invest':
-        items = investments;
-        title = 'Select Investment';
-        break;
-      default:
-        return;
-    }
-
-    final result = await showDialog<String>(
-      context: context,
-      builder: (context) => AlertDialog(
-        backgroundColor: AppTheme.cardLight,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: Text(title, style: const TextStyle(color: AppTheme.textPrimary, fontWeight: FontWeight.bold)),
-        content: SizedBox(
-          width: double.maxFinite,
-          height: 300,
-          child: ListView.builder(
-            itemCount: items.length + 1,
-            itemBuilder: (context, index) {
-              if (index == items.length) {
-                return Card(
-                  color: AppColors.coreDark,
-                  child: ListTile(
-                    leading: const Icon(Icons.add, color: AppColors.financeGreenV3),
-                    title: const Text('Create New', style: TextStyle(color: AppTheme.cardLight)),
-                    onTap: () => Navigator.pop(context, 'Create New'),
-                  ),
-                );
-              }
-              final item = items[index];
-              return Card(
-                color: AppColors.coreDark,
-                child: ListTile(
-                  leading: goalType == 'Pay for Event'
-                      ? ClipRRect(
-                          borderRadius: BorderRadius.circular(8),
-                          child: Image.network(
-                            item['image'],
-                            width: 40,
-                            height: 40,
-                            fit: BoxFit.cover,
-                            errorBuilder: (_, __, ___) => const Icon(Icons.event, color: AppColors.financeGreenV3),
-                          ),
-                        )
-                      : Icon(item['icon'], color: AppColors.financeGreenV3),
-                  title: Text(item['name'], style: const TextStyle(color: AppTheme.cardLight)),
-                  subtitle: Text(
-                    goalType == 'Pay for Event'
-                        ? '${item['date']} â€¢ ${item['time']} â€¢ KSh ${item['cost']}'
-                        : item['description'] ?? item['expected_return'],
-                    style: const TextStyle(color: AppTheme.textSecondary, fontSize: 12),
-                  ),
-                  onTap: () {
-                    if (goalType == 'Pay for Event') {
-                      setState(() {
-                        goalName = item['name'];
-                        goalAmount = item['cost'].toDouble();
-                        durationDays = DateTime.parse(item['date']).difference(DateTime.now()).inDays.clamp(1, 365);
-                      });
-                    }
-                    Navigator.pop(context, item['name']);
-                  },
-                ),
-              );
-            },
-          ),
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel', style: TextStyle(color: AppColors.financeGreenV3))),
-        ],
-      ),
-    );
-
-    if (result != null && mounted) {
-      setState(() {
-        selectedOption = result;
-        if (result != 'Create New') goalName = result;
-      });
-    }
-  }
-
-  Future<void> createGoal() async {
+  Future<void> _submit() async {
     if (!_formKey.currentState!.validate()) return;
-    _formKey.currentState!.save();
+    final name  = _nameCtrl.text.trim();
+    final amt   = double.tryParse(_amtCtrl.text.trim()) ?? 0;
+    final days  = _quickDays ?? (int.tryParse(_daysCtrl.text.trim()) ?? 30);
 
-    if (goalAmount == null || goalAmount! < 100) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Target amount must be at least KSh 100')));
-      return;
-    }
-
-    setState(() => isLoading = true);
-
+    setState(() => _saving = true);
     try {
-      final response = await http.post(
+      final r = await http.post(
         Uri.parse('${AppConstants.apiBaseUrl}/goalscreate'),
-        headers: {"Content-Type": "application/json"},
+        headers: {'Content-Type': 'application/json'},
         body: jsonEncode({
-          "user_id": widget.userId,
-          "title": goalName?.trim() ?? "Untitled Goal",
-          "target_amount": goalAmount,
-          "duration_days": durationDays ?? 30,
-          "goal_type": selectedGoalType ?? "Save",
-          "selected_option": selectedOption,
+          'user_id':       widget.userId,
+          'title':         name,
+          'target_amount': amt,
+          'duration_days': days,
+          'goal_type':     _goalType,
         }),
-      );
-
-      if (response.statusCode == 200 || response.statusCode == 201) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Goal created successfully!')));
+      ).timeout(const Duration(seconds: 12));
+      if (!mounted) return;
+      if (r.statusCode == 200 || r.statusCode == 201) {
         Navigator.pop(context);
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: const Text('Goal created successfully!'),
+          backgroundColor: AppColors.financeGreen,
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+        ));
       } else {
-        final error = jsonDecode(response.body);
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(error['message'] ?? 'Server error')));
+        final err = jsonDecode(r.body);
+        _snack(err['message'] ?? 'Failed to create goal');
       }
-    } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e')));
+    } catch (_) {
+      _snack('Network error — check your connection');
     } finally {
-      if (mounted) setState(() => isLoading = false);
+      if (mounted) setState(() => _saving = false);
     }
+  }
+
+  void _snack(String msg) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      content: Text(msg),
+      backgroundColor: Colors.red.shade700,
+      behavior: SnackBarBehavior.floating,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+    ));
   }
 
   @override
   Widget build(BuildContext context) {
-
+    final color = _typeColor(_goalType);
     return Scaffold(
-          backgroundColor: AppTheme.backgroundLight,
-          appBar: AppBar(
-            backgroundColor: AppTheme.backgroundLight,
-            elevation: 0,
-            title: const Text('Savings Goals', style: TextStyle(color: Color(0xFF111827), fontWeight: FontWeight.bold)),
-            leading: IconButton(
-              icon: const Icon(Icons.arrow_back, color: Color(0xFF111827)),
-              onPressed: () => Navigator.pop(context),
-            ),
-            actions: [
-              IconButton(
-                icon: const Icon(Icons.add, color: AppColors.financeGreen),
-                tooltip: 'Create Goal',
-                onPressed: () => _showCreateGoalSheet(context),
-              ),
-            ],
-          ),
-          floatingActionButton: FloatingActionButton.extended(
-            onPressed: () => _showCreateGoalSheet(context),
-            backgroundColor: AppColors.financeGreenV3,
-            foregroundColor: AppTheme.textLight,
-            icon: const Icon(Icons.add),
-            label: const Text('New Goal', style: TextStyle(fontWeight: FontWeight.bold)),
-          ),
-          body: isLoading
-              ? const Center(child: CircularProgressIndicator(color: AppColors.financeGreenV3))
-              : SingleChildScrollView(
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 20.0),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        // Badges
-                        const SizedBox(height: 32),
-                        const Text('Your Badges', style: TextStyle(color: AppTheme.textPrimary, fontSize: 18, fontWeight: FontWeight.bold)),
-                        const SizedBox(height: 16),
-                        badges.isEmpty
-                            ? const Text('No badges earned yet', style: TextStyle(color: AppTheme.textSecondary))
-                            : SizedBox(
-                                height: 70,
-                                child: ListView(
-                                  scrollDirection: Axis.horizontal,
-                                  children: badges.map((badge) {
-                                    return Padding(
-                                      padding: const EdgeInsets.only(right: 12),
-                                      child: Chip(
-                                        label: Text(badge, style: const TextStyle(color: Colors.black, fontWeight: FontWeight.bold)),
-                                        backgroundColor: AppColors.financeGreenV3,
-                                        avatar: Icon(
-                                          badge == 'Goal Starter' ? Icons.star : badge == 'Consistent Saver' ? Icons.savings : Icons.trending_up,
-                                          color: Colors.black,
-                                        ),
-                                      ),
-                                    );
-                                  }).toList(),
-                                ),
-                              ),
-
-                        // Leaderboard
-                        const SizedBox(height: 32),
-                        const Text('Weekly Top 10 Savers', style: TextStyle(color: AppTheme.textPrimary, fontSize: 18, fontWeight: FontWeight.bold)),
-                        const SizedBox(height: 16),
-                        leaderboard.isEmpty
-                            ? const Text('No leaderboard data', style: TextStyle(color: AppTheme.textSecondary))
-                            : Card(
-                                color: AppTheme.cardLight,
-                                child: Padding(
-                                  padding: const EdgeInsets.all(16),
-                                  child: Column(
-                                    children: leaderboard.asMap().entries.map((e) {
-                                      final index = e.key;
-                                      final saver = e.value;
-                                      return Padding(
-                                        padding: const EdgeInsets.symmetric(vertical: 6),
-                                        child: Row(
-                                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                          children: [
-                                            Row(
-                                              children: [
-                                                CircleAvatar(radius: 16, child: Text('${index + 1}', style: const TextStyle(fontSize: 12))),
-                                                const SizedBox(width: 10),
-                                                Text(saver['user_name'], style: const TextStyle(color: AppTheme.cardLight)),
-                                              ],
-                                            ),
-                                            Text('KSh ${saver['total_savings'].toStringAsFixed(0)}', style: const TextStyle(color: AppColors.financeGreenV3, fontWeight: FontWeight.bold)),
-                                          ],
-                                        ),
-                                      );
-                                    }).toList(),
-                                  ),
-                                ),
-                              ),
-
-                        // Active Challenges
-                        const SizedBox(height: 40),
-                        const Text('Active Challenges', style: TextStyle(color: AppTheme.textPrimary, fontSize: 22, fontWeight: FontWeight.bold)),
-                        const SizedBox(height: 16),
-                        activeChallenges.isEmpty
-                            ? const Text('No active challenges. Join one below!', style: TextStyle(color: AppTheme.textSecondary))
-                            : Column(
-                                children: activeChallenges.keys.map((id) {
-                                  final challenge = challenges.firstWhere((c) => c['id'] == id);
-                                  final data = activeChallenges[id];
-                                  final week = data['current_week'] ?? 0;
-                                  final saved = data['total_saved']?.toDouble() ?? 0.0;
-                                  return Card(
-                                    color: AppTheme.cardLight,
-                                    margin: const EdgeInsets.only(bottom: 12),
-                                    child: ListTile(
-                                      leading: CircleAvatar(backgroundColor: challenge['color'], child: Icon(challenge['icon'], color: AppTheme.cardLight)),
-                                      title: Text(challenge['title'], style: const TextStyle(color: AppTheme.textPrimary, fontWeight: FontWeight.bold)),
-                                      subtitle: Text(
-                                        id == '52_week'
-                                            ? 'Week $week â€¢ KSh ${saved.toStringAsFixed(0)} saved'
-                                            : 'KSh ${saved.toStringAsFixed(0)} saved',
-                                        style: const TextStyle(color: AppTheme.textSecondary),
-                                      ),
-                                      trailing: const Icon(Icons.arrow_forward_ios, color: AppTheme.textSecondary),
-                                      onTap: () => _showChallengeProgress(id),
-                                    ),
-                                  );
-                                }).toList(),
-                              ),
-
-                        // Join New Challenge Section
-                        const SizedBox(height: 30),
-                        const Text('Join a New Challenge', style: TextStyle(color: AppTheme.textPrimary, fontSize: 20, fontWeight: FontWeight.bold)),
-                        const SizedBox(height: 16),
-
-                        // Reminder Frequency
-                        Card(
-                          color: AppTheme.cardLight,
-                          child: Padding(
-                            padding: const EdgeInsets.all(16),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                const Text('Reminder Frequency', style: TextStyle(color: AppTheme.textPrimary, fontWeight: FontWeight.bold)),
-                                const SizedBox(height: 8),
-                                DropdownButtonFormField<String>(
-                                  value: selectedReminderFrequency,
-                                  hint: const Text('Choose reminder', style: TextStyle(color: AppTheme.textSecondary)),
-                                  dropdownColor: AppTheme.cardLight,
-                                  style: const TextStyle(color: AppTheme.cardLight),
-                                  items: reminderOptions.map((opt) => DropdownMenuItem(value: opt, child: Text(opt))).toList(),
-                                  onChanged: (val) => setState(() => selectedReminderFrequency = val),
-                                  decoration: InputDecoration(
-                                    filled: true,
-                                    fillColor: AppColors.coreDark,
-                                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide.none),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-
-                        const SizedBox(height: 20),
-
-                        // 52-Week Starting Amount
-                        Card(
-                          color: AppTheme.cardLight,
-                          child: Padding(
-                            padding: const EdgeInsets.all(16),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                const Text('52-Week Challenge Starting Amount', style: TextStyle(color: AppTheme.textPrimary, fontWeight: FontWeight.bold)),
-                                const SizedBox(height: 8),
-                                DropdownButtonFormField<int>(
-                                  value: selected52WeekStart,
-                                  items: startingAmounts.map((amt) {
-                                    final total = amt * (52 * 53) / 2;
-                                    return DropdownMenuItem(value: amt, child: Text('KSh $amt/week â†’ Total KSh ${total.toStringAsFixed(0)}'));
-                                  }).toList(),
-                                  onChanged: (val) => setState(() => selected52WeekStart = val!),
-                                  decoration: InputDecoration(
-                                    filled: true,
-                                    fillColor: AppColors.coreDark,
-                                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide.none),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-
-                        const SizedBox(height: 20),
-
-                        // Available Challenges
-                        ...challenges.map((challenge) {
-                          final isJoined = activeChallenges.containsKey(challenge['id']);
-                          return Padding(
-                            padding: const EdgeInsets.only(bottom: 16),
-                            child: Card(
-                              color: AppTheme.cardLight,
-                              elevation: 6,
-                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                              child: Padding(
-                                padding: const EdgeInsets.all(16),
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Row(
-                                      children: [
-                                        CircleAvatar(backgroundColor: challenge['color'], child: Icon(challenge['icon'], color: AppTheme.cardLight)),
-                                        const SizedBox(width: 12),
-                                        Expanded(
-                                          child: Column(
-                                            crossAxisAlignment: CrossAxisAlignment.start,
-                                            children: [
-                                              Text(challenge['title'], style: const TextStyle(color: AppTheme.textPrimary, fontSize: 18, fontWeight: FontWeight.bold)),
-                                              Text(challenge['description'], style: const TextStyle(color: AppTheme.textSecondary, fontSize: 14)),
-                                            ],
-                                          ),
-                                        ),
-                                        if (isJoined)
-                                          const Chip(label: Text('ACTIVE'), backgroundColor: Colors.green),
-                                      ],
-                                    ),
-                                    const SizedBox(height: 12),
-                                    Text(
-                                      challenge['id'] == '52_week'
-                                          ? 'Week 1: KSh $selected52WeekStart â†’ Week 52: KSh ${selected52WeekStart * 52}\nTotal after 52 weeks: KSh ${(selected52WeekStart * (52 * 53) / 2).toStringAsFixed(0)}'
-                                          : challenge['description'],
-                                      style: const TextStyle(color: Colors.white60, fontSize: 13),
-                                    ),
-                                    const SizedBox(height: 16),
-                                    Align(
-                                      alignment: Alignment.centerRight,
-                                      child: ElevatedButton(
-                                        onPressed: isJoined ? null : () => _joinChallenge(challenge['id']),
-                                        style: ElevatedButton.styleFrom(
-                                          backgroundColor: isJoined ? Colors.grey : AppColors.financeGreenV3,
-                                          foregroundColor: Colors.black,
-                                        ),
-                                        child: Text(isJoined ? 'Joined' : 'Join Challenge'),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ),
-                          );
-                        }).toList(),
-                      ],
+      backgroundColor: AppTheme.backgroundLight,
+      appBar: AppBar(
+        backgroundColor: AppTheme.backgroundLight,
+        elevation: 0,
+        surfaceTintColor: Colors.transparent,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back_rounded, color: Color(0xFF111827)),
+          onPressed: () => Navigator.pop(context),
+        ),
+        title: const Text('New Goal',
+            style: TextStyle(color: Color(0xFF111827), fontWeight: FontWeight.bold, fontSize: 18)),
+        centerTitle: true,
+      ),
+      body: Form(
+        key: _formKey,
+        child: ListView(
+          padding: const EdgeInsets.fromLTRB(20, 8, 20, 32),
+          children: [
+            // ── Goal type chips ──
+            const Text('Goal Type',
+                style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: Color(0xFF374151))),
+            const SizedBox(height: 10),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: _goalTypes.map(((String t, IconData icon) rec) {
+                final selected = _goalType == rec.$1;
+                final c = _typeColor(rec.$1);
+                return GestureDetector(
+                  onTap: () => setState(() => _goalType = rec.$1),
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 150),
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                    decoration: BoxDecoration(
+                      color: selected ? c : Colors.white,
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(color: selected ? c : const Color(0xFFE5E7EB), width: 1.5),
+                      boxShadow: selected ? [BoxShadow(color: c.withValues(alpha: 0.25), blurRadius: 8, offset: const Offset(0, 3))] : [],
                     ),
+                    child: Row(mainAxisSize: MainAxisSize.min, children: [
+                      Icon(rec.$2, size: 15, color: selected ? Colors.white : const Color(0xFF6B7280)),
+                      const SizedBox(width: 6),
+                      Text(rec.$1, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: selected ? Colors.white : const Color(0xFF374151))),
+                    ]),
+                  ),
+                );
+              }).toList(),
+            ),
+
+            const SizedBox(height: 24),
+
+            // ── Goal name ──
+            _label('Goal Name'),
+            TextFormField(
+              controller: _nameCtrl,
+              style: const TextStyle(fontSize: 15, color: Color(0xFF111827)),
+              decoration: _inputDecor('e.g. School fees 2027', Icons.label_outline_rounded),
+              validator: (v) => (v == null || v.trim().isEmpty) ? 'Enter a name for your goal' : null,
+            ),
+
+            const SizedBox(height: 16),
+
+            // ── Target amount ──
+            _label('Target Amount (KES)'),
+            TextFormField(
+              controller: _amtCtrl,
+              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+              style: const TextStyle(fontSize: 15, color: Color(0xFF111827)),
+              decoration: _inputDecor('e.g. 50000', Icons.monetization_on_outlined),
+              validator: (v) {
+                final n = double.tryParse(v ?? '');
+                if (n == null || n < 100) return 'Enter at least KES 100';
+                return null;
+              },
+            ),
+
+            const SizedBox(height: 16),
+
+            // ── Duration quick-pick ──
+            _label('Duration'),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                ..._durations.map(((String label, int days) rec) {
+                  final selected = _quickDays == rec.$2;
+                  return GestureDetector(
+                    onTap: () {
+                      setState(() {
+                        _quickDays = rec.$2;
+                        _daysCtrl.text = rec.$2.toString();
+                      });
+                    },
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 150),
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                      decoration: BoxDecoration(
+                        color: selected ? color : Colors.white,
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(color: selected ? color : const Color(0xFFE5E7EB), width: 1.5),
+                      ),
+                      child: Text(rec.$1,
+                          style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600,
+                              color: selected ? Colors.white : const Color(0xFF374151))),
+                    ),
+                  );
+                }),
+                GestureDetector(
+                  onTap: () => setState(() => _quickDays = null),
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 150),
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                    decoration: BoxDecoration(
+                      color: _quickDays == null ? color : Colors.white,
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(color: _quickDays == null ? color : const Color(0xFFE5E7EB), width: 1.5),
+                    ),
+                    child: Text('Custom',
+                        style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600,
+                            color: _quickDays == null ? Colors.white : const Color(0xFF374151))),
                   ),
                 ),
-    );
-  }
+              ],
+            ),
+            if (_quickDays == null) ...[
+              const SizedBox(height: 10),
+              TextFormField(
+                controller: _daysCtrl,
+                keyboardType: TextInputType.number,
+                style: const TextStyle(fontSize: 15, color: Color(0xFF111827)),
+                decoration: _inputDecor('Number of days', Icons.calendar_today_outlined),
+                validator: _quickDays == null
+                    ? (v) {
+                        final n = int.tryParse(v ?? '');
+                        if (n == null || n < 1) return 'Enter a valid number of days';
+                        return null;
+                      }
+                    : null,
+              ),
+            ],
 
-  void _showCreateGoalSheet(BuildContext context) {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (_) => GoalFormSheet(
-        userId: widget.userId,
-        goalTypes: goalTypes,
-        onGoalCreated: () {
-          fetchLeaderboard();
-          fetchRecentSavings();
-        },
-        onShowCatalogue: showCatalogueDialog,
+            const SizedBox(height: 28),
+
+            // ── Preview ──
+            if (_amtCtrl.text.isNotEmpty || _nameCtrl.text.isNotEmpty) _buildPreview(color),
+
+            const SizedBox(height: 28),
+
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                onPressed: _saving ? null : _submit,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: color,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                  elevation: 0,
+                ),
+                child: _saving
+                    ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                    : const Text('Create Goal', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
+
+  Widget _buildPreview(Color color) {
+    final name   = _nameCtrl.text.trim().isNotEmpty ? _nameCtrl.text.trim() : 'Your Goal';
+    final amt    = double.tryParse(_amtCtrl.text.trim()) ?? 0;
+    final days   = _quickDays ?? (int.tryParse(_daysCtrl.text.trim()) ?? 30);
+    final daily  = days > 0 && amt > 0 ? amt / days : 0.0;
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.06),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: color.withValues(alpha: 0.2)),
+      ),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: [
+          Icon(Icons.auto_awesome_rounded, size: 14, color: color),
+          const SizedBox(width: 6),
+          Text('Preview', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: color)),
+        ]),
+        const SizedBox(height: 10),
+        _previewRow('Goal', name),
+        if (amt > 0) _previewRow('Target', 'KES ${amt.toStringAsFixed(2)}'),
+        _previewRow('Duration', '$days days'),
+        if (daily > 0) _previewRow('Daily savings needed', 'KES ${daily.toStringAsFixed(2)}'),
+      ]),
+    );
+  }
+
+  Widget _previewRow(String label, String value) => Padding(
+    padding: const EdgeInsets.symmetric(vertical: 3),
+    child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+      Text(label, style: const TextStyle(fontSize: 13, color: Color(0xFF6B7280))),
+      Text(value, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Color(0xFF111827))),
+    ]),
+  );
+
+  Widget _label(String text) => Padding(
+    padding: const EdgeInsets.only(bottom: 8),
+    child: Text(text, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: Color(0xFF374151))),
+  );
+
+  InputDecoration _inputDecor(String hint, IconData icon) => InputDecoration(
+    hintText: hint,
+    hintStyle: const TextStyle(color: Color(0xFF9CA3AF), fontSize: 14),
+    prefixIcon: Icon(icon, color: AppColors.financeGreen, size: 20),
+    filled: true,
+    fillColor: Colors.white,
+    border: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: const BorderSide(color: Color(0xFFE5E7EB))),
+    enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: const BorderSide(color: Color(0xFFE5E7EB))),
+    focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: BorderSide(color: AppColors.financeGreen, width: 1.5)),
+    errorBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: const BorderSide(color: Color(0xFFDC2626))),
+    contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+  );
 }
 
-class GoalFormSheet extends StatefulWidget {
+// ─────────────────────────────────────────────────────────────────────────────
+//  GoalFormSheet — kept for backward compatibility (delegates to GoalCreationScreen)
+// ─────────────────────────────────────────────────────────────────────────────
+
+class GoalFormSheet extends StatelessWidget {
   final String userId;
   final List<String> goalTypes;
   final VoidCallback onGoalCreated;
@@ -910,199 +350,14 @@ class GoalFormSheet extends StatefulWidget {
   });
 
   @override
-  State<GoalFormSheet> createState() => _GoalFormSheetState();
-}
-
-class _GoalFormSheetState extends State<GoalFormSheet> {
-  final _formKey = GlobalKey<FormState>();
-  String? selectedGoalType;
-  String? goalName;
-  double? goalAmount;
-  int? durationDays;
-  bool isLoading = false;
-
-  Future<void> _createGoal() async {
-    if (!_formKey.currentState!.validate()) return;
-    _formKey.currentState!.save();
-    setState(() => isLoading = true);
-    try {
-      final response = await http.post(
-        Uri.parse('${AppConstants.apiBaseUrl}/goalscreate'),
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({
-          'user_id': widget.userId,
-          'title': goalName?.trim() ?? 'Untitled Goal',
-          'target_amount': goalAmount,
-          'duration_days': durationDays ?? 30,
-          'goal_type': selectedGoalType ?? 'Save',
-        }),
-      );
-      if (!mounted) return;
-      if (response.statusCode == 200 || response.statusCode == 201) {
-        Navigator.pop(context);
-        widget.onGoalCreated();
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Goal created successfully!')),
-        );
-      } else {
-        final error = jsonDecode(response.body);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(error['message'] ?? 'Server error')),
-        );
-      }
-    } catch (e) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e')));
-    } finally {
-      if (mounted) setState(() => isLoading = false);
-    }
-  }
-
-  @override
   Widget build(BuildContext context) {
-    return DraggableScrollableSheet(
-      initialChildSize: 0.85,
-      minChildSize: 0.5,
-      maxChildSize: 0.95,
-      builder: (_, controller) => Container(
-        decoration: const BoxDecoration(
-          color: AppTheme.backgroundLight,
-          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-        ),
-        child: Column(
-          children: [
-            const SizedBox(height: 12),
-            Container(
-              width: 40,
-              height: 4,
-              decoration: BoxDecoration(
-                color: AppColors.coreWhiteW2,
-                borderRadius: BorderRadius.circular(2),
-              ),
-            ),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-              decoration: const BoxDecoration(
-                gradient: AppTheme.heroGradient,
-                borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-              ),
-              child: Row(
-                children: [
-                  const Expanded(
-                    child: Text(
-                      'Create a Savings Goal',
-                      style: TextStyle(color: AppTheme.textLight, fontSize: 18, fontWeight: FontWeight.bold),
-                    ),
-                  ),
-                  IconButton(
-                    icon: const Icon(Icons.close, color: AppTheme.textLight),
-                    onPressed: () => Navigator.pop(context),
-                  ),
-                ],
-              ),
-            ),
-            Expanded(
-              child: SingleChildScrollView(
-                controller: controller,
-                padding: const EdgeInsets.all(20),
-                child: Form(
-                  key: _formKey,
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      _fieldLabel('Goal Type'),
-                      DropdownButtonFormField<String>(
-                        decoration: _inputDecoration(),
-                        initialValue: selectedGoalType,
-                        hint: const Text('Select Goal Type', style: TextStyle(color: AppTheme.textSecondary)),
-                        dropdownColor: AppTheme.cardLight,
-                        iconEnabledColor: AppColors.financeGreen,
-                        style: const TextStyle(color: AppTheme.textPrimary, fontSize: 15),
-                        items: widget.goalTypes.map((t) => DropdownMenuItem(value: t, child: Text(t))).toList(),
-                        onChanged: (v) {
-                          setState(() => selectedGoalType = v);
-                          if (v == 'Pay Loan' || v == 'Pay for Event' || v == 'Save to Invest') {
-                            widget.onShowCatalogue(v!);
-                          }
-                        },
-                        validator: (v) => v == null ? 'Please select a goal type' : null,
-                      ),
-                      const SizedBox(height: 16),
-                      _fieldLabel('Goal Name'),
-                      TextFormField(
-                        decoration: _inputDecoration(hint: 'e.g., Vacation Fund'),
-                        style: const TextStyle(color: AppTheme.textPrimary),
-                        validator: (v) => (v == null || v.isEmpty) ? 'Please enter a goal name' : null,
-                        onSaved: (v) => goalName = v,
-                      ),
-                      const SizedBox(height: 16),
-                      _fieldLabel('Goal Amount (KSh)'),
-                      TextFormField(
-                        decoration: _inputDecoration(hint: 'e.g., 10000'),
-                        style: const TextStyle(color: AppTheme.textPrimary),
-                        keyboardType: TextInputType.number,
-                        validator: (v) {
-                          if (v == null || v.isEmpty) return 'Please enter amount';
-                          if (double.tryParse(v) == null || double.parse(v) <= 0) return 'Invalid amount';
-                          return null;
-                        },
-                        onSaved: (v) => goalAmount = double.parse(v!),
-                      ),
-                      const SizedBox(height: 16),
-                      _fieldLabel('Duration (Days)'),
-                      TextFormField(
-                        decoration: _inputDecoration(hint: 'e.g., 30'),
-                        style: const TextStyle(color: AppTheme.textPrimary),
-                        keyboardType: TextInputType.number,
-                        validator: (v) {
-                          if (v == null || v.isEmpty) return 'Please enter duration';
-                          if (int.tryParse(v) == null || int.parse(v) <= 0) return 'Invalid number of days';
-                          return null;
-                        },
-                        onSaved: (v) => durationDays = int.parse(v!),
-                      ),
-                      const SizedBox(height: 32),
-                      SizedBox(
-                        width: double.infinity,
-                        child: ElevatedButton(
-                          onPressed: isLoading ? null : _createGoal,
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: AppColors.financeGreenV3,
-                            foregroundColor: AppTheme.textLight,
-                            padding: const EdgeInsets.symmetric(vertical: 16),
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                          ),
-                          child: isLoading
-                              ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(color: AppTheme.textLight, strokeWidth: 2))
-                              : const Text('Create Goal', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-                        ),
-                      ),
-                      const SizedBox(height: 20),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
+    // Just push the full-screen creation screen instead
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      Navigator.pop(context);
+      Navigator.push(context, MaterialPageRoute(
+        builder: (_) => GoalCreationScreen(userId: userId),
+      )).then((_) => onGoalCreated());
+    });
+    return const SizedBox.shrink();
   }
-
-  Widget _fieldLabel(String text) => Padding(
-        padding: const EdgeInsets.only(bottom: 8),
-        child: Text(text, style: const TextStyle(color: AppTheme.textPrimary, fontSize: 14, fontWeight: FontWeight.w600)),
-      );
-
-  InputDecoration _inputDecoration({String? hint}) => InputDecoration(
-        hintText: hint,
-        hintStyle: const TextStyle(color: AppTheme.textSecondary),
-        filled: true,
-        fillColor: AppTheme.cardLight,
-        border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide(color: AppColors.financeGreen.withValues(alpha: 0.3))),
-        enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide(color: AppColors.financeGreen.withValues(alpha: 0.3))),
-        focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: AppColors.financeGreen, width: 1.5)),
-        errorBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: AppTheme.errorColor)),
-        focusedErrorBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: AppTheme.errorColor, width: 1.5)),
-      );
 }
-

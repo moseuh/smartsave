@@ -83,7 +83,7 @@ class _RoundUpSettingsState extends State<RoundUpSettings> {
       _snack('Maximum 3 round savings rules allowed', error: true);
       return;
     }
-    setState(() => _rules.add(_RuleModel(type: 'fixed', value: '', appliesTo: 'both', active: true)));
+    setState(() => _rules.add(_RuleModel(type: 'fixed', value: '0', appliesTo: 'both', active: true)));
   }
 
   void _removeRule(int index) {
@@ -97,7 +97,7 @@ class _RoundUpSettingsState extends State<RoundUpSettings> {
     for (int i = 0; i < _rules.length; i++) {
       final r = _rules[i];
       final val = double.tryParse(r.value);
-      if (val == null || val <= 0) {
+      if (val == null || val < 0) {
         _snack('Rule ${i + 1}: Enter a valid amount', error: true);
         return;
       }

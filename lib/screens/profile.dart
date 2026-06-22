@@ -8,6 +8,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'modern_login_screen.dart';
+import '../services/transaction_auth_service.dart';
 
 class Profile extends StatefulWidget {
   final String userId;
@@ -29,10 +30,60 @@ class _ProfileState extends State<Profile> {
   final _dobController = TextEditingController();
   DateTime? _selectedDob;
 
+  // Security
+  bool _pinSet = false;
+  bool _bioAvailable = false;
+  bool _bioEnabled = false;
+
   @override
   void initState() {
     super.initState();
     _validateAndFetchUserDetails();
+    _loadSecurityState();
+  }
+
+  Future<void> _loadSecurityState() async {
+    final pinSet = await TransactionAuthService.hasPin();
+    final bioAvail = await TransactionAuthService.isBioAvailable();
+    final bioEnabled = await TransactionAuthService.isBioEnabled();
+    if (mounted) setState(() { _pinSet = pinSet; _bioAvailable = bioAvail; _bioEnabled = bioEnabled; });
+  }
+
+  Future<void> _toggleBio(bool v) async {
+    if (v) {
+      // Trigger a real biometric prompt — this requests permission on first use
+      final ok = await TransactionAuthService.authenticateBio();
+      if (!mounted) return;
+      if (!ok) {
+        // User denied or no biometric enrolled — don't enable
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Biometric authentication failed or not set up on this device.'),
+            backgroundColor: Colors.red,
+          ),
+        );
+        return;
+      }
+    }
+    await TransactionAuthService.setBioEnabled(v);
+    if (mounted) setState(() => _bioEnabled = v);
+  }
+
+  Future<void> _changePin() async {
+    // Clear existing PIN so the setup flow triggers on next authenticate() call
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove('txn_pin_hash');
+    if (!mounted) return;
+    final ok = await TransactionAuthService.authenticate(context);
+    if (ok && mounted) {
+      setState(() => _pinSet = true);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('PIN updated successfully'), backgroundColor: Color(0xFF1B6631)),
+      );
+    } else {
+      // Restore if user cancelled without finishing
+      await _loadSecurityState();
+    }
   }
 
   Future<void> _validateAndFetchUserDetails() async {
@@ -456,6 +507,76 @@ class _ProfileState extends State<Profile> {
                               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                             ),
                           ),
+                        ),
+                        const SizedBox(height: 20),
+                        const Text('Security', style: TextStyle(color: AppTheme.textPrimary, fontSize: 16, fontWeight: FontWeight.bold)),
+                        const SizedBox(height: 12),
+                        Container(
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(14),
+                            border: Border.all(color: const Color(0xFFE5E7EB)),
+                          ),
+                          child: Column(children: [
+                            // Fingerprint toggle — only shown if device supports biometrics
+                            if (_bioAvailable) ...[
+                              Padding(
+                                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                                child: Row(children: [
+                                  Container(
+                                    width: 36, height: 36,
+                                    decoration: BoxDecoration(
+                                      color: AppColors.financeGreen.withValues(alpha: 0.1),
+                                      borderRadius: BorderRadius.circular(10),
+                                    ),
+                                    child: const Icon(Icons.fingerprint, color: AppColors.financeGreen, size: 20),
+                                  ),
+                                  const SizedBox(width: 12),
+                                  const Expanded(
+                                    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                                      Text('Fingerprint / Face ID', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: Color(0xFF111827))),
+                                      Text('Use biometrics to unlock & confirm payments', style: TextStyle(fontSize: 12, color: Color(0xFF6B7280))),
+                                    ]),
+                                  ),
+                                  Switch(
+                                    value: _bioEnabled,
+                                    onChanged: _toggleBio,
+                                    activeThumbColor: AppColors.financeGreen,
+                                    activeTrackColor: AppColors.financeGreen.withValues(alpha: 0.4),
+                                  ),
+                                ]),
+                              ),
+                              const Divider(height: 1, indent: 16, endIndent: 16),
+                            ],
+                            // Change / set PIN
+                            InkWell(
+                              onTap: _changePin,
+                              borderRadius: BorderRadius.circular(14),
+                              child: Padding(
+                                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                                child: Row(children: [
+                                  Container(
+                                    width: 36, height: 36,
+                                    decoration: BoxDecoration(
+                                      color: const Color(0xFF6366F1).withValues(alpha: 0.1),
+                                      borderRadius: BorderRadius.circular(10),
+                                    ),
+                                    child: const Icon(Icons.pin_outlined, color: Color(0xFF6366F1), size: 20),
+                                  ),
+                                  const SizedBox(width: 12),
+                                  Expanded(
+                                    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                                      Text(_pinSet ? 'Change Transaction PIN' : 'Set Transaction PIN',
+                                          style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: Color(0xFF111827))),
+                                      Text(_pinSet ? '4-digit PIN used to confirm payments' : 'Protect transactions with a 4-digit PIN',
+                                          style: const TextStyle(fontSize: 12, color: Color(0xFF6B7280))),
+                                    ]),
+                                  ),
+                                  const Icon(Icons.chevron_right_rounded, color: Color(0xFF9CA3AF)),
+                                ]),
+                              ),
+                            ),
+                          ]),
                         ),
                         const SizedBox(height: 12),
                         SizedBox(

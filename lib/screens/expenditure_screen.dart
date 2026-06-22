@@ -16,6 +16,7 @@ class _ExpenditureScreenState extends State<ExpenditureScreen> {
   bool _smsGranted = false;
   String _selectedMonth = DateFormat('yyyy-MM').format(DateTime.now());
   List<FinanceTransaction> _all = [];
+  BalanceStatement? _statement;
   final fmt = NumberFormat('#,##0.00');
 
   @override
@@ -44,6 +45,7 @@ class _ExpenditureScreenState extends State<ExpenditureScreen> {
     final txs = await SmsFinanceService.loadAll(forceRefresh: forceRefresh);
     setState(() {
       _all = txs;
+      _statement = SmsFinanceService.buildStatement(txs);
       _loading = false;
     });
   }
@@ -61,9 +63,17 @@ class _ExpenditureScreenState extends State<ExpenditureScreen> {
     return set;
   }
 
-  double get _income => SmsFinanceService.totalIncome(_filtered);
-  double get _expenses => SmsFinanceService.totalExpenses(_filtered);
-  double get _balance => _income - _expenses;
+  MonthStatement? get _monthStatement {
+    if (_statement == null) return null;
+    try { return _statement!.months.firstWhere((m) => m.month == _selectedMonth); } catch (_) { return null; }
+  }
+
+  double get _income => _monthStatement?.totalIncome ?? SmsFinanceService.totalIncome(_filtered);
+  double get _expenses => _monthStatement?.expenses ?? SmsFinanceService.totalExpenses(_filtered);
+  // Balance = closing balance of selected month, never negative
+  double get _balance => (_monthStatement?.closingBalance ?? (_income - _expenses)).clamp(0, double.infinity);
+  // Show unexplained income separately
+  double get _unexplained => _monthStatement?.unexplainedIncome ?? 0;
 
   @override
   Widget build(BuildContext context) {
@@ -252,15 +262,36 @@ class _ExpenditureScreenState extends State<ExpenditureScreen> {
   }
 
   Widget _buildSummaryCards() {
-    return Row(
+    return Column(
       children: [
-        Expanded(child: _card('Income', _income, const Color(0xFF059669), Icons.arrow_downward_rounded)),
-        const SizedBox(width: 10),
-        Expanded(child: _card('Expenses', _expenses, const Color(0xFFDC2626), Icons.arrow_upward_rounded)),
-        const SizedBox(width: 10),
-        Expanded(child: _card('Balance', _balance,
-            _balance >= 0 ? AppColors.financeGreen : const Color(0xFFDC2626),
-            Icons.account_balance_wallet_outlined)),
+        Row(
+          children: [
+            Expanded(child: _card('Income', _income, const Color(0xFF059669), Icons.arrow_downward_rounded)),
+            const SizedBox(width: 10),
+            Expanded(child: _card('Expenses', _expenses, const Color(0xFFDC2626), Icons.arrow_upward_rounded)),
+            const SizedBox(width: 10),
+            Expanded(child: _card('M-Pesa Bal', _balance, AppColors.financeGreen, Icons.account_balance_wallet_outlined)),
+          ],
+        ),
+        if (_unexplained > 0) ...[
+          const SizedBox(height: 8),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+            decoration: BoxDecoration(
+              color: const Color(0xFFFFF7ED),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: const Color(0xFFFED7AA)),
+            ),
+            child: Row(children: [
+              const Icon(Icons.info_outline, color: Color(0xFFF97316), size: 16),
+              const SizedBox(width: 8),
+              Expanded(child: Text(
+                'KES ${fmt.format(_unexplained)} unexplained balance increase (treated as income)',
+                style: const TextStyle(fontSize: 12, color: Color(0xFFC2410C)),
+              )),
+            ]),
+          ),
+        ],
       ],
     );
   }

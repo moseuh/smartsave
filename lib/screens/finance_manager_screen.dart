@@ -15,6 +15,7 @@ class _FinanceManagerScreenState extends State<FinanceManagerScreen>
     with SingleTickerProviderStateMixin {
   late TabController _tabs;
   List<FinanceTransaction> _all = [];
+  BalanceStatement? _statement;
   bool _loading = true;
   bool _smsGranted = false;
   String _selectedMonth = DateFormat('yyyy-MM').format(DateTime.now());
@@ -23,7 +24,7 @@ class _FinanceManagerScreenState extends State<FinanceManagerScreen>
   @override
   void initState() {
     super.initState();
-    _tabs = TabController(length: 3, vsync: this);
+    _tabs = TabController(length: 4, vsync: this);
     _init();
   }
 
@@ -43,6 +44,7 @@ class _FinanceManagerScreenState extends State<FinanceManagerScreen>
     final txs = await SmsFinanceService.loadAll(forceRefresh: forceRefresh);
     setState(() {
       _all = txs;
+      _statement = SmsFinanceService.buildStatement(txs);
       _loading = false;
     });
   }
@@ -63,9 +65,14 @@ class _FinanceManagerScreenState extends State<FinanceManagerScreen>
     return set;
   }
 
-  double get _income => SmsFinanceService.totalIncome(_filtered);
-  double get _expenses => SmsFinanceService.totalExpenses(_filtered);
-  double get _balance => _income - _expenses;
+  MonthStatement? get _monthStmt {
+    if (_statement == null) return null;
+    try { return _statement!.months.firstWhere((m) => m.month == _selectedMonth); } catch (_) { return null; }
+  }
+
+  double get _income => _monthStmt?.totalIncome ?? SmsFinanceService.totalIncome(_filtered);
+  double get _expenses => _monthStmt?.expenses ?? SmsFinanceService.totalExpenses(_filtered);
+  double get _balance => (_monthStmt?.closingBalance ?? (_income - _expenses)).clamp(0, double.infinity);
 
   void _showAddSheet({FinanceTransaction? editing}) {
     showModalBottomSheet(
@@ -141,6 +148,7 @@ class _FinanceManagerScreenState extends State<FinanceManagerScreen>
             Tab(text: 'Overview'),
             Tab(text: 'Transactions'),
             Tab(text: 'Budgets'),
+            Tab(text: 'Personal'),
           ],
         ),
       ),
@@ -181,6 +189,14 @@ class _FinanceManagerScreenState extends State<FinanceManagerScreen>
                   filtered: _filtered,
                   income: _income,
                   expenses: _expenses,
+                  fmt: fmt,
+                ),
+                _PersonalFinanceTab(
+                  all: _all,
+                  statement: _statement,
+                  onAdd: () => _showAddSheet(),
+                  onEdit: (tx) => _showAddSheet(editing: tx),
+                  onDelete: _delete,
                   fmt: fmt,
                 ),
               ],
@@ -256,8 +272,8 @@ class _OverviewTab extends StatelessWidget {
             const SizedBox(width: 10),
             Expanded(child: _SummaryCard('Expenses', expenses, const Color(0xFFDC2626), Icons.arrow_upward_rounded, fmt)),
             const SizedBox(width: 10),
-            Expanded(child: _SummaryCard('Balance', balance,
-                balance >= 0 ? AppColors.financeGreen : const Color(0xFFDC2626),
+            Expanded(child: _SummaryCard('M-Pesa Bal', balance,
+                AppColors.financeGreen,
                 Icons.account_balance_wallet_outlined, fmt)),
           ]),
           const SizedBox(height: 16),
@@ -287,7 +303,9 @@ class _OverviewTab extends StatelessWidget {
               final mTxs = byMonth[m]!;
               final mInc = SmsFinanceService.totalIncome(mTxs);
               final mExp = SmsFinanceService.totalExpenses(mTxs);
-              final mBal = mInc - mExp;
+              // Balance transaction = closing - opening; never shown negative
+              final mBal = (mInc - mExp).clamp(0, double.infinity);
+              final hasUnexplained = mInc > mExp + 0.01;
               final label = DateFormat('MMM yy').format(DateFormat('yyyy-MM').parse(m));
               return Container(
                 margin: const EdgeInsets.only(bottom: 8),
@@ -314,12 +332,14 @@ class _OverviewTab extends StatelessWidget {
                       ),
                     ),
                     const SizedBox(width: 8),
-                    Text(
-                      '${mBal >= 0 ? '+' : ''}KES ${fmt.format(mBal)}',
-                      style: TextStyle(
-                          fontWeight: FontWeight.bold, fontSize: 11,
-                          color: mBal >= 0 ? AppColors.financeGreen : const Color(0xFFDC2626)),
-                    ),
+                    Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
+                      Text(
+                        'KES ${fmt.format(mBal)}',
+                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 11, color: AppColors.financeGreen),
+                      ),
+                      if (hasUnexplained)
+                        Text('bal txn', style: TextStyle(fontSize: 9, color: Colors.orange.shade700)),
+                    ]),
                   ],
                 ),
               );
@@ -481,7 +501,8 @@ class _BudgetTab extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final categories = SmsFinanceService.expensesByCategory(filtered);
-    final savingsRate = income > 0 ? ((income - expenses) / income * 100).clamp(0.0, 100.0) : 0.0;
+    final savedAmt = (income - expenses).clamp(0.0, double.infinity);
+    final savingsRate = income > 0 ? (savedAmt / income * 100).clamp(0.0, 100.0) : 0.0;
 
     // 50/30/20 rule targets
     final needs = income * 0.50;
@@ -529,7 +550,7 @@ class _BudgetTab extends StatelessWidget {
                     const SizedBox(width: 8),
                     Expanded(child: _budgetPill('Wants\n30%', wantsSpend, wants, Colors.white, Colors.white30)),
                     const SizedBox(width: 8),
-                    Expanded(child: _budgetPill('Savings\n20%', income - expenses, savingsTarget, Colors.white, Colors.white30)),
+                    Expanded(child: _budgetPill('Savings\n20%', savedAmt, savingsTarget, Colors.white, Colors.white30)),
                   ],
                 ),
               ],
@@ -1099,6 +1120,493 @@ class _TxTile extends StatelessWidget {
     );
   }
 }
+
+// ── Personal Finance Tab ─────────────────────────────────────────────────────
+
+class _PersonalFinanceTab extends StatefulWidget {
+  final List<FinanceTransaction> all;
+  final BalanceStatement? statement;
+  final VoidCallback onAdd;
+  final ValueChanged<FinanceTransaction> onEdit;
+  final ValueChanged<FinanceTransaction> onDelete;
+  final NumberFormat fmt;
+
+  const _PersonalFinanceTab({
+    required this.all,
+    required this.statement,
+    required this.onAdd,
+    required this.onEdit,
+    required this.onDelete,
+    required this.fmt,
+  });
+
+  @override
+  State<_PersonalFinanceTab> createState() => _PersonalFinanceTabState();
+}
+
+class _PersonalFinanceTabState extends State<_PersonalFinanceTab> {
+  String _selectedMonth = DateFormat('yyyy-MM').format(DateTime.now());
+
+  List<String> get _months {
+    final set = widget.all
+        .map((t) => '${t.date.year}-${t.date.month.toString().padLeft(2, '0')}')
+        .toSet()
+        .toList();
+    set.sort((a, b) => b.compareTo(a));
+    if (!set.contains(_selectedMonth) && set.isNotEmpty) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) setState(() => _selectedMonth = set.first);
+      });
+    }
+    return set;
+  }
+
+  List<FinanceTransaction> get _monthAll {
+    return widget.all.where((t) {
+      final m = '${t.date.year}-${t.date.month.toString().padLeft(2, '0')}';
+      return m == _selectedMonth;
+    }).toList()..sort((a, b) => b.date.compareTo(a.date));
+  }
+
+  List<FinanceTransaction> get _monthManual =>
+      _monthAll.where((t) => t.isManual).toList();
+
+  List<FinanceTransaction> get _monthSms =>
+      _monthAll.where((t) => !t.isManual).toList();
+
+  MonthStatement? get _niaMontStmt {
+    if (widget.statement == null) return null;
+    try {
+      return widget.statement!.months.firstWhere((m) => m.month == _selectedMonth);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final months = _months;
+
+    return SingleChildScrollView(
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 80),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Month picker
+          if (months.isNotEmpty) ...[
+            _MonthPicker(
+              months: months,
+              selected: _selectedMonth,
+              onChanged: (m) => setState(() => _selectedMonth = m),
+            ),
+            const SizedBox(height: 20),
+          ],
+
+          // ── Section 1: Nia AI (M-Pesa auto) ──
+          _SectionHeader(
+            icon: Icons.auto_awesome_rounded,
+            iconColor: const Color(0xFF7C3AED),
+            title: 'Nia Statement',
+            subtitle: 'Auto-generated from M-Pesa',
+          ),
+          const SizedBox(height: 12),
+          _StatementCard(
+            txs: _monthSms,
+            monthStmt: _niaMontStmt,
+            fmt: widget.fmt,
+            readOnly: true,
+          ),
+          const SizedBox(height: 28),
+
+          // ── Section 2: My Statement (manual) ──
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const _SectionHeader(
+                icon: Icons.edit_note_rounded,
+                iconColor: Color(0xFF059669),
+                title: 'My Statement',
+                subtitle: 'Your own entries',
+              ),
+              TextButton.icon(
+                onPressed: widget.onAdd,
+                icon: const Icon(Icons.add, size: 16),
+                label: const Text('Add'),
+                style: TextButton.styleFrom(
+                  foregroundColor: AppColors.financeGreen,
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          _StatementCard(
+            txs: _monthManual,
+            monthStmt: null,
+            fmt: widget.fmt,
+            readOnly: false,
+            onEdit: widget.onEdit,
+            onDelete: widget.onDelete,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ── Statement Card (used by both Nia and Manual sections) ────────────────────
+
+class _StatementCard extends StatefulWidget {
+  final List<FinanceTransaction> txs;
+  final MonthStatement? monthStmt;
+  final NumberFormat fmt;
+  final bool readOnly;
+  final ValueChanged<FinanceTransaction>? onEdit;
+  final ValueChanged<FinanceTransaction>? onDelete;
+
+  const _StatementCard({
+    required this.txs,
+    required this.monthStmt,
+    required this.fmt,
+    required this.readOnly,
+    this.onEdit,
+    this.onDelete,
+  });
+
+  @override
+  State<_StatementCard> createState() => _StatementCardState();
+}
+
+class _StatementCardState extends State<_StatementCard> {
+  final _expandedCats = <String>{};
+
+  @override
+  Widget build(BuildContext context) {
+    final txs = widget.txs;
+    final fmt = widget.fmt;
+
+    final double totalIncome = widget.monthStmt != null
+        ? widget.monthStmt!.totalIncome.toDouble()
+        : txs.where((t) => t.isIncome).fold(0.0, (s, t) => s + t.amount);
+    final double totalExpense = widget.monthStmt != null
+        ? widget.monthStmt!.expenses.toDouble()
+        : txs.where((t) => !t.isIncome).fold(0.0, (s, t) => s + t.amount);
+    final net = (totalIncome - totalExpense).clamp(0.0, double.infinity);
+    final double unexplained = widget.monthStmt != null
+        ? widget.monthStmt!.unexplainedIncome.toDouble()
+        : 0.0;
+
+    // Group income by category
+    final incCats = <String, List<FinanceTransaction>>{};
+    for (final t in txs.where((t) => t.isIncome)) {
+      incCats.putIfAbsent(t.category, () => []).add(t);
+    }
+    // Group expenses by category
+    final expCats = <String, List<FinanceTransaction>>{};
+    for (final t in txs.where((t) => !t.isIncome)) {
+      expCats.putIfAbsent(t.category, () => []).add(t);
+    }
+
+    final sortedInc = incCats.entries.toList()
+      ..sort((a, b) => b.value.fold(0.0, (s, t) => s + t.amount)
+          .compareTo(a.value.fold(0.0, (s, t) => s + t.amount)));
+    final sortedExp = expCats.entries.toList()
+      ..sort((a, b) => b.value.fold(0.0, (s, t) => s + t.amount)
+          .compareTo(a.value.fold(0.0, (s, t) => s + t.amount)));
+
+    if (txs.isEmpty && widget.monthStmt == null) {
+      return Container(
+        padding: const EdgeInsets.all(24),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.04), blurRadius: 8)],
+        ),
+        child: Column(children: [
+          Icon(
+            widget.readOnly ? Icons.auto_awesome_outlined : Icons.receipt_long_outlined,
+            size: 40, color: const Color(0xFFD1D5DB),
+          ),
+          const SizedBox(height: 10),
+          Text(
+            widget.readOnly ? 'No M-Pesa transactions this month' : 'No entries this month',
+            style: const TextStyle(fontSize: 13, color: Color(0xFF6B7280)),
+            textAlign: TextAlign.center,
+          ),
+        ]),
+      );
+    }
+
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.05), blurRadius: 8, offset: const Offset(0, 2))],
+      ),
+      child: Column(
+        children: [
+          // ── INCOME section ──
+          _StatementSectionHeader(label: 'INCOME', amount: totalIncome, color: const Color(0xFF059669), fmt: fmt),
+          if (unexplained > 0)
+            _StatementBalanceTxRow(amount: unexplained, fmt: fmt),
+          ...sortedInc.map((e) {
+            final catTotal = e.value.fold(0.0, (s, t) => s + t.amount);
+            final key = 'inc_${e.key}';
+            final expanded = _expandedCats.contains(key);
+            return _StatementCategoryRow(
+              label: e.key,
+              amount: catTotal,
+              color: const Color(0xFF059669),
+              fmt: fmt,
+              expanded: expanded,
+              onToggle: () => setState(() => expanded ? _expandedCats.remove(key) : _expandedCats.add(key)),
+              children: expanded
+                  ? e.value.map((tx) => _StatementTxRow(
+                        tx: tx, fmt: fmt, readOnly: widget.readOnly,
+                        onEdit: widget.onEdit, onDelete: widget.onDelete,
+                      )).toList()
+                  : [],
+            );
+          }),
+
+          // ── Divider ──
+          const Divider(height: 1, color: Color(0xFFF3F4F6)),
+
+          // ── EXPENSES section ──
+          _StatementSectionHeader(label: 'EXPENSES', amount: totalExpense, color: const Color(0xFFDC2626), fmt: fmt),
+          ...sortedExp.map((e) {
+            final catTotal = e.value.fold(0.0, (s, t) => s + t.amount);
+            final key = 'exp_${e.key}';
+            final expanded = _expandedCats.contains(key);
+            return _StatementCategoryRow(
+              label: e.key,
+              amount: catTotal,
+              color: const Color(0xFFDC2626),
+              fmt: fmt,
+              expanded: expanded,
+              onToggle: () => setState(() => expanded ? _expandedCats.remove(key) : _expandedCats.add(key)),
+              children: expanded
+                  ? e.value.map((tx) => _StatementTxRow(
+                        tx: tx, fmt: fmt, readOnly: widget.readOnly,
+                        onEdit: widget.onEdit, onDelete: widget.onDelete,
+                      )).toList()
+                  : [],
+            );
+          }),
+
+          // ── NET ──
+          const Divider(height: 1, color: Color(0xFFE5E7EB)),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                const Text('NET BALANCE',
+                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Color(0xFF111827))),
+                Text('KES ${fmt.format(net)}',
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold, fontSize: 14,
+                      color: net > 0 ? const Color(0xFF059669) : const Color(0xFF374151),
+                    )),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _SectionHeader extends StatelessWidget {
+  final IconData icon;
+  final Color iconColor;
+  final String title;
+  final String subtitle;
+
+  const _SectionHeader({
+    required this.icon,
+    required this.iconColor,
+    required this.title,
+    required this.subtitle,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(children: [
+      Container(
+        padding: const EdgeInsets.all(8),
+        decoration: BoxDecoration(
+          color: iconColor.withValues(alpha: 0.1),
+          borderRadius: BorderRadius.circular(10),
+        ),
+        child: Icon(icon, color: iconColor, size: 18),
+      ),
+      const SizedBox(width: 10),
+      Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Text(title, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Color(0xFF111827))),
+        Text(subtitle, style: const TextStyle(fontSize: 11, color: Color(0xFF6B7280))),
+      ]),
+    ]);
+  }
+}
+
+class _StatementSectionHeader extends StatelessWidget {
+  final String label;
+  final double amount;
+  final Color color;
+  final NumberFormat fmt;
+
+  const _StatementSectionHeader({
+    required this.label, required this.amount, required this.color, required this.fmt,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+      decoration: BoxDecoration(color: color.withValues(alpha: 0.05)),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(label, style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11, color: color, letterSpacing: 0.8)),
+          Text('KES ${fmt.format(amount)}', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: color)),
+        ],
+      ),
+    );
+  }
+}
+
+class _StatementCategoryRow extends StatelessWidget {
+  final String label;
+  final double amount;
+  final Color color;
+  final NumberFormat fmt;
+  final bool expanded;
+  final VoidCallback onToggle;
+  final List<Widget> children;
+
+  const _StatementCategoryRow({
+    required this.label, required this.amount, required this.color,
+    required this.fmt, required this.expanded, required this.onToggle,
+    required this.children,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        InkWell(
+          onTap: onToggle,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            child: Row(
+              children: [
+                Container(width: 6, height: 6, decoration: BoxDecoration(color: color.withValues(alpha: 0.6), shape: BoxShape.circle)),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(label, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500, color: Color(0xFF374151))),
+                ),
+                Text('KES ${fmt.format(amount)}',
+                    style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Color(0xFF111827))),
+                const SizedBox(width: 6),
+                Icon(expanded ? Icons.expand_less : Icons.expand_more, size: 16, color: const Color(0xFF9CA3AF)),
+              ],
+            ),
+          ),
+        ),
+        if (expanded) ...children,
+        const Divider(height: 1, indent: 16, color: Color(0xFFF9FAFB)),
+      ],
+    );
+  }
+}
+
+class _StatementTxRow extends StatelessWidget {
+  final FinanceTransaction tx;
+  final NumberFormat fmt;
+  final bool readOnly;
+  final ValueChanged<FinanceTransaction>? onEdit;
+  final ValueChanged<FinanceTransaction>? onDelete;
+
+  const _StatementTxRow({
+    required this.tx, required this.fmt, required this.readOnly,
+    this.onEdit, this.onDelete,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      color: const Color(0xFFF9FAFB),
+      padding: const EdgeInsets.fromLTRB(32, 8, 16, 8),
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text(tx.description,
+                  style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500, color: Color(0xFF374151)),
+                  maxLines: 1, overflow: TextOverflow.ellipsis),
+              Text(DateFormat('d MMM, h:mm a').format(tx.date),
+                  style: const TextStyle(fontSize: 10, color: Color(0xFF9CA3AF))),
+            ]),
+          ),
+          Text(
+            '${tx.isIncome ? '+' : '-'} KES ${fmt.format(tx.amount)}',
+            style: TextStyle(
+              fontSize: 12, fontWeight: FontWeight.w600,
+              color: tx.isIncome ? const Color(0xFF059669) : const Color(0xFFDC2626),
+            ),
+          ),
+          if (!readOnly && onEdit != null && onDelete != null) ...[
+            const SizedBox(width: 4),
+            PopupMenuButton<String>(
+              icon: const Icon(Icons.more_vert, size: 16, color: Color(0xFF9CA3AF)),
+              onSelected: (v) {
+                if (v == 'edit') onEdit!(tx);
+                if (v == 'delete') onDelete!(tx);
+              },
+              itemBuilder: (_) => const [
+                PopupMenuItem(value: 'edit', child: Text('Edit')),
+                PopupMenuItem(value: 'delete', child: Text('Delete', style: TextStyle(color: Colors.red))),
+              ],
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _StatementBalanceTxRow extends StatelessWidget {
+  final double amount;
+  final NumberFormat fmt;
+
+  const _StatementBalanceTxRow({required this.amount, required this.fmt});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      decoration: BoxDecoration(
+        color: Colors.orange.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: Colors.orange.withValues(alpha: 0.3)),
+      ),
+      child: Row(children: [
+        const Icon(Icons.swap_horiz_rounded, size: 14, color: Colors.orange),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Text('Balance transaction',
+              style: const TextStyle(fontSize: 12, color: Color(0xFF92400E), fontWeight: FontWeight.w500)),
+        ),
+        Text('+ KES ${fmt.format(amount)}',
+            style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.orange)),
+      ]),
+    );
+  }
+}
+
+// ── SMS Grant Banner ──────────────────────────────────────────────────────────
 
 class _SmsBanner extends StatelessWidget {
   final VoidCallback onTap;

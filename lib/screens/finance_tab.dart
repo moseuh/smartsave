@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../constants/app_theme.dart';
 import '../services/sms_finance_service.dart';
+import '../services/tab_refresh_registry.dart';
 import 'package:intl/intl.dart';
 import 'expenditure_screen.dart';
 import 'finance_manager_screen.dart';
@@ -14,22 +15,52 @@ class FinanceTab extends StatefulWidget {
   State<FinanceTab> createState() => _FinanceTabState();
 }
 
+enum _Period { today, thisWeek, thisMonth, lastMonth, last3M, last6M, custom }
+
+extension _PeriodLabel on _Period {
+  String get label {
+    switch (this) {
+      case _Period.today: return 'Today';
+      case _Period.thisWeek: return 'This Week';
+      case _Period.thisMonth: return 'This Month';
+      case _Period.lastMonth: return 'Last Month';
+      case _Period.last3M: return 'Last 3 Months';
+      case _Period.last6M: return 'Last 6 Months';
+      case _Period.custom: return 'Custom';
+    }
+  }
+}
+
 class _FinanceTabState extends State<FinanceTab> {
   List<FinanceTransaction> _txs = [];
+  BalanceStatement? _statement;
   bool _loading = true;
   bool _smsGranted = false;
   final fmt = NumberFormat('#,##0.00');
 
+  _Period _period = _Period.thisMonth;
+  DateTimeRange? _customRange;
+
+  void refresh() => _init();
+
   @override
   void initState() {
     super.initState();
+    TabRefreshRegistry.register(2, refresh);
     _init();
+  }
+
+  @override
+  void dispose() {
+    TabRefreshRegistry.unregister(2);
+    super.dispose();
   }
 
   Future<void> _init() async {
     _smsGranted = await SmsFinanceService.checkPermission();
     if (_smsGranted) {
       _txs = await SmsFinanceService.loadAll();
+      _statement = SmsFinanceService.buildStatement(_txs);
     }
     setState(() => _loading = false);
   }
@@ -40,20 +71,81 @@ class _FinanceTabState extends State<FinanceTab> {
     if (granted) {
       setState(() => _loading = true);
       _txs = await SmsFinanceService.loadAll(forceRefresh: true);
+      _statement = SmsFinanceService.buildStatement(_txs);
       setState(() => _loading = false);
     }
   }
 
-  // Current month transactions
-  List<FinanceTransaction> get _thisMonth {
+  DateTimeRange get _range {
     final now = DateTime.now();
-    return _txs.where((t) => t.date.year == now.year && t.date.month == now.month).toList();
+    switch (_period) {
+      case _Period.today:
+        return DateTimeRange(start: DateTime(now.year, now.month, now.day), end: now);
+      case _Period.thisWeek:
+        final weekStart = now.subtract(Duration(days: now.weekday - 1));
+        return DateTimeRange(start: DateTime(weekStart.year, weekStart.month, weekStart.day), end: now);
+      case _Period.thisMonth:
+        return DateTimeRange(start: DateTime(now.year, now.month, 1), end: now);
+      case _Period.lastMonth:
+        final lm = DateTime(now.year, now.month - 1);
+        return DateTimeRange(
+          start: DateTime(lm.year, lm.month, 1),
+          end: DateTime(now.year, now.month, 1).subtract(const Duration(seconds: 1)),
+        );
+      case _Period.last3M:
+        return DateTimeRange(start: DateTime(now.year, now.month - 2, 1), end: now);
+      case _Period.last6M:
+        return DateTimeRange(start: DateTime(now.year, now.month - 5, 1), end: now);
+      case _Period.custom:
+        return _customRange ?? DateTimeRange(start: DateTime(now.year, now.month, 1), end: now);
+    }
   }
 
-  double get _income => SmsFinanceService.totalIncome(_thisMonth);
-  double get _expenses => SmsFinanceService.totalExpenses(_thisMonth);
-  double get _balance => _income - _expenses;
-  double get _savingsRate => _income > 0 ? (_balance / _income * 100).clamp(0.0, 100.0) : 0.0;
+  String get _periodSubtitle {
+    final r = _range;
+    final df = DateFormat('d MMM');
+    final now = DateTime.now();
+    if (_period == _Period.today) return 'Today, ${DateFormat('d MMM').format(now)}';
+    if (_period == _Period.thisMonth) return 'This Month • 1–${now.day} ${DateFormat('MMM').format(now)}';
+    return '${df.format(r.start)} – ${df.format(r.end)}';
+  }
+
+  List<FinanceTransaction> get _filtered {
+    final r = _range;
+    return _txs.where((t) => !t.date.isBefore(r.start) && !t.date.isAfter(r.end)).toList();
+  }
+
+  double get _income => SmsFinanceService.totalIncome(_filtered);
+  double get _expenses => SmsFinanceService.totalExpenses(_filtered);
+  double get _balance => _statement?.currentBalance ?? 0;
+  double get _savingsRate => _income > 0 ? ((_income - _expenses) / _income * 100).clamp(0.0, 100.0) : 0.0;
+
+  Future<void> _pickPeriod() async {
+    final chosen = await showModalBottomSheet<_Period>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (_) => _PeriodSheet(current: _period),
+    );
+    if (chosen == null || !mounted) return;
+    if (chosen == _Period.custom) {
+      final range = await showDateRangePicker(
+        context: context,
+        firstDate: DateTime(2020),
+        lastDate: DateTime.now(),
+        initialDateRange: _customRange,
+        builder: (ctx, child) => Theme(
+          data: Theme.of(ctx).copyWith(
+            colorScheme: const ColorScheme.light(primary: AppColors.financeGreen),
+          ),
+          child: child!,
+        ),
+      );
+      if (!mounted || range == null) return;
+      setState(() { _period = _Period.custom; _customRange = range; });
+    } else {
+      setState(() => _period = chosen);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -79,11 +171,34 @@ class _FinanceTabState extends State<FinanceTab> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Text('Finance',
-                            style: TextStyle(color: Color(0xFF111827), fontSize: 26, fontWeight: FontWeight.bold, letterSpacing: -0.5)),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            const Text('Finance',
+                                style: TextStyle(color: Color(0xFF111827), fontSize: 26, fontWeight: FontWeight.bold, letterSpacing: -0.5)),
+                            if (_smsGranted && !_loading)
+                              GestureDetector(
+                                onTap: _pickPeriod,
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                                  decoration: BoxDecoration(
+                                    color: AppColors.financeGreen.withValues(alpha: 0.1),
+                                    borderRadius: BorderRadius.circular(20),
+                                    border: Border.all(color: AppColors.financeGreen.withValues(alpha: 0.3)),
+                                  ),
+                                  child: Row(mainAxisSize: MainAxisSize.min, children: [
+                                    Text(_period.label,
+                                        style: const TextStyle(color: AppColors.financeGreen, fontSize: 12, fontWeight: FontWeight.w600)),
+                                    const SizedBox(width: 4),
+                                    const Icon(Icons.keyboard_arrow_down_rounded, color: AppColors.financeGreen, size: 16),
+                                  ]),
+                                ),
+                              ),
+                          ],
+                        ),
                         const SizedBox(height: 2),
                         Text(
-                          _smsGranted ? '${_txs.length} M-Pesa transactions • Last 6 months' : 'Connect your M-Pesa SMS',
+                          _smsGranted ? _periodSubtitle : 'Connect your M-Pesa SMS',
                           style: const TextStyle(color: Color(0xFF6B7280), fontSize: 12),
                         ),
                         if (_loading)
@@ -108,7 +223,7 @@ class _FinanceTabState extends State<FinanceTab> {
                                 Row(children: [
                                   _HStat('Income', 'KES ${fmt.format(_income)}'),
                                   _HStat('Expenses', 'KES ${fmt.format(_expenses)}'),
-                                  _HStat('Balance', 'KES ${fmt.format(_balance)}'),
+                                  _HStat('M-Pesa Bal', 'KES ${fmt.format(_balance)}'),
                                 ]),
                                 const SizedBox(height: 10),
                                 Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
@@ -181,18 +296,18 @@ class _FinanceTabState extends State<FinanceTab> {
                 const SizedBox(height: 24),
 
                 // Quick stats if data loaded
-                if (_smsGranted && _txs.isNotEmpty) ...[
-                  const Text('This Month at a Glance',
-                      style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Color(0xFF111827))),
+                if (_smsGranted && _filtered.isNotEmpty) ...[
+                  Text('${_period.label} at a Glance',
+                      style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Color(0xFF111827))),
                   const SizedBox(height: 12),
-                  _QuickStatsGrid(txs: _thisMonth, fmt: fmt),
+                  _QuickStatsGrid(txs: _filtered, fmt: fmt),
                   const SizedBox(height: 24),
 
                   // Top categories
                   const Text('Top Spending Categories',
                       style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Color(0xFF111827))),
                   const SizedBox(height: 12),
-                  _TopCategories(txs: _thisMonth, expenses: _expenses, fmt: fmt),
+                  _TopCategories(txs: _filtered, expenses: _expenses, fmt: fmt),
                 ],
               ]),
             ),
@@ -364,6 +479,76 @@ class _StatBox extends StatelessWidget {
         Text(value, style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: color)),
         Text(label, style: const TextStyle(fontSize: 10, color: Color(0xFF9CA3AF))),
       ]),
+    );
+  }
+}
+
+class _PeriodSheet extends StatelessWidget {
+  final _Period current;
+  const _PeriodSheet({required this.current});
+
+  static const _options = [
+    (_Period.today, Icons.today_rounded),
+    (_Period.thisWeek, Icons.view_week_rounded),
+    (_Period.thisMonth, Icons.calendar_month_rounded),
+    (_Period.lastMonth, Icons.history_rounded),
+    (_Period.last3M, Icons.date_range_rounded),
+    (_Period.last6M, Icons.bar_chart_rounded),
+    (_Period.custom, Icons.tune_rounded),
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: const BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const SizedBox(height: 12),
+          Container(
+            width: 40, height: 4,
+            decoration: BoxDecoration(color: const Color(0xFFE5E7EB), borderRadius: BorderRadius.circular(2)),
+          ),
+          const SizedBox(height: 16),
+          const Padding(
+            padding: EdgeInsets.symmetric(horizontal: 20),
+            child: Align(
+              alignment: Alignment.centerLeft,
+              child: Text('Select Period',
+                  style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold, color: Color(0xFF111827))),
+            ),
+          ),
+          const SizedBox(height: 8),
+          ..._options.map((opt) {
+            final (period, icon) = opt;
+            final selected = period == current;
+            return ListTile(
+              leading: Container(
+                width: 36, height: 36,
+                decoration: BoxDecoration(
+                  color: selected ? AppColors.financeGreen.withValues(alpha: 0.12) : const Color(0xFFF3F4F6),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Icon(icon, size: 18, color: selected ? AppColors.financeGreen : const Color(0xFF6B7280)),
+              ),
+              title: Text(period.label,
+                  style: TextStyle(
+                    fontWeight: selected ? FontWeight.bold : FontWeight.w500,
+                    color: selected ? AppColors.financeGreen : const Color(0xFF111827),
+                    fontSize: 14,
+                  )),
+              trailing: selected
+                  ? const Icon(Icons.check_circle_rounded, color: AppColors.financeGreen, size: 20)
+                  : null,
+              onTap: () => Navigator.pop(context, period),
+            );
+          }),
+          const SizedBox(height: 16),
+        ],
+      ),
     );
   }
 }

@@ -4,9 +4,16 @@ import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import '../constants/app_theme.dart';
 import '../config/api_config.dart';
+import '../services/tab_refresh_registry.dart';
 import 'profile.dart' show Profile;
 import 'favourites.dart' show Favourites;
 import 'modern_login_screen.dart';
+
+// Notification preference keys
+const _kNotifPayments   = 'notif_payments';
+const _kNotifSavings    = 'notif_savings';
+const _kNotifGoals      = 'notif_goals';
+const _kNotifPromotions = 'notif_promotions';
 
 class ProfileTab extends StatefulWidget {
   final String userId;
@@ -20,10 +27,19 @@ class _ProfileTabState extends State<ProfileTab> {
   Map<String, dynamic>? _user;
   bool _loading = true;
 
+  void refresh() => _load();
+
   @override
   void initState() {
     super.initState();
+    TabRefreshRegistry.register(4, refresh);
     _load();
+  }
+
+  @override
+  void dispose() {
+    TabRefreshRegistry.unregister(4);
+    super.dispose();
   }
 
   Future<void> _load() async {
@@ -148,8 +164,8 @@ class _ProfileTabState extends State<ProfileTab> {
                 // Account section
                 _SectionLabel('Account'),
                 _MenuTile(icon: Icons.person_outline_rounded, label: 'Edit Profile', onTap: () => _go(Profile(userId: widget.userId))),
-                _MenuTile(icon: Icons.notifications_none_rounded, label: 'Notifications', onTap: () {}),
-                _MenuTile(icon: Icons.security_rounded, label: 'Security & Privacy', onTap: () {}),
+                _MenuTile(icon: Icons.notifications_none_rounded, label: 'Notifications', onTap: () => _showNotifications()),
+                _MenuTile(icon: Icons.security_rounded, label: 'Security & Privacy', onTap: () => _go(Profile(userId: widget.userId))),
                 const SizedBox(height: 20),
 
                 // Opportunities section
@@ -213,6 +229,97 @@ class _ProfileTabState extends State<ProfileTab> {
         ),
         transitionDuration: const Duration(milliseconds: 300),
       ));
+
+  Future<void> _showNotifications() async {
+    final prefs = await SharedPreferences.getInstance();
+    var payments   = prefs.getBool(_kNotifPayments)   ?? true;
+    var savings    = prefs.getBool(_kNotifSavings)    ?? true;
+    var goals      = prefs.getBool(_kNotifGoals)      ?? true;
+    var promotions = prefs.getBool(_kNotifPromotions) ?? false;
+
+    if (!mounted) return;
+    await showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (_) => StatefulBuilder(
+        builder: (ctx, setSS) => Container(
+          decoration: const BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+          ),
+          padding: EdgeInsets.only(
+            bottom: MediaQuery.of(ctx).viewInsets.bottom + MediaQuery.of(ctx).padding.bottom + 24,
+          ),
+          child: Column(mainAxisSize: MainAxisSize.min, children: [
+            const SizedBox(height: 12),
+            Container(width: 40, height: 4,
+                decoration: BoxDecoration(color: const Color(0xFFE5E7EB), borderRadius: BorderRadius.circular(2))),
+            const SizedBox(height: 20),
+            const Padding(
+              padding: EdgeInsets.symmetric(horizontal: 20),
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: Text('Notification Settings',
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF111827))),
+              ),
+            ),
+            const SizedBox(height: 4),
+            const Padding(
+              padding: EdgeInsets.symmetric(horizontal: 20),
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: Text('Choose what you want to be notified about',
+                    style: TextStyle(fontSize: 13, color: Color(0xFF6B7280))),
+              ),
+            ),
+            const SizedBox(height: 16),
+            _NotifTile(
+              icon: Icons.receipt_long_rounded,
+              title: 'Payments & Transactions',
+              subtitle: 'Receipts for every payment you make',
+              value: payments,
+              onChanged: (v) async {
+                setSS(() => payments = v);
+                await prefs.setBool(_kNotifPayments, v);
+              },
+            ),
+            _NotifTile(
+              icon: Icons.savings_rounded,
+              title: 'Savings Activity',
+              subtitle: 'When round-up savings are credited',
+              value: savings,
+              onChanged: (v) async {
+                setSS(() => savings = v);
+                await prefs.setBool(_kNotifSavings, v);
+              },
+            ),
+            _NotifTile(
+              icon: Icons.flag_rounded,
+              title: 'Goal Milestones',
+              subtitle: 'Progress updates on your savings goals',
+              value: goals,
+              onChanged: (v) async {
+                setSS(() => goals = v);
+                await prefs.setBool(_kNotifGoals, v);
+              },
+            ),
+            _NotifTile(
+              icon: Icons.campaign_rounded,
+              title: 'Promotions & Tips',
+              subtitle: 'Financial tips and Nebo updates',
+              value: promotions,
+              onChanged: (v) async {
+                setSS(() => promotions = v);
+                await prefs.setBool(_kNotifPromotions, v);
+              },
+            ),
+            const SizedBox(height: 8),
+          ]),
+        ),
+      ),
+    );
+  }
 
   void _showAbout() => showDialog(
         context: context,
@@ -282,6 +389,49 @@ class _MenuTile extends StatelessWidget {
           const Icon(Icons.chevron_right_rounded, color: Color(0xFFD1D5DB), size: 20),
         ]),
       ),
+    );
+  }
+}
+
+class _NotifTile extends StatelessWidget {
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final bool value;
+  final ValueChanged<bool> onChanged;
+  const _NotifTile({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    required this.value,
+    required this.onChanged,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+      child: Row(children: [
+        Container(
+          width: 38, height: 38,
+          decoration: BoxDecoration(
+            color: AppColors.financeGreen.withValues(alpha: 0.08),
+            borderRadius: BorderRadius.circular(10),
+          ),
+          child: Icon(icon, color: AppColors.financeGreen, size: 20),
+        ),
+        const SizedBox(width: 14),
+        Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text(title, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: Color(0xFF111827))),
+          Text(subtitle, style: const TextStyle(fontSize: 12, color: Color(0xFF6B7280))),
+        ])),
+        Switch(
+          value: value,
+          onChanged: onChanged,
+          activeThumbColor: AppColors.financeGreen,
+          activeTrackColor: AppColors.financeGreen.withValues(alpha: 0.35),
+        ),
+      ]),
     );
   }
 }

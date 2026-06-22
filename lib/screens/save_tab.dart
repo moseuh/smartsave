@@ -4,6 +4,7 @@ import 'package:http/http.dart' as http;
 import 'package:intl/intl.dart';
 import '../constants/app_theme.dart';
 import '../config/api_config.dart';
+import '../services/tab_refresh_registry.dart';
 import 'goals_dashboard.dart';
 import 'roundup.dart';
 import 'SetSavingsGoalScreen.dart' show GoalCreationScreen;
@@ -23,10 +24,19 @@ class _SaveTabState extends State<SaveTab> {
   bool _loading = true;
   final fmt = NumberFormat('#,##0.00');
 
+  void refresh() => _load();
+
   @override
   void initState() {
     super.initState();
+    TabRefreshRegistry.register(1, refresh);
     _load();
+  }
+
+  @override
+  void dispose() {
+    TabRefreshRegistry.unregister(1);
+    super.dispose();
   }
 
   Future<void> _load() async {

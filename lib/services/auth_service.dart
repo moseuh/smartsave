@@ -15,6 +15,7 @@ class AuthService {
     clientId: kIsWeb
         ? '825042983512-b3eea0b1eg88hvqks2c7d0i989tj79qf.apps.googleusercontent.com'
         : null,
+    serverClientId: '1020426440691-2h1lkmu995u590m9rh6g1ffbrktmaa4v.apps.googleusercontent.com',
   );
 
   User? get currentUser => _firebaseAuth.currentUser;

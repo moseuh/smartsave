@@ -1,12 +1,15 @@
+import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
-import 'package:intl/intl.dart';
+import 'package:share_plus/share_plus.dart';
 import '../constants/app_theme.dart';
-import '../config/api_config.dart';
-import 'loans_page.dart';
-import 'loans_credit_score.dart';
-import 'loan_products.dart';
+import '../constants/app_constants.dart';
+import '../services/tab_refresh_registry.dart';
+
+// Safe numeric parse — handles String, int, double, or null from JSON
+double _d(dynamic v) => double.tryParse(v?.toString() ?? '') ?? 0.0;
 
 class LoansTab extends StatefulWidget {
   final String userId;
@@ -16,11 +19,102 @@ class LoansTab extends StatefulWidget {
   State<LoansTab> createState() => _LoansTabState();
 }
 
-class _LoansTabState extends State<LoansTab> {
-  Map<String, dynamic>? _eligibility;
-  List<Map<String, dynamic>> _loans = [];
+class _LoansTabState extends State<LoansTab> with SingleTickerProviderStateMixin {
+  late TabController _tabCtrl;
+  final _borrowKey = GlobalKey<_SocialBorrowingTabState>();
+
+  void refresh() => _borrowKey.currentState?._load();
+
+  @override
+  void initState() {
+    super.initState();
+    TabRefreshRegistry.register(3, refresh);
+    _tabCtrl = TabController(length: 2, vsync: this);
+  }
+
+  @override
+  void dispose() {
+    TabRefreshRegistry.unregister(3);
+    _tabCtrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: AppTheme.backgroundLight,
+      body: SafeArea(
+        child: Column(children: [
+          // ── Header ──────────────────────────────────────────────
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              const Text('Loans & Credit',
+                  style: TextStyle(color: Color(0xFF111827), fontSize: 26,
+                      fontWeight: FontWeight.bold, letterSpacing: -0.5)),
+              const SizedBox(height: 2),
+              const Text('Borrow together, grow together',
+                  style: TextStyle(color: Color(0xFF6B7280), fontSize: 13)),
+              const SizedBox(height: 16),
+              // Tab bar
+              Container(
+                decoration: BoxDecoration(
+                  color: const Color(0xFFE9F2EB),
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                padding: const EdgeInsets.all(4),
+                child: TabBar(
+                  controller: _tabCtrl,
+                  indicator: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(10),
+                    boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.06), blurRadius: 8)],
+                  ),
+                  indicatorSize: TabBarIndicatorSize.tab,
+                  labelColor: AppColors.financeGreen,
+                  unselectedLabelColor: const Color(0xFF9CA3AF),
+                  labelStyle: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
+                  unselectedLabelStyle: const TextStyle(fontWeight: FontWeight.w500, fontSize: 13),
+                  dividerColor: Colors.transparent,
+                  tabs: const [
+                    Tab(text: 'Social Borrowing'),
+                    Tab(text: 'Nebo Loans'),
+                  ],
+                ),
+              ),
+            ]),
+          ),
+
+          Expanded(
+            child: TabBarView(
+              controller: _tabCtrl,
+              children: [
+                _SocialBorrowingTab(key: _borrowKey, userId: widget.userId),
+                const _NeboLoansTab(),
+              ],
+            ),
+          ),
+        ]),
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────
+//  SOCIAL BORROWING TAB
+// ─────────────────────────────────────────────────────────────────
+
+class _SocialBorrowingTab extends StatefulWidget {
+  final String userId;
+  const _SocialBorrowingTab({super.key, required this.userId});
+
+  @override
+  State<_SocialBorrowingTab> createState() => _SocialBorrowingTabState();
+}
+
+class _SocialBorrowingTabState extends State<_SocialBorrowingTab> {
+  List<Map<String, dynamic>> _links = [];
   bool _loading = true;
-  final fmt = NumberFormat('#,##0.00');
 
   @override
   void initState() {
@@ -30,411 +124,897 @@ class _LoansTabState extends State<LoansTab> {
 
   Future<void> _load() async {
     setState(() => _loading = true);
-    await Future.wait([_fetchEligibility(), _fetchLoans()]);
-    setState(() => _loading = false);
-  }
-
-  Future<void> _fetchEligibility() async {
     try {
-      final r = await http.get(Uri.parse(ApiConfig.loanEligibilityById(widget.userId)));
+      final r = await http.get(
+        Uri.parse('${AppConstants.apiBaseUrl}/social-borrowing/my/${widget.userId}'),
+      ).timeout(const Duration(seconds: 10));
       if (r.statusCode == 200) {
         final d = jsonDecode(r.body);
-        if (d['status'] == 'success') setState(() => _eligibility = d['data']);
+        if (mounted) setState(() => _links = List<Map<String, dynamic>>.from(d['data'] ?? []));
       }
     } catch (_) {}
+    if (mounted) setState(() => _loading = false);
   }
 
-  Future<void> _fetchLoans() async {
+  Future<void> _toggleLink(Map<String, dynamic> link) async {
     try {
-      final r = await http.get(Uri.parse(ApiConfig.loansById(widget.userId)));
-      if (r.statusCode == 200) {
-        final d = jsonDecode(r.body);
-        if (d['status'] == 'success') {
-          setState(() => _loans = List<Map<String, dynamic>>.from(d['data'] ?? []));
-        }
-      }
+      final r = await http.patch(
+        Uri.parse('${AppConstants.apiBaseUrl}/social-borrowing/${link['id']}/toggle'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({'user_id': widget.userId}),
+      );
+      if (r.statusCode == 200) _load();
     } catch (_) {}
-  }
-
-  double get _creditScore => double.tryParse(_eligibility?['credit_score']?.toString() ?? '0') ?? 0;
-  double get _maxLoan => double.tryParse(_eligibility?['max_loan_amount']?.toString() ?? '0') ?? 0;
-  bool get _eligible => _eligibility?['eligible'] == true || _eligibility?['eligible'] == 1;
-
-  Color get _scoreColor {
-    if (_creditScore >= 700) return const Color(0xFF059669);
-    if (_creditScore >= 500) return const Color(0xFFF59E0B);
-    return const Color(0xFFDC2626);
-  }
-
-  String get _scoreLabel {
-    if (_creditScore >= 700) return 'Excellent';
-    if (_creditScore >= 600) return 'Good';
-    if (_creditScore >= 500) return 'Fair';
-    return 'Poor';
   }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: AppTheme.backgroundLight,
-      body: RefreshIndicator(
-        color: AppColors.financeGreenV3,
-        onRefresh: _load,
-        child: CustomScrollView(
-          physics: const AlwaysScrollableScrollPhysics(),
-          slivers: [
-            SliverAppBar(
-              pinned: true,
-              backgroundColor: AppTheme.backgroundLight,
-              elevation: 0,
-              surfaceTintColor: Colors.transparent,
-              automaticallyImplyLeading: false,
-              expandedHeight: 160,
-              flexibleSpace: FlexibleSpaceBar(
-                collapseMode: CollapseMode.pin,
-                background: Container(
-                  color: AppTheme.backgroundLight,
-                  child: SafeArea(
-                    child: Padding(
-                      padding: const EdgeInsets.fromLTRB(20, 16, 20, 16),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Text('Loans & Credit',
-                              style: TextStyle(color: Color(0xFF111827), fontSize: 26, fontWeight: FontWeight.bold, letterSpacing: -0.5)),
-                          const SizedBox(height: 2),
-                          const Text('Borrow responsibly, grow confidently',
-                              style: TextStyle(color: Color(0xFF6B7280), fontSize: 13)),
-                          const SizedBox(height: 12),
-                          if (_loading)
-                            const LinearProgressIndicator(
-                              color: AppColors.financeGreen,
-                              backgroundColor: Color(0xFFE5E7EB),
-                            )
-                          else
-                            Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                              decoration: BoxDecoration(
-                                color: Colors.white,
-                                borderRadius: BorderRadius.circular(14),
-                                boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.05), blurRadius: 8, offset: const Offset(0, 2))],
-                              ),
-                              child: Row(children: [
-                                _HStat('Credit Score', _creditScore > 0 ? _creditScore.toInt().toString() : '—'),
-                                _HStat('Rating', _creditScore > 0 ? _scoreLabel : '—'),
-                                _HStat('Max Loan', _maxLoan > 0 ? 'KES ${fmt.format(_maxLoan)}' : '—'),
-                              ]),
-                            ),
-                        ],
-                      ),
-                    ),
+    if (_loading) {
+      return const Center(child: CircularProgressIndicator(color: AppColors.financeGreen));
+    }
+
+    return RefreshIndicator(
+      color: AppColors.financeGreen,
+      onRefresh: _load,
+      child: ListView(
+        padding: const EdgeInsets.fromLTRB(16, 20, 16, 24),
+        children: [
+          // Create new link button
+          _CreateLinkCard(userId: widget.userId, onCreated: _load),
+          const SizedBox(height: 20),
+
+          if (_links.isEmpty) ...[
+            const SizedBox(height: 32),
+            Center(
+              child: Column(children: [
+                Container(
+                  width: 72, height: 72,
+                  decoration: BoxDecoration(
+                    color: AppColors.financeGreen.withValues(alpha: 0.08),
+                    shape: BoxShape.circle,
                   ),
+                  child: const Icon(Icons.link_rounded, color: AppColors.financeGreen, size: 34),
                 ),
+                const SizedBox(height: 16),
+                const Text('No links yet', style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold, color: Color(0xFF111827))),
+                const SizedBox(height: 6),
+                const Text('Create your first social borrowing link\nand share it with friends.',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(fontSize: 13, color: Color(0xFF6B7280), height: 1.5)),
+              ]),
+            ),
+          ] else ...[
+            const Text('Your Links', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: Color(0xFF374151))),
+            const SizedBox(height: 12),
+            ..._links.map((link) => _LinkCard(
+              link: link,
+              userId: widget.userId,
+              onToggle: () => _toggleLink(link),
+              onRefresh: _load,
+            )),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+// ── Create Link Card ──────────────────────────────────────────────
+
+class _CreateLinkCard extends StatefulWidget {
+  final String userId;
+  final VoidCallback onCreated;
+  const _CreateLinkCard({required this.userId, required this.onCreated});
+
+  @override
+  State<_CreateLinkCard> createState() => _CreateLinkCardState();
+}
+
+class _CreateLinkCardState extends State<_CreateLinkCard> {
+  bool _expanded = false;
+  final _titleCtrl = TextEditingController();
+  final _descCtrl = TextEditingController();
+  final _amtCtrl = TextEditingController();
+  DateTime? _repaymentDate;
+  bool _termsAccepted = false;
+  bool _saving = false;
+
+  @override
+  void dispose() {
+    _titleCtrl.dispose();
+    _descCtrl.dispose();
+    _amtCtrl.dispose();
+    super.dispose();
+  }
+
+  Future<void> _pickDate() async {
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: DateTime.now().add(const Duration(days: 30)),
+      firstDate: DateTime.now().add(const Duration(days: 1)),
+      lastDate: DateTime.now().add(const Duration(days: 365 * 3)),
+      builder: (ctx, child) => Theme(
+        data: Theme.of(ctx).copyWith(
+          colorScheme: const ColorScheme.light(primary: AppColors.financeGreen),
+        ),
+        child: child!,
+      ),
+    );
+    if (picked != null) setState(() => _repaymentDate = picked);
+  }
+
+  Future<void> _create() async {
+    final title = _titleCtrl.text.trim();
+    final amt = double.tryParse(_amtCtrl.text.trim()) ?? 0;
+    if (title.isEmpty || amt <= 0) {
+      _snack('Enter a title and target amount');
+      return;
+    }
+    if (_repaymentDate == null) {
+      _snack('Select a repayment date');
+      return;
+    }
+    if (!_termsAccepted) {
+      _snack('You must accept the terms to continue');
+      return;
+    }
+    setState(() => _saving = true);
+    final repayStr = '${_repaymentDate!.year}-${_repaymentDate!.month.toString().padLeft(2, '0')}-${_repaymentDate!.day.toString().padLeft(2, '0')}';
+    try {
+      final r = await http.post(
+        Uri.parse('${AppConstants.apiBaseUrl}/social-borrowing/create'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({
+          'user_id': widget.userId,
+          'title': title,
+          'description': _descCtrl.text.trim(),
+          'target_amount': amt,
+          'repayment_date': repayStr,
+        }),
+      ).timeout(const Duration(seconds: 12));
+      final d = jsonDecode(r.body);
+      if (r.statusCode == 200 && d['status'] == 'success') {
+        final link = d['data']['link'] as String;
+        _titleCtrl.clear();
+        _descCtrl.clear();
+        _amtCtrl.clear();
+        setState(() { _expanded = false; _saving = false; _repaymentDate = null; _termsAccepted = false; });
+        widget.onCreated();
+        if (mounted) _showCreatedDialog(link);
+      } else {
+        _snack(d['message'] ?? 'Failed to create link', error: true);
+        setState(() => _saving = false);
+      }
+    } catch (_) {
+      _snack('Network error', error: true);
+      setState(() => _saving = false);
+    }
+  }
+
+  void _showCreatedDialog(String link) {
+    showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        contentPadding: const EdgeInsets.all(24),
+        content: Column(mainAxisSize: MainAxisSize.min, children: [
+          Container(
+            width: 60, height: 60,
+            decoration: BoxDecoration(color: AppColors.financeGreen.withValues(alpha: 0.1), shape: BoxShape.circle),
+            child: const Icon(Icons.check_circle_rounded, color: AppColors.financeGreen, size: 34),
+          ),
+          const SizedBox(height: 14),
+          const Text('Borrowing Link Created!', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF111827))),
+          const SizedBox(height: 8),
+          const Text('Share this link with friends and family. They will see the repayment date and terms before sending money.',
+              textAlign: TextAlign.center,
+              style: TextStyle(fontSize: 13, color: Color(0xFF6B7280), height: 1.5)),
+          const SizedBox(height: 16),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+            decoration: BoxDecoration(
+              color: const Color(0xFFF3F4F6),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Row(children: [
+              Expanded(child: Text(link, style: const TextStyle(fontSize: 12, color: Color(0xFF374151)), overflow: TextOverflow.ellipsis)),
+              GestureDetector(
+                onTap: () { Clipboard.setData(ClipboardData(text: link)); _snack('Copied!'); },
+                child: const Icon(Icons.copy_rounded, size: 18, color: AppColors.financeGreen),
               ),
-              bottom: PreferredSize(
-                preferredSize: const Size.fromHeight(1),
-                child: Container(height: 1, color: AppColors.coreWhiteW2),
+            ]),
+          ),
+          const SizedBox(height: 20),
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton.icon(
+              onPressed: () {
+                Navigator.pop(context);
+                SharePlus.instance.share(ShareParams(text: 'I need your help! Lend me money via Nebo — see details and repayment date here: $link'));
+              },
+              icon: const Icon(Icons.share_rounded, size: 18),
+              label: const Text('Share Link'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.financeGreen,
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(vertical: 13),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                elevation: 0,
               ),
             ),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Done', style: TextStyle(color: Color(0xFF9CA3AF))),
+          ),
+        ]),
+      ),
+    );
+  }
 
-            SliverPadding(
-              padding: const EdgeInsets.fromLTRB(16, 20, 16, 100),
-              sliver: SliverList(
-                delegate: SliverChildListDelegate([
-                  // Credit score card
-                  if (!_loading && _creditScore > 0) ...[
-                    _CreditScoreCard(score: _creditScore, label: _scoreLabel, color: _scoreColor, maxLoan: _maxLoan, eligible: _eligible, fmt: fmt),
-                    const SizedBox(height: 16),
-                  ],
+  void _snack(String msg, {bool error = false}) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      content: Text(msg),
+      backgroundColor: error ? Colors.red.shade700 : AppColors.financeGreen,
+      behavior: SnackBarBehavior.floating,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+    ));
+  }
 
-                  // Action cards
-                  Row(children: [
-                    Expanded(child: _ActionCard(
-                      icon: Icons.add_circle_outline_rounded,
-                      label: 'Apply Loan',
-                      color: AppColors.financeGreen,
-                      onTap: () => _go(LoanProducts(userId: widget.userId)),
-                    )),
-                    const SizedBox(width: 12),
-                    Expanded(child: _ActionCard(
-                      icon: Icons.verified_user_outlined,
-                      label: 'Credit Health',
-                      color: AppColors.financeGreenV2,
-                      onTap: () => _go(LoansCreditScore(userId: widget.userId)),
-                    )),
-                    const SizedBox(width: 12),
-                    Expanded(child: _ActionCard(
-                      icon: Icons.list_alt_rounded,
-                      label: 'My Loans',
-                      color: const Color(0xFFF5A623),
-                      onTap: () => _go(LoansPage(userId: widget.userId)),
-                    )),
-                  ]),
-                  const SizedBox(height: 24),
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 250),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          colors: [Color(0xFF1B6631), Color(0xFF27AE60)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [BoxShadow(color: AppColors.financeGreen.withValues(alpha: 0.3), blurRadius: 16, offset: const Offset(0, 6))],
+      ),
+      child: Material(
+        color: Colors.transparent,
+        borderRadius: BorderRadius.circular(20),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(20),
+          onTap: _expanded ? null : () => setState(() => _expanded = true),
+          child: Padding(
+            padding: const EdgeInsets.all(20),
+            child: _expanded ? _buildForm() : _buildCollapsed(),
+          ),
+        ),
+      ),
+    );
+  }
 
-                  // Active loans
-                  const Text('Active Loans', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Color(0xFF111827))),
-                  const SizedBox(height: 12),
+  Widget _buildCollapsed() => Row(children: [
+    Container(
+      width: 44, height: 44,
+      decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.2), shape: BoxShape.circle),
+      child: const Icon(Icons.add_link_rounded, color: Colors.white, size: 22),
+    ),
+    const SizedBox(width: 14),
+    const Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Text('Create a Borrowing Link', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 15)),
+      SizedBox(height: 3),
+      Text('Share with friends to collect money', style: TextStyle(color: Colors.white70, fontSize: 12)),
+    ])),
+    const Icon(Icons.arrow_forward_ios_rounded, color: Colors.white70, size: 16),
+  ]);
 
-                  if (_loading)
-                    ...List.generate(2, (_) => const Padding(padding: EdgeInsets.only(bottom: 10), child: _Skeleton(height: 90)))
-                  else if (_loans.isEmpty)
-                    const _EmptyState(icon: Icons.account_balance_outlined, message: 'No active loans.\nCheck your eligibility to get started.')
-                  else
-                    ..._loans.map((l) => _LoanCard(loan: l, fmt: fmt)),
+  Widget _buildForm() => Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+    Row(children: [
+      const Expanded(child: Text('New Borrowing Link', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16))),
+      GestureDetector(
+        onTap: () => setState(() => _expanded = false),
+        child: const Icon(Icons.close_rounded, color: Colors.white70, size: 20),
+      ),
+    ]),
+    const SizedBox(height: 16),
+    _whiteField(_titleCtrl, 'Title (e.g. "School fees help")'),
+    const SizedBox(height: 10),
+    _whiteField(_descCtrl, 'Description (optional)'),
+    const SizedBox(height: 10),
+    _whiteField(_amtCtrl, 'Target amount (KES)', keyboardType: TextInputType.number),
+    const SizedBox(height: 10),
+    // Repayment date picker
+    GestureDetector(
+      onTap: _pickDate,
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(10),
+        ),
+        child: Row(children: [
+          const Icon(Icons.calendar_today_rounded, size: 16, color: Color(0xFF9CA3AF)),
+          const SizedBox(width: 10),
+          Text(
+            _repaymentDate == null
+                ? 'Repayment date'
+                : 'Repay by ${_repaymentDate!.day}/${_repaymentDate!.month}/${_repaymentDate!.year}',
+            style: TextStyle(
+              fontSize: 14,
+              color: _repaymentDate == null ? const Color(0xFF9CA3AF) : const Color(0xFF111827),
+            ),
+          ),
+        ]),
+      ),
+    ),
+    const SizedBox(height: 14),
+    // Terms & Conditions
+    Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.15),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.3)),
+      ),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        const Text('By creating this link you confirm:', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700, fontSize: 12)),
+        const SizedBox(height: 6),
+        const Text('• Nebo is not a lender, credit provider, debt collector, or financial advisor\n• Any financial support is arranged directly between you and your personal contacts\n• Nebo only provides tools for tracking contributions and repayments',
+            style: TextStyle(color: Colors.white70, fontSize: 11, height: 1.5)),
+        const SizedBox(height: 8),
+        GestureDetector(
+          onTap: () => setState(() => _termsAccepted = !_termsAccepted),
+          child: Row(children: [
+            Container(
+              width: 20, height: 20,
+              decoration: BoxDecoration(
+                color: _termsAccepted ? Colors.white : Colors.transparent,
+                border: Border.all(color: Colors.white, width: 2),
+                borderRadius: BorderRadius.circular(4),
+              ),
+              child: _termsAccepted
+                  ? const Icon(Icons.check_rounded, size: 14, color: AppColors.financeGreen)
+                  : null,
+            ),
+            const SizedBox(width: 8),
+            const Expanded(child: Text('I understand and agree', style: TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w600))),
+          ]),
+        ),
+      ]),
+    ),
+    const SizedBox(height: 16),
+    SizedBox(
+      width: double.infinity,
+      child: ElevatedButton(
+        onPressed: _saving ? null : _create,
+        style: ElevatedButton.styleFrom(
+          backgroundColor: Colors.white,
+          foregroundColor: AppColors.financeGreen,
+          padding: const EdgeInsets.symmetric(vertical: 13),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          elevation: 0,
+        ),
+        child: _saving
+            ? const SizedBox(height: 18, width: 18, child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.financeGreen))
+            : const Text('Create & Get Link', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+      ),
+    ),
+  ]);
 
-                  const SizedBox(height: 24),
+  Widget _whiteField(TextEditingController ctrl, String hint, {TextInputType? keyboardType}) => TextField(
+    controller: ctrl,
+    keyboardType: keyboardType,
+    style: const TextStyle(fontSize: 14, color: Color(0xFF111827)),
+    decoration: InputDecoration(
+      hintText: hint,
+      hintStyle: const TextStyle(color: Color(0xFF9CA3AF), fontSize: 13),
+      filled: true,
+      fillColor: Colors.white,
+      contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide.none),
+    ),
+  );
+}
 
-                  // Loan info tiles
-                  const Text('Why Borrow Smart?', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Color(0xFF111827))),
-                  const SizedBox(height: 12),
-                  const _InfoTile(icon: Icons.shield_outlined, title: 'No Hidden Fees', body: 'Transparent interest rates calculated on your credit score.', color: Color(0xFF059669)),
-                  const SizedBox(height: 8),
-                  const _InfoTile(icon: Icons.speed_outlined, title: 'Instant Disbursement', body: 'Approved loans go straight to your M-Pesa within minutes.', color: AppColors.financeGreenV3),
-                  const SizedBox(height: 8),
-                  const _InfoTile(icon: Icons.trending_up_rounded, title: 'Build Your Score', body: 'Repaying on time improves your credit score and unlocks higher limits.', color: Color(0xFFF5A623)),
+// ── Individual Link Card ──────────────────────────────────────────
+
+class _LinkCard extends StatelessWidget {
+  final Map<String, dynamic> link;
+  final String userId;
+  final VoidCallback onToggle;
+  final VoidCallback onRefresh;
+  const _LinkCard({required this.link, required this.userId, required this.onToggle, required this.onRefresh});
+
+  @override
+  Widget build(BuildContext context) {
+    final double raised = _d(link['raised']);
+    final double target = _d(link['target_amount']);
+    final double pending = _d(link['pending']);
+    final int contributors = _d(link['contributors']).toInt();
+    final bool active = link['is_active'] == true;
+    final String linkUrl = link['link']?.toString() ?? '';
+    final double pct = target > 0 ? (raised / target).clamp(0.0, 1.0) : 0;
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 14),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(18),
+        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.05), blurRadius: 10, offset: const Offset(0, 3))],
+      ),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        // Top row
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 16, 12, 8),
+          child: Row(children: [
+            Container(
+              width: 40, height: 40,
+              decoration: BoxDecoration(
+                color: active ? AppColors.financeGreen.withValues(alpha: 0.1) : const Color(0xFFF3F4F6),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(Icons.link_rounded, color: active ? AppColors.financeGreen : const Color(0xFF9CA3AF), size: 20),
+            ),
+            const SizedBox(width: 12),
+            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text(link['title']?.toString() ?? '', style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Color(0xFF111827)), maxLines: 1, overflow: TextOverflow.ellipsis),
+              if ((link['description'] as String?)?.isNotEmpty == true)
+                Text(link['description'].toString(), style: const TextStyle(fontSize: 12, color: Color(0xFF9CA3AF)), maxLines: 1, overflow: TextOverflow.ellipsis),
+            ])),
+            // Active toggle
+            GestureDetector(
+              onTap: onToggle,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                decoration: BoxDecoration(
+                  color: active ? AppColors.financeGreen.withValues(alpha: 0.1) : const Color(0xFFF3F4F6),
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Row(mainAxisSize: MainAxisSize.min, children: [
+                  Container(width: 7, height: 7, decoration: BoxDecoration(color: active ? AppColors.financeGreen : const Color(0xFF9CA3AF), shape: BoxShape.circle)),
+                  const SizedBox(width: 5),
+                  Text(active ? 'Active' : 'Paused', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: active ? AppColors.financeGreen : const Color(0xFF9CA3AF))),
                 ]),
               ),
             ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  void _go(Widget page) => Navigator.push(context, PageRouteBuilder(
-        pageBuilder: (_, __, ___) => page,
-        transitionsBuilder: (_, a, __, child) => SlideTransition(
-          position: Tween(begin: const Offset(1, 0), end: Offset.zero).animate(CurvedAnimation(parent: a, curve: Curves.easeOut)),
-          child: child,
-        ),
-        transitionDuration: const Duration(milliseconds: 300),
-      ));
-}
-
-class _HStat extends StatelessWidget {
-  final String label, value;
-  const _HStat(this.label, this.value);
-
-  @override
-  Widget build(BuildContext context) => Expanded(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(label, style: const TextStyle(color: Color(0xFF9CA3AF), fontSize: 10, fontWeight: FontWeight.w500)),
-            const SizedBox(height: 2),
-            Text(value, style: const TextStyle(color: Color(0xFF111827), fontSize: 13, fontWeight: FontWeight.bold)),
-          ],
-        ),
-      );
-}
-
-class _CreditScoreCard extends StatelessWidget {
-  final double score, maxLoan;
-  final String label;
-  final Color color;
-  final bool eligible;
-  final NumberFormat fmt;
-  const _CreditScoreCard({required this.score, required this.label, required this.color, required this.maxLoan, required this.eligible, required this.fmt});
-
-  @override
-  Widget build(BuildContext context) {
-    final pct = (score / 850).clamp(0.0, 1.0);
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.06), blurRadius: 12, offset: const Offset(0, 4))],
-      ),
-      child: Column(children: [
-        Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-          Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            const Text('Credit Score', style: TextStyle(fontSize: 12, color: Color(0xFF6B7280))),
-            const SizedBox(height: 4),
-            Text(score.toInt().toString(), style: TextStyle(fontSize: 36, fontWeight: FontWeight.w900, color: color)),
-            Text(label, style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: color)),
           ]),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-            decoration: BoxDecoration(
-              color: eligible ? const Color(0xFFDCFCE7) : const Color(0xFFFEE2E2),
-              borderRadius: BorderRadius.circular(20),
-            ),
-            child: Row(children: [
-              Icon(eligible ? Icons.check_circle_rounded : Icons.cancel_rounded,
-                  color: eligible ? const Color(0xFF059669) : const Color(0xFFDC2626), size: 16),
-              const SizedBox(width: 6),
-              Text(eligible ? 'Eligible' : 'Not eligible',
-                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12,
-                      color: eligible ? const Color(0xFF059669) : const Color(0xFFDC2626))),
-            ]),
-          ),
-        ]),
-        const SizedBox(height: 16),
-        ClipRRect(
-          borderRadius: BorderRadius.circular(6),
-          child: LinearProgressIndicator(value: pct, backgroundColor: const Color(0xFFF3F4F6), valueColor: AlwaysStoppedAnimation(color), minHeight: 10),
         ),
-        const SizedBox(height: 6),
-        Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: const [
-          Text('300 Poor', style: TextStyle(fontSize: 10, color: Color(0xFF9CA3AF))),
-          Text('850 Excellent', style: TextStyle(fontSize: 10, color: Color(0xFF9CA3AF))),
-        ]),
-        if (maxLoan > 0) ...[
-          const SizedBox(height: 12),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-            decoration: BoxDecoration(color: AppColors.financeGreen.withValues(alpha: 0.07), borderRadius: BorderRadius.circular(12)),
-            child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-              const Icon(Icons.account_balance_wallet_outlined, color: AppColors.financeGreen, size: 16),
-              const SizedBox(width: 8),
-              Text('Max loan: KES ${fmt.format(maxLoan)}',
-                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: AppColors.financeGreen)),
+
+        // Progress bar
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            ClipRRect(
+              borderRadius: BorderRadius.circular(99),
+              child: LinearProgressIndicator(
+                value: pct,
+                minHeight: 7,
+                backgroundColor: const Color(0xFFE5F2EA),
+                valueColor: const AlwaysStoppedAnimation(AppColors.financeGreen),
+              ),
+            ),
+            const SizedBox(height: 6),
+            Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+              Text('KES ${raised.toStringAsFixed(2)} raised', style: const TextStyle(fontSize: 11, color: Color(0xFF6B7280))),
+              Text('of KES ${target.toStringAsFixed(2)}', style: const TextStyle(fontSize: 11, color: Color(0xFF9CA3AF))),
             ]),
-          ),
-        ],
+          ]),
+        ),
+
+        const SizedBox(height: 12),
+
+        // Stats row
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          child: Row(children: [
+            _statChip(Icons.people_alt_rounded, '$contributors', 'people'),
+            const SizedBox(width: 10),
+            _statChip(Icons.hourglass_top_rounded, 'KES ${pending.toStringAsFixed(2)}', 'pending'),
+            const SizedBox(width: 10),
+            _statChip(Icons.percent_rounded, '${(pct * 100).toStringAsFixed(0)}%', 'funded'),
+          ]),
+        ),
+
+        const SizedBox(height: 12),
+        const Divider(height: 1, color: Color(0xFFF3F4F6)),
+
+        // Action buttons
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+          child: Row(children: [
+            _actionBtn(Icons.share_rounded, 'Share', () {
+              SharePlus.instance.share(ShareParams(text: 'I need your help! Lend me money via Nebo — see details and repayment date here: $linkUrl'));
+            }),
+            _actionBtn(Icons.copy_rounded, 'Copy Link', () {
+              Clipboard.setData(ClipboardData(text: linkUrl));
+              ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+                content: Text('Link copied!'),
+                backgroundColor: AppColors.financeGreen,
+                behavior: SnackBarBehavior.floating,
+                duration: Duration(seconds: 2),
+              ));
+            }),
+            _actionBtn(Icons.bar_chart_rounded, 'Activity', () {
+              Navigator.push(context, MaterialPageRoute(
+                builder: (_) => _LinkActivityScreen(link: link, userId: userId),
+              ));
+            }),
+          ]),
+        ),
       ]),
     );
   }
+
+  Widget _statChip(IconData icon, String value, String label) => Expanded(
+    child: Container(
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF9FAFB),
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Column(children: [
+        Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+          Icon(icon, size: 13, color: AppColors.financeGreen),
+          const SizedBox(width: 4),
+          Text(value, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Color(0xFF111827))),
+        ]),
+        Text(label, style: const TextStyle(fontSize: 10, color: Color(0xFF9CA3AF))),
+      ]),
+    ),
+  );
+
+  Widget _actionBtn(IconData icon, String label, VoidCallback onTap) => Expanded(
+    child: TextButton.icon(
+      onPressed: onTap,
+      icon: Icon(icon, size: 15, color: AppColors.financeGreen),
+      label: Text(label, style: const TextStyle(fontSize: 12, color: AppColors.financeGreen, fontWeight: FontWeight.w600)),
+      style: TextButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 8)),
+    ),
+  );
 }
 
-class _ActionCard extends StatelessWidget {
-  final IconData icon;
-  final String label;
-  final Color color;
-  final VoidCallback onTap;
-  const _ActionCard({required this.icon, required this.label, required this.color, required this.onTap});
+// ── Link Activity Screen ──────────────────────────────────────────
+
+class _LinkActivityScreen extends StatefulWidget {
+  final Map<String, dynamic> link;
+  final String userId;
+  const _LinkActivityScreen({required this.link, required this.userId});
 
   @override
-  Widget build(BuildContext context) => GestureDetector(
-        onTap: onTap,
-        child: Container(
-          height: 90,
-          decoration: BoxDecoration(
-            color: color,
-            borderRadius: BorderRadius.circular(20),
-            boxShadow: [BoxShadow(color: color.withValues(alpha: 0.35), blurRadius: 12, offset: const Offset(0, 6))],
-          ),
-          child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-            Container(
-              width: 42, height: 42,
-              decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.2), shape: BoxShape.circle),
-              child: Icon(icon, color: Colors.white, size: 22),
-            ),
-            const SizedBox(height: 8),
-            Text(label, style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold), textAlign: TextAlign.center),
-          ]),
-        ),
-      );
+  State<_LinkActivityScreen> createState() => _LinkActivityScreenState();
 }
 
-class _LoanCard extends StatelessWidget {
-  final Map<String, dynamic> loan;
-  final NumberFormat fmt;
-  const _LoanCard({required this.loan, required this.fmt});
+class _LinkActivityScreenState extends State<_LinkActivityScreen> {
+  List<Map<String, dynamic>> _contributions = [];
+  bool _loading = true;
+  Map<String, dynamic> _stats = {};
+  Timer? _timer;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+    // Auto-refresh every 30s
+    _timer = Timer.periodic(const Duration(seconds: 30), (_) => _load());
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    super.dispose();
+  }
+
+  Future<void> _load() async {
+    try {
+      final slug = widget.link['slug']?.toString() ?? '';
+      final r = await http.get(
+        Uri.parse('${AppConstants.apiBaseUrl}/social-borrowing/stats/$slug'),
+      ).timeout(const Duration(seconds: 10));
+      if (r.statusCode == 200) {
+        final d = jsonDecode(r.body);
+        if (mounted) {
+          setState(() {
+            _stats = d['data'] ?? {};
+            _contributions = List<Map<String, dynamic>>.from(_stats['recent'] ?? []);
+            _loading = false;
+          });
+        }
+      }
+    } catch (_) {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
-    final amount = double.tryParse(loan['amount']?.toString() ?? '0') ?? 0;
-    final balance = double.tryParse(loan['balance']?.toString() ?? loan['remaining']?.toString() ?? '0') ?? 0;
-    final status = loan['status']?.toString() ?? 'active';
-    final pct = amount > 0 ? ((amount - balance) / amount).clamp(0.0, 1.0) : 0.0;
-    final statusColor = status == 'active' ? const Color(0xFFF59E0B) : status == 'paid' ? const Color(0xFF059669) : const Color(0xFFDC2626);
+    final double raised = _d(_stats['raised']);
+    final double target = _stats.containsKey('target_amount') ? _d(_stats['target_amount']) : _d(widget.link['target_amount']);
+    final int contributors = _d(_stats['contributors']).toInt();
+    final double pct = target > 0 ? (raised / target).clamp(0.0, 1.0) : 0;
+    final String linkUrl = widget.link['link']?.toString() ?? '';
 
-    return Container(
-      margin: const EdgeInsets.only(bottom: 10),
+    return Scaffold(
+      backgroundColor: AppTheme.backgroundLight,
+      appBar: AppBar(
+        backgroundColor: AppTheme.backgroundLight,
+        elevation: 0,
+        surfaceTintColor: Colors.transparent,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back_rounded, color: Color(0xFF111827)),
+          onPressed: () => Navigator.pop(context),
+        ),
+        title: Text(widget.link['title']?.toString() ?? 'Activity',
+            style: const TextStyle(color: Color(0xFF111827), fontWeight: FontWeight.bold, fontSize: 17)),
+        centerTitle: true,
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.share_rounded, color: AppColors.financeGreen),
+            onPressed: () => SharePlus.instance.share(ShareParams(text: 'I need your help! Lend me money via Nebo — see details and repayment date here: $linkUrl')),
+          ),
+        ],
+      ),
+      body: _loading
+          ? const Center(child: CircularProgressIndicator(color: AppColors.financeGreen))
+          : RefreshIndicator(
+              color: AppColors.financeGreen,
+              onRefresh: _load,
+              child: ListView(
+                padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+                children: [
+                  // Progress card
+                  Container(
+                    padding: const EdgeInsets.all(20),
+                    decoration: BoxDecoration(
+                      gradient: const LinearGradient(
+                        colors: [Color(0xFF1B6631), Color(0xFF27AE60)],
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                      ),
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                      Text('KES ${raised.toStringAsFixed(2)}',
+                          style: const TextStyle(color: Colors.white, fontSize: 28, fontWeight: FontWeight.bold, letterSpacing: -0.5)),
+                      const SizedBox(height: 4),
+                      Text('of KES ${target.toStringAsFixed(2)} target',
+                          style: const TextStyle(color: Colors.white70, fontSize: 13)),
+                      const SizedBox(height: 14),
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(99),
+                        child: LinearProgressIndicator(
+                          value: pct,
+                          minHeight: 8,
+                          backgroundColor: Colors.white.withValues(alpha: 0.25),
+                          valueColor: const AlwaysStoppedAnimation(Colors.white),
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+                      Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+                        Text('${(pct * 100).toStringAsFixed(0)}% funded',
+                            style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w600)),
+                        Text('$contributors contributor${contributors == 1 ? '' : 's'}',
+                            style: const TextStyle(color: Colors.white70, fontSize: 13)),
+                      ]),
+                    ]),
+                  ),
+
+                  const SizedBox(height: 20),
+
+                  // Stats grid
+                  Row(children: [
+                    _statCard('Raised', 'KES ${raised.toStringAsFixed(2)}', Icons.trending_up_rounded, AppColors.financeGreen),
+                    const SizedBox(width: 12),
+                    _statCard('Pending', 'KES ${(target - raised).clamp(0, double.infinity).toStringAsFixed(2)}', Icons.hourglass_empty_rounded, const Color(0xFFD97706)),
+                  ]),
+                  const SizedBox(height: 12),
+                  Row(children: [
+                    _statCard('Contributors', '$contributors people', Icons.people_rounded, const Color(0xFF6366F1)),
+                    const SizedBox(width: 12),
+                    _statCard('Progress', '${(pct * 100).toStringAsFixed(0)}%', Icons.donut_large_rounded, AppColors.financeGreen),
+                  ]),
+
+                  const SizedBox(height: 24),
+
+                  // Contributions list
+                  const Text('Recent Contributions',
+                      style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: Color(0xFF374151))),
+                  const SizedBox(height: 12),
+
+                  if (_contributions.isEmpty)
+                    Center(
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 32),
+                        child: Column(children: [
+                          Icon(Icons.inbox_rounded, size: 40, color: Colors.grey.shade300),
+                          const SizedBox(height: 12),
+                          const Text('No contributions yet', style: TextStyle(color: Color(0xFF9CA3AF), fontSize: 14)),
+                          const SizedBox(height: 4),
+                          const Text('Share your link to start collecting', style: TextStyle(color: Color(0xFFD1D5DB), fontSize: 12)),
+                        ]),
+                      ),
+                    )
+                  else
+                    ..._contributions.map((c) => _ContributionRow(c)),
+                ],
+              ),
+            ),
+    );
+  }
+
+  Widget _statCard(String label, String value, IconData icon, Color color) => Expanded(
+    child: Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
-        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.05), blurRadius: 8)],
+        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.04), blurRadius: 8)],
       ),
-      child: Column(children: [
-        Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-          Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text('KES ${fmt.format(amount)}', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Color(0xFF111827))),
-            Text('Balance: KES ${fmt.format(balance)}', style: const TextStyle(fontSize: 12, color: Color(0xFF6B7280))),
-          ]),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-            decoration: BoxDecoration(color: statusColor.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(12)),
-            child: Text(status.toUpperCase(), style: TextStyle(color: statusColor, fontSize: 10, fontWeight: FontWeight.bold)),
-          ),
-        ]),
-        const SizedBox(height: 12),
-        ClipRRect(
-          borderRadius: BorderRadius.circular(4),
-          child: LinearProgressIndicator(
-            value: pct,
-            backgroundColor: const Color(0xFFF3F4F6),
-            valueColor: const AlwaysStoppedAnimation(AppColors.financeGreenV3),
-            minHeight: 6,
-          ),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Container(
+          width: 34, height: 34,
+          decoration: BoxDecoration(color: color.withValues(alpha: 0.1), shape: BoxShape.circle),
+          child: Icon(icon, size: 18, color: color),
         ),
-        const SizedBox(height: 4),
-        Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-          Text('${(pct * 100).toStringAsFixed(0)}% repaid', style: const TextStyle(fontSize: 10, color: Color(0xFF9CA3AF))),
-          Text('KES ${fmt.format(amount - balance)} paid', style: const TextStyle(fontSize: 10, color: AppColors.financeGreenV3, fontWeight: FontWeight.w600)),
-        ]),
+        const SizedBox(height: 10),
+        Text(value, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Color(0xFF111827))),
+        const SizedBox(height: 2),
+        Text(label, style: const TextStyle(fontSize: 12, color: Color(0xFF9CA3AF))),
+      ]),
+    ),
+  );
+}
+
+class _ContributionRow extends StatelessWidget {
+  final Map<String, dynamic> c;
+  const _ContributionRow(this.c);
+
+  @override
+  Widget build(BuildContext context) {
+    final amt = _d(c['amount']);
+    final name = c['contributor_name']?.toString() ?? 'Anonymous';
+    final time = c['created_at']?.toString() ?? '';
+    final initials = name.trim().split(' ').map((w) => w.isEmpty ? '' : w[0].toUpperCase()).take(2).join();
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(14),
+        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.03), blurRadius: 6)],
+      ),
+      child: Row(children: [
+        Container(
+          width: 40, height: 40,
+          decoration: BoxDecoration(color: AppColors.financeGreen.withValues(alpha: 0.1), shape: BoxShape.circle),
+          child: Center(child: Text(initials, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: AppColors.financeGreen))),
+        ),
+        const SizedBox(width: 12),
+        Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text(name, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14, color: Color(0xFF111827))),
+          if (time.isNotEmpty)
+            Text(_formatTime(time), style: const TextStyle(fontSize: 11, color: Color(0xFF9CA3AF))),
+        ])),
+        Text('KES ${amt.toStringAsFixed(2)}',
+            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: AppColors.financeGreen)),
       ]),
     );
   }
+
+  String _formatTime(String iso) {
+    try {
+      final dt = DateTime.parse(iso).toLocal();
+      final now = DateTime.now();
+      final diff = now.difference(dt);
+      if (diff.inMinutes < 1) return 'Just now';
+      if (diff.inHours < 1) return '${diff.inMinutes}m ago';
+      if (diff.inDays < 1) return '${diff.inHours}h ago';
+      return '${diff.inDays}d ago';
+    } catch (_) {
+      return '';
+    }
+  }
 }
 
-class _InfoTile extends StatelessWidget {
-  final IconData icon;
-  final String title, body;
-  final Color color;
-  const _InfoTile({required this.icon, required this.title, required this.body, required this.color});
+// ─────────────────────────────────────────────────────────────────
+//  NEBO LOANS TAB
+// ─────────────────────────────────────────────────────────────────
+
+class _NeboLoansTab extends StatelessWidget {
+  const _NeboLoansTab();
 
   @override
-  Widget build(BuildContext context) => Container(
-        padding: const EdgeInsets.all(14),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(14),
-          boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.04), blurRadius: 6)],
-        ),
-        child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Container(
-            width: 36, height: 36,
-            decoration: BoxDecoration(color: color.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(10)),
-            child: Icon(icon, color: color, size: 20),
+  Widget build(BuildContext context) {
+    return ListView(
+      padding: const EdgeInsets.fromLTRB(16, 24, 16, 32),
+      children: [
+        // Coming soon hero
+        Container(
+          padding: const EdgeInsets.all(28),
+          decoration: BoxDecoration(
+            gradient: const LinearGradient(
+              colors: [Color(0xFF1B6631), Color(0xFF27AE60)],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
+            borderRadius: BorderRadius.circular(24),
           ),
-          const SizedBox(width: 12),
-          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text(title, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Color(0xFF111827))),
-            const SizedBox(height: 3),
-            Text(body, style: const TextStyle(fontSize: 12, color: Color(0xFF6B7280), height: 1.4)),
-          ])),
-        ]),
-      );
-}
+          child: Column(children: [
+            Container(
+              width: 72, height: 72,
+              decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.15), shape: BoxShape.circle),
+              child: const Icon(Icons.account_balance_rounded, color: Colors.white, size: 36),
+            ),
+            const SizedBox(height: 16),
+            const Text('Nebo Loans', style: TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold)),
+            const SizedBox(height: 8),
+            const Text('Instant credit powered by your savings history and financial behaviour.',
+                textAlign: TextAlign.center,
+                style: TextStyle(color: Colors.white70, fontSize: 13, height: 1.5)),
+            const SizedBox(height: 20),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: 0.2),
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: const Row(mainAxisSize: MainAxisSize.min, children: [
+                Icon(Icons.construction_rounded, color: Colors.white, size: 16),
+                SizedBox(width: 6),
+                Text('In Development', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700, fontSize: 13)),
+              ]),
+            ),
+          ]),
+        ),
 
-class _EmptyState extends StatelessWidget {
-  final IconData icon;
-  final String message;
-  const _EmptyState({required this.icon, required this.message});
+        const SizedBox(height: 24),
 
-  @override
-  Widget build(BuildContext context) => Padding(
-        padding: const EdgeInsets.symmetric(vertical: 32),
-        child: Column(children: [
-          Icon(icon, size: 48, color: const Color(0xFFD1D5DB)),
-          const SizedBox(height: 12),
-          Text(message, textAlign: TextAlign.center, style: const TextStyle(color: Color(0xFF6B7280), fontSize: 14, height: 1.5)),
-        ]),
-      );
-}
+        const Text('What\'s Coming', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: Color(0xFF374151))),
+        const SizedBox(height: 12),
 
-class _Skeleton extends StatelessWidget {
-  final double height;
-  const _Skeleton({required this.height});
+        _featureCard(Icons.speed_rounded, 'Instant Approval', 'Get a loan decision in seconds based on your Nebo savings score.', const Color(0xFF6366F1)),
+        _featureCard(Icons.credit_score_rounded, 'CRB Check & Credit Score', 'We\'ll check your CRB status and generate a credit score from your activity.', const Color(0xFFD97706)),
+        _featureCard(Icons.account_balance_wallet_rounded, 'Wallet Disbursement', 'Loan funds go straight to your Nebo wallet — ready to use immediately.', AppColors.financeGreen),
+        _featureCard(Icons.schedule_rounded, 'Flexible Repayment', 'Choose your repayment plan and pay back via M-Pesa automatically.', const Color(0xFFEC4899)),
 
-  @override
-  Widget build(BuildContext context) => Container(
-        height: height,
-        decoration: BoxDecoration(color: const Color(0xFFE5E7EB), borderRadius: BorderRadius.circular(14)),
-      );
+        const SizedBox(height: 24),
+
+        Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: AppColors.financeGreen.withValues(alpha: 0.06),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: AppColors.financeGreen.withValues(alpha: 0.2)),
+          ),
+          child: const Row(children: [
+            Icon(Icons.notifications_outlined, color: AppColors.financeGreen, size: 20),
+            SizedBox(width: 12),
+            Expanded(child: Text('We\'ll notify you the moment Nebo Loans goes live.',
+                style: TextStyle(color: AppColors.financeGreen, fontWeight: FontWeight.w600, fontSize: 13))),
+          ]),
+        ),
+      ],
+    );
+  }
+
+  Widget _featureCard(IconData icon, String title, String desc, Color color) => Container(
+    margin: const EdgeInsets.only(bottom: 10),
+    padding: const EdgeInsets.all(16),
+    decoration: BoxDecoration(
+      color: Colors.white,
+      borderRadius: BorderRadius.circular(16),
+      boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.04), blurRadius: 8)],
+    ),
+    child: Row(children: [
+      Container(
+        width: 44, height: 44,
+        decoration: BoxDecoration(color: color.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(12)),
+        child: Icon(icon, color: color, size: 22),
+      ),
+      const SizedBox(width: 14),
+      Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Text(title, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: Color(0xFF111827))),
+        const SizedBox(height: 3),
+        Text(desc, style: const TextStyle(fontSize: 12, color: Color(0xFF6B7280), height: 1.4)),
+      ])),
+    ]),
+  );
 }

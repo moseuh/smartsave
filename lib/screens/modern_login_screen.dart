@@ -87,7 +87,9 @@ class _ModernLoginScreenState extends State<ModernLoginScreen>
   Future<void> _googleSignIn() async {
     setState(() => _loading = true);
     try {
-      final googleUser = await GoogleSignIn().signIn();
+      final googleUser = await GoogleSignIn(
+        serverClientId: '1020426440691-2h1lkmu995u590m9rh6g1ffbrktmaa4v.apps.googleusercontent.com',
+      ).signIn();
       if (googleUser == null) { setState(() => _loading = false); return; }
       final auth = await googleUser.authentication;
       final cred = GoogleAuthProvider.credential(accessToken: auth.accessToken, idToken: auth.idToken);
@@ -113,19 +115,20 @@ class _ModernLoginScreenState extends State<ModernLoginScreen>
           _err(data['message'] ?? 'Google sign-in failed');
         }
       }
-    } catch (_) {
-      _err('Google sign-in failed');
+    } catch (e) {
+      _err(e.toString().replaceFirst('Exception: ', ''));
     } finally {
       if (mounted) setState(() => _loading = false);
     }
   }
 
-  void _go(Widget page) => Navigator.pushReplacement(
-      context, PageRouteBuilder(
-        pageBuilder: (_, __, ___) => page,
-        transitionsBuilder: (_, a, __, child) => FadeTransition(opacity: a, child: child),
-        transitionDuration: const Duration(milliseconds: 400),
-      ));
+  void _go(Widget page) {
+    Navigator.pushReplacement(context, PageRouteBuilder(
+      pageBuilder: (_, __, ___) => page,
+      transitionsBuilder: (_, a, __, child) => FadeTransition(opacity: a, child: child),
+      transitionDuration: const Duration(milliseconds: 400),
+    ));
+  }
 
   void _err(String msg) {
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(

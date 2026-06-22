@@ -6,6 +6,8 @@ import '../constants/app_constants.dart';
 import 'dart:async';
 import 'favourites.dart';
 import 'package:flutter_contacts/flutter_contacts.dart';
+import 'package:flutter_spinkit/flutter_spinkit.dart';
+import '../services/transaction_auth_service.dart';
 
 // ─────────────────────────────────────────────────────────────────
 //  BuyGoodsSelect — Payment Screen (Buy Goods · Pay Bill · Send Money)
@@ -77,7 +79,7 @@ class _BuyGoodsSelectState extends State<BuyGoodsSelect>
     return '';
   }
 
-  // Returns fixed round-up savings amount based on settings
+  // Returns round-up savings amount based on active rules
   double _calcRoundUp(double amount, bool isBuyGoods) {
     if (roundupSettings == null) return 0;
     final enabled = roundupSettings!['is_enabled'] == true;
@@ -85,10 +87,38 @@ class _BuyGoodsSelectState extends State<BuyGoodsSelect>
         ? roundupSettings!['buy_goods_round_up'] == true
         : roundupSettings!['pay_bill_round_up'] == true;
     if (!enabled || !applies || amount <= 0) return 0;
-    final rv = double.tryParse(
-            roundupSettings!['rounding_value']?.toString().replaceAll(RegExp(r'[^0-9.]'), '') ?? '10') ??
-        10.0;
-    final maxRU = double.tryParse(roundupSettings!['max_round_up']?.toString() ?? '400') ?? 400.0;
+
+    // Use rules if available
+    final activeRules = roundupRules.where((r) {
+      final a = r['applies_to']?.toString() ?? 'both';
+      final active = r['is_active'] == true || r['active'] == true;
+      return active && (a == 'both' || (isBuyGoods ? a == 'buy_goods' : a == 'pay_bill'));
+    }).toList();
+
+    if (activeRules.isNotEmpty) {
+      double total = 0;
+      for (final rule in activeRules) {
+        final type = rule['rule_type']?.toString() ?? rule['type']?.toString() ?? 'fixed';
+        final val = double.tryParse(rule['value']?.toString() ?? '0') ?? 0;
+        if (val <= 0) continue;
+        if (type == 'percentage') {
+          total += amount * val / 100;
+        } else {
+          // fixed: round up to next multiple
+          final rounded = amount % val == 0 ? amount + val : (amount / val).ceil() * val;
+          total += rounded - amount;
+        }
+      }
+      final maxRU = double.tryParse(roundupSettings!['max_round_up']?.toString() ?? '') ?? double.infinity;
+      return total.clamp(0, maxRU);
+    }
+
+    // Legacy rounding_value fallback — only if explicitly set
+    final rvRaw = roundupSettings!['rounding_value']?.toString().replaceAll(RegExp(r'[^0-9.]'), '') ?? '';
+    if (rvRaw.isEmpty) return 0;
+    final rv = double.tryParse(rvRaw) ?? 0;
+    if (rv <= 0) return 0;
+    final maxRU = double.tryParse(roundupSettings!['max_round_up']?.toString() ?? '') ?? double.infinity;
     final rounded = amount % rv == 0 ? amount + rv : (amount / rv).ceil() * rv;
     return (rounded - amount).clamp(0, maxRU);
   }
@@ -204,6 +234,7 @@ class _BuyGoodsTab extends StatefulWidget {
 class _BuyGoodsTabState extends State<_BuyGoodsTab> {
   final _tillCtrl = TextEditingController();
   final _amtCtrl = TextEditingController();
+  final _amtFocus = FocusNode();
   bool _loading = false;
   double _roundUp = 0;
   bool _useMpesa = true;       // M-Pesa checked by default
@@ -216,9 +247,16 @@ class _BuyGoodsTabState extends State<_BuyGoodsTab> {
     super.initState();
     _amtCtrl.addListener(_recalc);
     _loadFavourites();
-    // Auto-enable round savings if user has it configured for buy_goods
     _useRoundSavings = widget.roundupSettings?['is_enabled'] == true &&
         widget.roundupSettings?['buy_goods_round_up'] == true;
+  }
+
+  @override
+  void dispose() {
+    _tillCtrl.dispose();
+    _amtCtrl.dispose();
+    _amtFocus.dispose();
+    super.dispose();
   }
 
   Future<void> _loadFavourites() async {
@@ -235,6 +273,16 @@ class _BuyGoodsTabState extends State<_BuyGoodsTab> {
         }
       }
     } catch (_) {}
+  }
+
+  void _tapFavourite(Map<String, dynamic> f) {
+    _tillCtrl.text = f['till_number']?.toString() ?? '';
+    if (_amtCtrl.text.trim().isNotEmpty) {
+      _confirm();
+    } else {
+      setState(() {});
+      _amtFocus.requestFocus();
+    }
   }
 
   void _recalc() {
@@ -258,6 +306,8 @@ class _BuyGoodsTabState extends State<_BuyGoodsTab> {
       _snack('Enter till number and amount');
       return;
     }
+    final authed = await TransactionAuthService.authenticate(context);
+    if (!authed) return;
     setState(() => _loading = true);
     try {
       if (_useMpesa) {
@@ -274,7 +324,7 @@ class _BuyGoodsTabState extends State<_BuyGoodsTab> {
         ).timeout(const Duration(seconds: 20));
         final data = jsonDecode(r.body);
         if (r.statusCode == 200 && data['status'] == 'success') {
-          final txId = data['transactionId']?.toString() ?? '';
+          final txId = data['checkout_id']?.toString() ?? data['transactionId']?.toString() ?? '';
           if (mounted) setState(() => _loading = false);
           _showMpesaProcessing(txId: txId, amt: _total, label: 'Till $till');
           return;
@@ -347,22 +397,30 @@ class _BuyGoodsTabState extends State<_BuyGoodsTab> {
   }
 
   Future<void> _saveFavourite() async {
-    if (_tillCtrl.text.trim().isEmpty) return;
+    final till = _tillCtrl.text.trim();
+    if (till.isEmpty) return;
     try {
-      await http.post(
+      final r = await http.post(
         Uri.parse('${AppConstants.apiBaseUrl}/favourites'),
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({
           'user_id': widget.userId,
-          'name': 'Till ${_tillCtrl.text.trim()}',
-          'till_number': _tillCtrl.text.trim(),
+          'name': 'Till $till',
+          'till_number': till,
           'account_number': '',
           'type': 'buy_goods',
         }),
       );
-      _snack('Saved to favourites');
-      _loadFavourites();
-    } catch (_) {}
+      final d = jsonDecode(r.body);
+      if (r.statusCode == 200 || r.statusCode == 201) {
+        _snack('Saved to favourites');
+        _loadFavourites();
+      } else {
+        _snack(d['message'] ?? 'Failed to save', error: true);
+      }
+    } catch (_) {
+      _snack('Network error — could not save', error: true);
+    }
   }
 
   void _snack(String msg, {bool error = false}) {
@@ -376,13 +434,6 @@ class _BuyGoodsTabState extends State<_BuyGoodsTab> {
   }
 
   @override
-  void dispose() {
-    _tillCtrl.dispose();
-    _amtCtrl.dispose();
-    super.dispose();
-  }
-
-  @override
   Widget build(BuildContext context) {
     final mq = MediaQuery.of(context);
     return Scaffold(
@@ -390,40 +441,31 @@ class _BuyGoodsTabState extends State<_BuyGoodsTab> {
       body: SingleChildScrollView(
         padding: EdgeInsets.fromLTRB(16, 16, 16, mq.padding.bottom + 16),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          // Saved favourites row
+          // Saved favourites chips
           if (_favourites.isNotEmpty) ...[
-            const Text('Saved', style: TextStyle(fontSize: 12, color: Color(0xFF9CA3AF), fontWeight: FontWeight.w600)),
-            const SizedBox(height: 8),
-            SizedBox(
-              height: 66,
-              child: ListView.builder(
-                scrollDirection: Axis.horizontal,
-                itemCount: _favourites.length,
-                itemBuilder: (_, i) {
-                  final f = _favourites[i];
-                  return GestureDetector(
-                    onTap: () => setState(() => _tillCtrl.text = f['till_number']?.toString() ?? ''),
-                    child: Container(
-                      margin: const EdgeInsets.only(right: 10),
-                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(14),
-                        border: Border.all(color: AppColors.financeGreen.withValues(alpha: 0.25)),
-                        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.04), blurRadius: 6)],
-                      ),
-                      child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-                        const Icon(Icons.store_rounded, color: AppColors.financeGreen, size: 18),
-                        const SizedBox(height: 4),
-                        Text(f['till_number']?.toString() ?? '',
-                            style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Color(0xFF111827))),
-                      ]),
+            SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: Row(
+                children: _favourites.map((f) => GestureDetector(
+                  onTap: () => _tapFavourite(f),
+                  child: Container(
+                    margin: const EdgeInsets.only(right: 8, bottom: 12),
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: AppColors.financeGreen.withValues(alpha: 0.08),
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(color: AppColors.financeGreen.withValues(alpha: 0.2)),
                     ),
-                  );
-                },
+                    child: Row(mainAxisSize: MainAxisSize.min, children: [
+                      const Icon(Icons.store_rounded, color: AppColors.financeGreen, size: 13),
+                      const SizedBox(width: 5),
+                      Text(f['till_number']?.toString() ?? '',
+                          style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: AppColors.financeGreen)),
+                    ]),
+                  ),
+                )).toList(),
               ),
             ),
-            const SizedBox(height: 16),
           ],
 
           _label('Till Number'),
@@ -445,6 +487,7 @@ class _BuyGoodsTabState extends State<_BuyGoodsTab> {
           _label('Amount (KES)'),
           _field(_amtCtrl, '0.00',
               keyboardType: const TextInputType.numberWithOptions(decimal: true),
+              focusNode: _amtFocus,
               prefix: const Text('KES ', style: TextStyle(fontWeight: FontWeight.w600, color: Color(0xFF374151)))),
           const SizedBox(height: 20),
 
@@ -508,6 +551,7 @@ class _PayBillTabState extends State<_PayBillTab> {
   final _paybillCtrl = TextEditingController();
   final _accountCtrl = TextEditingController();
   final _amtCtrl = TextEditingController();
+  final _amtFocus = FocusNode();
   bool _loading = false;
   double _roundUp = 0;
   bool _useMpesa = true;
@@ -522,6 +566,26 @@ class _PayBillTabState extends State<_PayBillTab> {
     _loadFavourites();
     _useRoundSavings = widget.roundupSettings?['is_enabled'] == true &&
         widget.roundupSettings?['pay_bill_round_up'] == true;
+  }
+
+  @override
+  void dispose() {
+    _paybillCtrl.dispose();
+    _accountCtrl.dispose();
+    _amtCtrl.dispose();
+    _amtFocus.dispose();
+    super.dispose();
+  }
+
+  void _tapFavourite(Map<String, dynamic> f) {
+    _paybillCtrl.text = f['till_number']?.toString() ?? '';
+    _accountCtrl.text = f['account_number']?.toString() ?? '';
+    if (_amtCtrl.text.trim().isNotEmpty) {
+      _confirm();
+    } else {
+      setState(() {});
+      _amtFocus.requestFocus();
+    }
   }
 
   Future<void> _loadFavourites() async {
@@ -562,6 +626,8 @@ class _PayBillTabState extends State<_PayBillTab> {
       _snack('Enter paybill number and amount');
       return;
     }
+    final authed = await TransactionAuthService.authenticate(context);
+    if (!authed) return;
     setState(() => _loading = true);
     try {
       if (_useMpesa) {
@@ -584,7 +650,7 @@ class _PayBillTabState extends State<_PayBillTab> {
         ).timeout(const Duration(seconds: 20));
         final depositData = jsonDecode(depositR.body);
         if (depositR.statusCode == 200 && depositData['status'] == 'success') {
-          final txId = depositData['deposit_id']?.toString() ?? '';
+          final txId = depositData['checkout_id']?.toString() ?? depositData['deposit_id']?.toString() ?? '';
           if (mounted) setState(() => _loading = false);
           _showMpesaProcessingPaybill(
             txId: txId,
@@ -670,22 +736,30 @@ class _PayBillTabState extends State<_PayBillTab> {
   }
 
   Future<void> _saveFavourite() async {
-    if (_paybillCtrl.text.trim().isEmpty) return;
+    final paybill = _paybillCtrl.text.trim();
+    if (paybill.isEmpty) return;
     try {
-      await http.post(
+      final r = await http.post(
         Uri.parse('${AppConstants.apiBaseUrl}/favourites'),
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({
           'user_id': widget.userId,
-          'name': 'Paybill ${_paybillCtrl.text.trim()}',
-          'till_number': _paybillCtrl.text.trim(),
+          'name': 'Paybill $paybill',
+          'till_number': paybill,
           'account_number': _accountCtrl.text.trim(),
           'type': 'pay_bill',
         }),
       );
-      _snack('Saved to favourites');
-      _loadFavourites();
-    } catch (_) {}
+      final d = jsonDecode(r.body);
+      if (r.statusCode == 200 || r.statusCode == 201) {
+        _snack('Saved to favourites');
+        _loadFavourites();
+      } else {
+        _snack(d['message'] ?? 'Failed to save', error: true);
+      }
+    } catch (_) {
+      _snack('Network error — could not save', error: true);
+    }
   }
 
   void _snack(String msg, {bool error = false}) {
@@ -699,14 +773,6 @@ class _PayBillTabState extends State<_PayBillTab> {
   }
 
   @override
-  void dispose() {
-    _paybillCtrl.dispose();
-    _accountCtrl.dispose();
-    _amtCtrl.dispose();
-    super.dispose();
-  }
-
-  @override
   Widget build(BuildContext context) {
     final mq = MediaQuery.of(context);
     return Scaffold(
@@ -715,41 +781,29 @@ class _PayBillTabState extends State<_PayBillTab> {
         padding: EdgeInsets.fromLTRB(16, 16, 16, mq.padding.bottom + 16),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           if (_favourites.isNotEmpty) ...[
-            const Text('Saved', style: TextStyle(fontSize: 12, color: Color(0xFF9CA3AF), fontWeight: FontWeight.w600)),
-            const SizedBox(height: 8),
-            SizedBox(
-              height: 66,
-              child: ListView.builder(
-                scrollDirection: Axis.horizontal,
-                itemCount: _favourites.length,
-                itemBuilder: (_, i) {
-                  final f = _favourites[i];
-                  return GestureDetector(
-                    onTap: () => setState(() {
-                      _paybillCtrl.text = f['till_number']?.toString() ?? '';
-                      _accountCtrl.text = f['account_number']?.toString() ?? '';
-                    }),
-                    child: Container(
-                      margin: const EdgeInsets.only(right: 10),
-                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(14),
-                        border: Border.all(color: AppColors.financeGreen.withValues(alpha: 0.25)),
-                        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.04), blurRadius: 6)],
-                      ),
-                      child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-                        const Icon(Icons.receipt_long_rounded, color: AppColors.financeGreen, size: 18),
-                        const SizedBox(height: 4),
-                        Text(f['till_number']?.toString() ?? '',
-                            style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Color(0xFF111827))),
-                      ]),
+            SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: Row(
+                children: _favourites.map((f) => GestureDetector(
+                  onTap: () => _tapFavourite(f),
+                  child: Container(
+                    margin: const EdgeInsets.only(right: 8, bottom: 12),
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: AppColors.financeGreen.withValues(alpha: 0.08),
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(color: AppColors.financeGreen.withValues(alpha: 0.2)),
                     ),
-                  );
-                },
+                    child: Row(mainAxisSize: MainAxisSize.min, children: [
+                      const Icon(Icons.receipt_long_rounded, color: AppColors.financeGreen, size: 13),
+                      const SizedBox(width: 5),
+                      Text(f['till_number']?.toString() ?? '',
+                          style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: AppColors.financeGreen)),
+                    ]),
+                  ),
+                )).toList(),
               ),
             ),
-            const SizedBox(height: 16),
           ],
 
           _label('Pay Bill Number'),
@@ -776,6 +830,7 @@ class _PayBillTabState extends State<_PayBillTab> {
           _label('Amount (KES)'),
           _field(_amtCtrl, '0.00',
               keyboardType: const TextInputType.numberWithOptions(decimal: true),
+              focusNode: _amtFocus,
               prefix: const Text('KES ', style: TextStyle(fontWeight: FontWeight.w600, color: Color(0xFF374151)))),
           const SizedBox(height: 20),
 
@@ -917,6 +972,8 @@ class _SendMoneyTabState extends State<_SendMoneyTab> {
       _snack('Enter phone number and amount');
       return;
     }
+    final authed = await TransactionAuthService.authenticate(context);
+    if (!authed) return;
     final normalized = widget.normalizePhone(phone);
     setState(() => _loading = true);
     try {
@@ -1199,10 +1256,19 @@ class _PaymentOptions extends StatelessWidget {
   });
 
   String get _roundupLabel {
+    // Use rule description if available
+    final activeRules = roundupRules.where((r) => r['is_active'] == true || r['active'] == true).toList();
+    if (activeRules.isNotEmpty) {
+      final r = activeRules.first;
+      final type = r['rule_type']?.toString() ?? r['type']?.toString() ?? 'fixed';
+      final val = r['value']?.toString() ?? '0';
+      if (type == 'percentage') return 'Round Savings ($val% of amount)';
+      return 'Round Savings (+ KES $val per transaction)';
+    }
     if (roundupSettings == null) return 'Round Savings';
     final rv = roundupSettings!['rounding_value']?.toString() ?? '';
     final maxRu = roundupSettings!['max_round_up']?.toString() ?? '';
-    if (rv.isNotEmpty && rv != 'null') return 'Round Savings (round up to KES $rv)';
+    if (rv.isNotEmpty && rv != 'null' && rv != '0') return 'Round Savings (round up to KES $rv)';
     if (maxRu.isNotEmpty && maxRu != 'null') return 'Round Savings (max KES $maxRu/txn)';
     return 'Round Savings';
   }
@@ -1307,7 +1373,7 @@ class _PaymentOptions extends StatelessWidget {
 }
 
 // ─────────────────────────────────────────────────────────────────
-//  PROCESSING SHEET — polls transaction status (for M-Pesa STK on till)
+//  PROCESSING DIALOG — wallet-style centered card (Buy Goods STK)
 // ─────────────────────────────────────────────────────────────────
 
 class _ProcessingSheet extends StatefulWidget {
@@ -1348,7 +1414,7 @@ class _ProcessingSheetState extends State<_ProcessingSheet> {
     _timer = Timer.periodic(const Duration(seconds: 5), (_) async {
       if (!_polling || !mounted) return;
       _elapsed += 5;
-      if (_elapsed >= 90) {
+      if (_elapsed >= 60) {
         setState(() { _polling = false; _failed = true; _error = 'Payment timed out. Please try again.'; });
         _timer?.cancel();
         return;
@@ -1382,15 +1448,15 @@ class _ProcessingSheetState extends State<_ProcessingSheet> {
   Widget build(BuildContext context) {
     final mq = MediaQuery.of(context);
     return Container(
-      padding: EdgeInsets.fromLTRB(24, 20, 24, mq.padding.bottom + 24),
+      padding: EdgeInsets.fromLTRB(24, 20, 24, mq.viewInsets.bottom + mq.padding.bottom + 28),
       decoration: const BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
       child: Column(mainAxisSize: MainAxisSize.min, children: [
-        Container(width: 40, height: 4, decoration: BoxDecoration(color: const Color(0xFFE5E7EB), borderRadius: BorderRadius.circular(2))),
-        const SizedBox(height: 24),
-
+        Center(child: Container(width: 40, height: 4,
+            decoration: BoxDecoration(color: const Color(0xFFE5E7EB), borderRadius: BorderRadius.circular(2)))),
+        const SizedBox(height: 28),
         if (_success) ...[
           Container(width: 64, height: 64,
             decoration: BoxDecoration(color: AppColors.financeGreen.withValues(alpha: 0.1), shape: BoxShape.circle),
@@ -1399,10 +1465,9 @@ class _ProcessingSheetState extends State<_ProcessingSheet> {
           const Text('Payment Successful!', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF111827))),
           const SizedBox(height: 6),
           Text('KES ${widget.amount.toStringAsFixed(2)} paid to ${widget.till}',
-              style: const TextStyle(fontSize: 13, color: Color(0xFF6B7280))),
+              style: const TextStyle(fontSize: 13, color: Color(0xFF6B7280)), textAlign: TextAlign.center),
           const SizedBox(height: 24),
-          _greenBtn('Done', () { Navigator.pop(context); }),
-
+          _greenBtn('Done', () => Navigator.pop(context)),
         ] else if (_failed) ...[
           Container(width: 64, height: 64,
             decoration: BoxDecoration(color: Colors.red.withValues(alpha: 0.1), shape: BoxShape.circle),
@@ -1410,25 +1475,24 @@ class _ProcessingSheetState extends State<_ProcessingSheet> {
           const SizedBox(height: 16),
           const Text('Payment Failed', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF111827))),
           const SizedBox(height: 6),
-          Text(_error ?? 'Something went wrong. Please try again.',
+          Text(_error ?? 'Something went wrong.',
               style: const TextStyle(fontSize: 13, color: Color(0xFF6B7280)), textAlign: TextAlign.center),
           const SizedBox(height: 24),
-          _greenBtn('Try Again', () => Navigator.pop(context)),
-
+          _greenBtn('Close', () => Navigator.pop(context)),
         ] else ...[
-          Container(
-            width: 64, height: 64,
-            decoration: BoxDecoration(color: AppColors.financeGreen.withValues(alpha: 0.08), shape: BoxShape.circle),
-            child: const Padding(padding: EdgeInsets.all(14), child: CircularProgressIndicator(color: AppColors.financeGreen, strokeWidth: 3))),
-          const SizedBox(height: 16),
-          const Text('Check Your Phone', style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold, color: Color(0xFF111827))),
-          const SizedBox(height: 6),
-          const Text('Enter your M-Pesa PIN to complete the payment.\nMoney will deposit to your wallet then pay the merchant.',
-              style: TextStyle(fontSize: 13, color: Color(0xFF6B7280), height: 1.5), textAlign: TextAlign.center),
+          SpinKitFadingCircle(color: AppColors.financeGreenV3, size: 56),
+          const SizedBox(height: 24),
+          const Text('Check your phone',
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF111827))),
+          const SizedBox(height: 8),
+          const Text('Enter your SasaPay PIN to complete the payment',
+              style: TextStyle(fontSize: 13, color: Color(0xFF6B7280)), textAlign: TextAlign.center),
           const SizedBox(height: 20),
+          _StkCountdown(seconds: 60),
+          const SizedBox(height: 16),
           TextButton(
             onPressed: () { _polling = false; _timer?.cancel(); Navigator.pop(context); },
-            child: const Text('Cancel', style: TextStyle(color: Colors.red)),
+            child: const Text('Cancel', style: TextStyle(color: Colors.red, fontSize: 14)),
           ),
         ],
       ]),
@@ -1451,8 +1515,7 @@ class _ProcessingSheetState extends State<_ProcessingSheet> {
 }
 
 // ─────────────────────────────────────────────────────────────────
-//  PAYBILL M-PESA PROCESSING SHEET
-//  Polls deposit transaction → once completed, auto-pays paybill from wallet
+//  PAYBILL PROCESSING SHEET
 // ─────────────────────────────────────────────────────────────────
 
 class _PaybillMpesaSheet extends StatefulWidget {
@@ -1475,7 +1538,6 @@ class _PaybillMpesaSheet extends StatefulWidget {
 }
 
 class _PaybillMpesaSheetState extends State<_PaybillMpesaSheet> {
-  // stages: waiting_pin → depositing → paying_paybill → success / failed
   String _stage = 'waiting_pin';
   String? _error;
   int _elapsed = 0;
@@ -1491,7 +1553,7 @@ class _PaybillMpesaSheetState extends State<_PaybillMpesaSheet> {
     _timer = Timer.periodic(const Duration(seconds: 5), (_) async {
       if (!mounted) return;
       _elapsed += 5;
-      if (_elapsed >= 120) {
+      if (_elapsed >= 60) {
         _timer?.cancel();
         if (mounted) setState(() { _stage = 'failed'; _error = 'Payment timed out. Please try again.'; });
         return;
@@ -1550,15 +1612,15 @@ class _PaybillMpesaSheetState extends State<_PaybillMpesaSheet> {
   Widget build(BuildContext context) {
     final mq = MediaQuery.of(context);
     return Container(
-      padding: EdgeInsets.fromLTRB(24, 20, 24, mq.padding.bottom + 24),
+      padding: EdgeInsets.fromLTRB(24, 20, 24, mq.viewInsets.bottom + mq.padding.bottom + 28),
       decoration: const BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
       child: Column(mainAxisSize: MainAxisSize.min, children: [
-        Container(width: 40, height: 4, decoration: BoxDecoration(color: const Color(0xFFE5E7EB), borderRadius: BorderRadius.circular(2))),
-        const SizedBox(height: 24),
-
+        Center(child: Container(width: 40, height: 4,
+            decoration: BoxDecoration(color: const Color(0xFFE5E7EB), borderRadius: BorderRadius.circular(2)))),
+        const SizedBox(height: 28),
         if (_stage == 'success') ...[
           Container(width: 64, height: 64,
             decoration: BoxDecoration(color: AppColors.financeGreen.withValues(alpha: 0.1), shape: BoxShape.circle),
@@ -1567,15 +1629,14 @@ class _PaybillMpesaSheetState extends State<_PaybillMpesaSheet> {
           const Text('Payment Successful!', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF111827))),
           const SizedBox(height: 6),
           Text('KES ${widget.amt.toStringAsFixed(2)} paid to PayBill ${widget.paybill}',
-              style: const TextStyle(fontSize: 13, color: Color(0xFF6B7280))),
+              style: const TextStyle(fontSize: 13, color: Color(0xFF6B7280)), textAlign: TextAlign.center),
           if (widget.roundUp > 0) ...[
             const SizedBox(height: 4),
-            Text('+ KES ${widget.roundUp.toStringAsFixed(2)} saved to your goal',
-                style: TextStyle(fontSize: 12, color: AppColors.financeGreen.withValues(alpha: 0.8))),
+            Text('+ KES ${widget.roundUp.toStringAsFixed(2)} saved',
+                style: TextStyle(fontSize: 12, color: AppColors.financeGreen.withValues(alpha: 0.85))),
           ],
           const SizedBox(height: 24),
           _greenBtn('Done', () => Navigator.pop(context)),
-
         ] else if (_stage == 'failed') ...[
           Container(width: 64, height: 64,
             decoration: BoxDecoration(color: Colors.red.withValues(alpha: 0.1), shape: BoxShape.circle),
@@ -1583,36 +1644,35 @@ class _PaybillMpesaSheetState extends State<_PaybillMpesaSheet> {
           const SizedBox(height: 16),
           const Text('Payment Failed', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF111827))),
           const SizedBox(height: 6),
-          Text(_error ?? 'Something went wrong. Please try again.',
+          Text(_error ?? 'Something went wrong.',
               style: const TextStyle(fontSize: 13, color: Color(0xFF6B7280)), textAlign: TextAlign.center),
           const SizedBox(height: 24),
           _greenBtn('Close', () => Navigator.pop(context)),
-
         ] else ...[
-          Container(
-            width: 64, height: 64,
-            decoration: BoxDecoration(color: AppColors.financeGreen.withValues(alpha: 0.08), shape: BoxShape.circle),
-            child: const Padding(padding: EdgeInsets.all(14), child: CircularProgressIndicator(color: AppColors.financeGreen, strokeWidth: 3))),
-          const SizedBox(height: 16),
+          SpinKitFadingCircle(color: AppColors.financeGreenV3, size: 56),
+          const SizedBox(height: 24),
           Text(
-            _stage == 'paying_paybill' ? 'Paying PayBill...' : 'Check Your Phone',
-            style: const TextStyle(fontSize: 17, fontWeight: FontWeight.bold, color: Color(0xFF111827)),
+            _stage == 'paying_paybill' ? 'Paying PayBill...' : 'Check your phone',
+            style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF111827)),
           ),
-          const SizedBox(height: 6),
+          const SizedBox(height: 8),
           Text(
             _stage == 'paying_paybill'
-                ? 'M-Pesa confirmed. Paying PayBill ${widget.paybill} from your wallet...'
-                : 'Enter your M-Pesa PIN to deposit to wallet.\nWe\'ll pay PayBill ${widget.paybill} automatically.',
-            style: const TextStyle(fontSize: 13, color: Color(0xFF6B7280), height: 1.5),
+                ? 'M-Pesa confirmed — paying PayBill ${widget.paybill} now'
+                : 'Enter your SasaPay PIN to complete the payment',
+            style: const TextStyle(fontSize: 13, color: Color(0xFF6B7280)),
             textAlign: TextAlign.center,
           ),
           if (_stage == 'waiting_pin') ...[
             const SizedBox(height: 20),
+            _StkCountdown(seconds: 60),
+            const SizedBox(height: 16),
             TextButton(
               onPressed: () { _timer?.cancel(); Navigator.pop(context); },
-              child: const Text('Cancel', style: TextStyle(color: Colors.red)),
+              child: const Text('Cancel', style: TextStyle(color: Colors.red, fontSize: 14)),
             ),
-          ],
+          ] else
+            const SizedBox(height: 16),
         ],
       ]),
     );
@@ -1704,9 +1764,11 @@ Widget _field(
   TextInputType keyboardType = TextInputType.text,
   Widget? prefix,
   Widget? suffix,
+  FocusNode? focusNode,
 }) {
   return TextField(
     controller: ctrl,
+    focusNode: focusNode,
     keyboardType: keyboardType,
     style: const TextStyle(fontSize: 15, color: Color(0xFF111827)),
     decoration: InputDecoration(
@@ -1815,3 +1877,57 @@ Route _slide(Widget page) => PageRouteBuilder(
       ),
       transitionDuration: const Duration(milliseconds: 300),
     );
+
+// ─────────────────────────────────────────────────────────────────
+//  STK COUNTDOWN — circular progress + countdown number
+// ─────────────────────────────────────────────────────────────────
+
+class _StkCountdown extends StatefulWidget {
+  final int seconds;
+  const _StkCountdown({required this.seconds});
+
+  @override
+  State<_StkCountdown> createState() => _StkCountdownState();
+}
+
+class _StkCountdownState extends State<_StkCountdown> {
+  late int _remaining;
+  Timer? _timer;
+
+  @override
+  void initState() {
+    super.initState();
+    _remaining = widget.seconds;
+    _timer = Timer.periodic(const Duration(seconds: 1), (_) {
+      if (!mounted) return;
+      setState(() => _remaining = (_remaining - 1).clamp(0, widget.seconds));
+      if (_remaining == 0) _timer?.cancel();
+    });
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final progress = _remaining / widget.seconds;
+    return SizedBox(
+      width: 56, height: 56,
+      child: Stack(alignment: Alignment.center, children: [
+        CircularProgressIndicator(
+          value: progress,
+          backgroundColor: const Color(0xFFE5E7EB),
+          color: AppColors.financeGreenV3,
+          strokeWidth: 3,
+        ),
+        Text(
+          '$_remaining',
+          style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Color(0xFF374151)),
+        ),
+      ]),
+    );
+  }
+}

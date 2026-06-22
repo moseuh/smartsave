@@ -22,6 +22,9 @@ class _TransactionHistoryState extends State<TransactionHistory>
   List<Map<String, dynamic>> _filtered = [];
   bool _loading = true;
   bool _error = false;
+  double _walletBalance = 0;
+  DateTime? _customStart;
+  DateTime? _customEnd;
   late AnimationController _fadeCtrl;
   late Animation<double> _fade;
   final fmt = NumberFormat('#,##0.00');
@@ -45,29 +48,44 @@ class _TransactionHistoryState extends State<TransactionHistory>
   Future<void> _fetch() async {
     setState(() { _loading = true; _error = false; });
     try {
-      final res = await http
-          .get(Uri.parse('${AppConstants.apiBaseUrl}/transactions/${widget.userId}'))
-          .timeout(const Duration(seconds: 10));
-      if (res.statusCode == 200) {
-        final data = jsonDecode(res.body);
+      final results = await Future.wait([
+        http.get(Uri.parse('${AppConstants.apiBaseUrl}/transactions/${widget.userId}')).timeout(const Duration(seconds: 10)),
+        http.get(Uri.parse('${AppConstants.apiBaseUrl}/wallet/${widget.userId}')).timeout(const Duration(seconds: 10)),
+      ]);
+      final txRes = results[0];
+      final walletRes = results[1];
+      if (txRes.statusCode == 200) {
+        final data = jsonDecode(txRes.body);
         if (data['status'] == 'success' && data['data'] is List) {
           _all = List<Map<String, dynamic>>.from(data['data']);
           _applyFilter(_filter);
-          setState(() => _loading = false);
-          _fadeCtrl.forward(from: 0);
+        } else {
+          setState(() { _loading = false; _error = true; });
           return;
         }
+      } else {
+        setState(() { _loading = false; _error = true; });
+        return;
       }
-      setState(() { _loading = false; _error = true; });
+      if (walletRes.statusCode == 200) {
+        final wd = jsonDecode(walletRes.body);
+        _walletBalance = double.tryParse((wd['data']?['balance'] ?? 0).toString()) ?? 0;
+      }
+      setState(() => _loading = false);
+      _fadeCtrl.forward(from: 0);
     } catch (_) {
       setState(() { _loading = false; _error = true; });
     }
   }
 
-  void _applyFilter(String f) {
+  void _applyFilter(String f, {DateTime? customStart, DateTime? customEnd}) {
     final now = DateTime.now();
     setState(() {
       _filter = f;
+      if (f == 'Custom') {
+        _customStart = customStart ?? _customStart;
+        _customEnd = customEnd ?? _customEnd;
+      }
       _filtered = _all.where((t) {
         if (f == 'All') return true;
         DateTime? dt;
@@ -78,12 +96,38 @@ class _TransactionHistoryState extends State<TransactionHistory>
           return dt.isAfter(DateTime(start.year, start.month, start.day).subtract(const Duration(seconds: 1)));
         }
         if (f == 'Month') return dt.year == now.year && dt.month == now.month;
+        if (f == 'Custom') {
+          final s = _customStart;
+          final e = _customEnd;
+          if (s == null) return true;
+          final endOfDay = e != null ? DateTime(e.year, e.month, e.day, 23, 59, 59) : DateTime(s.year, s.month, s.day, 23, 59, 59);
+          return !dt.isBefore(DateTime(s.year, s.month, s.day)) && !dt.isAfter(endOfDay);
+        }
         return true;
       }).toList();
     });
   }
 
-  double get _total => _filtered.fold(0, (s, t) => s + (double.tryParse((t['total_amount'] ?? 0).toString()) ?? 0));
+  Future<void> _openCustomRange() async {
+    final picked = await showDateRangePicker(
+      context: context,
+      firstDate: DateTime(2024),
+      lastDate: DateTime.now(),
+      initialDateRange: (_customStart != null && _customEnd != null)
+          ? DateTimeRange(start: _customStart!, end: _customEnd!)
+          : null,
+      builder: (ctx, child) => Theme(
+        data: Theme.of(ctx).copyWith(
+          colorScheme: const ColorScheme.light(primary: AppColors.financeGreen),
+        ),
+        child: child!,
+      ),
+    );
+    if (picked != null) {
+      _applyFilter('Custom', customStart: picked.start, customEnd: picked.end);
+    }
+  }
+
 
   @override
   Widget build(BuildContext context) {
@@ -134,7 +178,7 @@ class _TransactionHistoryState extends State<TransactionHistory>
                             child: Padding(
                               padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
                               child: _SummaryCard(
-                                total: _total,
+                                walletBalance: _walletBalance,
                                 count: _filtered.length,
                                 fmt: fmt,
                               ),
@@ -148,11 +192,21 @@ class _TransactionHistoryState extends State<TransactionHistory>
                               child: SingleChildScrollView(
                                 scrollDirection: Axis.horizontal,
                                 child: Row(
-                                  children: _filters.map((f) => _FilterChip(
-                                    label: f,
-                                    selected: _filter == f,
-                                    onTap: () => _applyFilter(f),
-                                  )).toList(),
+                                  children: [
+                                    ..._filters.map((f) => _FilterChip(
+                                      label: f,
+                                      selected: _filter == f,
+                                      onTap: () => _applyFilter(f),
+                                    )),
+                                    _FilterChip(
+                                      label: _filter == 'Custom' && _customStart != null
+                                          ? '${_customStart!.day}/${_customStart!.month} – ${(_customEnd ?? _customStart)!.day}/${(_customEnd ?? _customStart)!.month}'
+                                          : 'Custom',
+                                      selected: _filter == 'Custom',
+                                      onTap: _openCustomRange,
+                                      icon: Icons.date_range_rounded,
+                                    ),
+                                  ],
                                 ),
                               ),
                             ),
@@ -225,10 +279,10 @@ class _TransactionHistoryState extends State<TransactionHistory>
 
 // ── Summary Card ──────────────────────────────────────────────────────────────
 class _SummaryCard extends StatelessWidget {
-  final double total;
+  final double walletBalance;
   final int count;
   final NumberFormat fmt;
-  const _SummaryCard({required this.total, required this.count, required this.fmt});
+  const _SummaryCard({required this.walletBalance, required this.count, required this.fmt});
 
   @override
   Widget build(BuildContext context) {
@@ -251,10 +305,10 @@ class _SummaryCard extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text('Total Spent', style: TextStyle(color: Colors.white70, fontSize: 12, fontWeight: FontWeight.w500)),
+                const Text('Wallet Balance', style: TextStyle(color: Colors.white70, fontSize: 12, fontWeight: FontWeight.w500)),
                 const SizedBox(height: 6),
                 Text(
-                  'KES ${fmt.format(total)}',
+                  'KES ${fmt.format(walletBalance)}',
                   style: const TextStyle(color: Colors.white, fontSize: 26, fontWeight: FontWeight.bold, letterSpacing: -0.5),
                 ),
               ],
@@ -284,7 +338,8 @@ class _FilterChip extends StatelessWidget {
   final String label;
   final bool selected;
   final VoidCallback onTap;
-  const _FilterChip({required this.label, required this.selected, required this.onTap});
+  final IconData? icon;
+  const _FilterChip({required this.label, required this.selected, required this.onTap, this.icon});
 
   @override
   Widget build(BuildContext context) {
@@ -293,7 +348,7 @@ class _FilterChip extends StatelessWidget {
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 200),
         margin: const EdgeInsets.only(right: 8),
-        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 9),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
         decoration: BoxDecoration(
           color: selected ? AppColors.financeGreen : Colors.white,
           borderRadius: BorderRadius.circular(24),
@@ -304,13 +359,22 @@ class _FilterChip extends StatelessWidget {
               ? [BoxShadow(color: AppColors.financeGreen.withValues(alpha: 0.25), blurRadius: 8, offset: const Offset(0, 3))]
               : [],
         ),
-        child: Text(
-          label,
-          style: TextStyle(
-            color: selected ? Colors.white : const Color(0xFF6B7280),
-            fontSize: 13,
-            fontWeight: selected ? FontWeight.bold : FontWeight.w500,
-          ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (icon != null) ...[
+              Icon(icon, size: 13, color: selected ? Colors.white : const Color(0xFF6B7280)),
+              const SizedBox(width: 5),
+            ],
+            Text(
+              label,
+              style: TextStyle(
+                color: selected ? Colors.white : const Color(0xFF6B7280),
+                fontSize: 13,
+                fontWeight: selected ? FontWeight.bold : FontWeight.w500,
+              ),
+            ),
+          ],
         ),
       ),
     );

@@ -5,10 +5,11 @@ import 'package:intl/intl.dart';
 import '../constants/app_theme.dart';
 import '../config/api_config.dart';
 import '../services/onesignal_service.dart';
+import '../services/tab_refresh_registry.dart';
 import 'buygoodselect.dart';
 import 'transactiohistory.dart';
-import 'ask_nia_screen.dart';
 import 'notifications_screen.dart';
+import 'ask_nia_screen.dart';
 
 class HomeTab extends StatefulWidget {
   final String userId;
@@ -19,6 +20,7 @@ class HomeTab extends StatefulWidget {
 }
 
 class _HomeTabState extends State<HomeTab> with SingleTickerProviderStateMixin {
+  void refresh() => _load();
   Map<String, dynamic>? _user;
   Map<String, dynamic>? _wallet;
   Map<String, dynamic>? _savings;
@@ -34,6 +36,7 @@ class _HomeTabState extends State<HomeTab> with SingleTickerProviderStateMixin {
     super.initState();
     _fadeCtrl = AnimationController(vsync: this, duration: const Duration(milliseconds: 600));
     _fade = CurvedAnimation(parent: _fadeCtrl, curve: Curves.easeOut);
+    TabRefreshRegistry.register(0, refresh);
     _load();
     // Register this device with OneSignal linked to the user
     OneSignalService.registerUser(widget.userId);
@@ -41,6 +44,7 @@ class _HomeTabState extends State<HomeTab> with SingleTickerProviderStateMixin {
 
   @override
   void dispose() {
+    TabRefreshRegistry.unregister(0);
     _fadeCtrl.dispose();
     super.dispose();
   }
@@ -199,7 +203,7 @@ class _HomeTabState extends State<HomeTab> with SingleTickerProviderStateMixin {
                           mainAxisAlignment: MainAxisAlignment.spaceAround,
                           children: [
                             _QuickAction(icon: Icons.add_rounded, label: 'Add Money', onTap: () => _showDeposit()),
-                            _QuickAction(icon: Icons.send_rounded, label: 'Pay', onTap: () => Navigator.push(context, _slide(BuyGoodsSelect(userId: widget.userId)))),
+                            _QuickAction(icon: Icons.send_rounded, label: 'Pay', onTap: () => Navigator.push(context, _slide(BuyGoodsSelect(userId: widget.userId))).then((_) => _load())),
                             _QuickAction(icon: Icons.arrow_upward_rounded, label: 'Withdraw', onTap: () => _showWithdraw()),
                             _QuickAction(icon: Icons.receipt_long_rounded, label: 'History', onTap: () => Navigator.push(context, _slide(TransactionHistory(userId: widget.userId)))),
                           ],

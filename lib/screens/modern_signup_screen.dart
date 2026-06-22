@@ -101,7 +101,9 @@ class _ModernSignUpScreenState extends State<ModernSignUpScreen>
   Future<void> _googleSignUp() async {
     setState(() => _loading = true);
     try {
-      final googleUser = await GoogleSignIn().signIn();
+      final googleUser = await GoogleSignIn(
+        serverClientId: '1020426440691-2h1lkmu995u590m9rh6g1ffbrktmaa4v.apps.googleusercontent.com',
+      ).signIn();
       if (googleUser == null) {
         setState(() => _loading = false);
         return;
@@ -136,8 +138,8 @@ class _ModernSignUpScreenState extends State<ModernSignUpScreen>
           _err(data['message'] ?? 'Google sign-up failed');
         }
       }
-    } catch (_) {
-      _err('Google sign-up failed');
+    } catch (e) {
+      _err(e.toString().replaceFirst('Exception: ', ''));
     } finally {
       if (mounted) setState(() => _loading = false);
     }

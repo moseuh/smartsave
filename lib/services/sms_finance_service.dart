@@ -472,6 +472,74 @@ class SmsFinanceService {
     await prefs.remove(_lastLoadKey);
   }
 
+  // ── Balance-driven income/expenditure statement ────────────────────
+  /// Builds a month-by-month statement where:
+  /// - Opening balance = balanceAfter of the earliest transaction with a known balance
+  /// - Unexplained balance increases are treated as income
+  /// - Balance can never go negative
+  static BalanceStatement buildStatement(List<FinanceTransaction> txs) {
+    // Work oldest-first, only include txs that have a recorded balance
+    final withBalance = txs.where((t) => t.balanceAfter != null).toList()
+      ..sort((a, b) => a.date.compareTo(b.date));
+
+    if (withBalance.isEmpty) {
+      return BalanceStatement(months: [], openingBalance: 0);
+    }
+
+    final double openingBalance = withBalance.first.balanceAfter!;
+    double runningBalance = openingBalance;
+
+    // Group into months
+    final Map<String, _MonthAccum> months = {};
+    for (final tx in withBalance) {
+      final key = '${tx.date.year}-${tx.date.month.toString().padLeft(2, '0')}';
+      months.putIfAbsent(key, () => _MonthAccum(key, runningBalance));
+
+      final accum = months[key]!;
+      final actual = tx.balanceAfter!;
+
+      double expected;
+      if (tx.isIncome) {
+        expected = (runningBalance + tx.amount).clamp(0, double.infinity);
+      } else {
+        expected = (runningBalance - tx.amount).clamp(0, double.infinity);
+      }
+
+      // Unexplained increase = income (e.g. SIM swap, manual top-up, unknown credit)
+      final unexplained = (actual - expected).clamp(0, double.infinity);
+      if (unexplained > 1) {
+        accum.unexplainedIncome += unexplained;
+      }
+
+      if (tx.isIncome) {
+        accum.income += tx.amount;
+      } else {
+        accum.expenses += tx.amount;
+      }
+
+      accum.closingBalance = actual.clamp(0, double.infinity);
+      runningBalance = accum.closingBalance;
+    }
+
+    final sortedKeys = months.keys.toList()..sort((a, b) => b.compareTo(a));
+    return BalanceStatement(
+      months: sortedKeys.map((k) {
+        final a = months[k]!;
+        return MonthStatement(
+          month: k,
+          openingBalance: a.openingBalance,
+          closingBalance: a.closingBalance,
+          income: a.income,
+          unexplainedIncome: a.unexplainedIncome,
+          expenses: a.expenses,
+          // net = closing - opening, never negative
+          net: (a.closingBalance - a.openingBalance).clamp(-a.expenses, double.infinity),
+        );
+      }).toList(),
+      openingBalance: openingBalance,
+    );
+  }
+
   // ── Summary helpers ────────────────────────────────────────────────
   static Map<String, List<FinanceTransaction>> groupByMonth(List<FinanceTransaction> txs) {
     final map = <String, List<FinanceTransaction>>{};
@@ -497,21 +565,23 @@ class SmsFinanceService {
         map.entries.toList()..sort((a, b) => b.value.compareTo(a.value)));
   }
 
-  /// Build a text summary for Nia AI context — M-Pesa only
+  /// Build a text summary for Nia AI context — uses balance statement
   static String buildNiaContext(List<FinanceTransaction> txs) {
     if (txs.isEmpty) return 'No M-Pesa transaction data available.';
 
-    final income = totalIncome(txs);
-    final expenses = totalExpenses(txs);
-    final savings = income - expenses;
+    final stmt = buildStatement(txs);
+    final income = stmt.totalIncome;
+    final expenses = stmt.totalExpenses;
+    final savings = (income - expenses).clamp(0.0, double.infinity);
     final savingsRate = income > 0 ? (savings / income * 100) : 0;
     final categories = expensesByCategory(txs);
 
     final sb = StringBuffer();
-    sb.writeln('USER M-PESA FINANCIAL SUMMARY (last 6 months):');
-    sb.writeln('Total Income: KES ${income.toStringAsFixed(2)}');
-    sb.writeln('Total Expenses: KES ${expenses.toStringAsFixed(2)}');
-    sb.writeln('Net Savings: KES ${savings.toStringAsFixed(2)}');
+    sb.writeln('USER M-PESA FINANCIAL SUMMARY (last 6 months, balance-based):');
+    sb.writeln('Current M-Pesa Balance: KES ${stmt.currentBalance.toStringAsFixed(0)}');
+    sb.writeln('Total Income (incl. balance transactions): KES ${income.toStringAsFixed(0)}');
+    sb.writeln('Total Expenses: KES ${expenses.toStringAsFixed(0)}');
+    sb.writeln('Net Savings: KES ${savings.toStringAsFixed(0)}');
     sb.writeln('Savings Rate: ${savingsRate.toStringAsFixed(1)}%');
     sb.writeln('Total M-Pesa Transactions: ${txs.length}');
     sb.writeln('');
@@ -519,21 +589,69 @@ class SmsFinanceService {
     int i = 0;
     for (final e in categories.entries) {
       if (i++ >= 5) break;
-      sb.writeln('  ${e.key}: KES ${e.value.toStringAsFixed(2)}');
+      sb.writeln('  ${e.key}: KES ${e.value.toStringAsFixed(0)}');
     }
 
-    final byMonth = groupByMonth(txs);
     sb.writeln('');
-    sb.writeln('MONTHLY BREAKDOWN:');
-    final months = byMonth.keys.toList()..sort((a, b) => b.compareTo(a));
-    for (final m in months.take(6)) {
-      final mTxs = byMonth[m]!;
-      final mInc = totalIncome(mTxs);
-      final mExp = totalExpenses(mTxs);
-      sb.writeln(
-          '  $m → Income: KES ${mInc.toStringAsFixed(0)}, Expenses: KES ${mExp.toStringAsFixed(0)}, Saved: KES ${(mInc - mExp).toStringAsFixed(0)}');
+    sb.writeln('MONTHLY BALANCE STATEMENT:');
+    for (final m in stmt.months.take(6)) {
+      sb.write('  ${m.month} → income KES ${m.totalIncome.toStringAsFixed(0)}, '
+          'expenses KES ${m.expenses.toStringAsFixed(0)}, '
+          'closing bal KES ${m.closingBalance.toStringAsFixed(0)}');
+      if (m.unexplainedIncome > 1) {
+        sb.write(' (incl. KES ${m.unexplainedIncome.toStringAsFixed(0)} balance txn)');
+      }
+      sb.writeln();
     }
 
     return sb.toString();
   }
+}
+
+// ── Balance statement models ───────────────────────────────────────────────
+
+class MonthStatement {
+  final String month;
+  final double openingBalance;
+  final double closingBalance;
+  final double income;
+  final double unexplainedIncome;
+  final double expenses;
+  final double net;
+
+  const MonthStatement({
+    required this.month,
+    required this.openingBalance,
+    required this.closingBalance,
+    required this.income,
+    required this.unexplainedIncome,
+    required this.expenses,
+    required this.net,
+  });
+
+  double get totalIncome => income + unexplainedIncome;
+}
+
+class BalanceStatement {
+  final List<MonthStatement> months;
+  final double openingBalance;
+
+  const BalanceStatement({required this.months, required this.openingBalance});
+
+  double get totalIncome => months.fold(0, (s, m) => s + m.totalIncome);
+  double get totalExpenses => months.fold(0, (s, m) => s + m.expenses);
+  double get currentBalance => months.isEmpty ? openingBalance : months.first.closingBalance;
+}
+
+class _MonthAccum {
+  final String key;
+  final double openingBalance;
+  double income = 0;
+  double unexplainedIncome = 0;
+  double expenses = 0;
+  double closingBalance;
+
+  _MonthAccum(this.key, double opening)
+      : openingBalance = opening,
+        closingBalance = opening;
 }
