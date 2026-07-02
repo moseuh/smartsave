@@ -78,6 +78,7 @@ class ApiConfig {
       getUrl('transactions/$userId');
   static String transactionsTodayById(String userId) =>
       getUrl('transactions-today/$userId');
+  static String homeStatsById(String userId) => getUrl('home-stats/$userId');
   static String get deposit => getUrl('deposit');
   static String get withdraw => getUrl('withdraw');
   static String get buyGoodsPayment => getUrl('buy-goods-payment');

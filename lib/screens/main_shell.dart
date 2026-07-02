@@ -25,10 +25,10 @@ class _MainShellState extends State<MainShell> with TickerProviderStateMixin, Wi
   late final List<Animation<double>> _iconScales;
 
   static const _navItems = [
-    _NavItem(icon: Icons.home_rounded,           label: 'Home'),
-    _NavItem(icon: Icons.savings_rounded,         label: 'Save'),
-    _NavItem(icon: Icons.bar_chart_rounded,       label: 'Finance'),
-    _NavItem(icon: Icons.account_balance_rounded, label: 'Loans'),
+    _NavItem(icon: Icons.home_rounded,            label: 'Home'),
+    _NavItem(icon: Icons.savings_rounded,         label: 'Goals'),
+    _NavItem(icon: Icons.account_balance_rounded, label: 'Debt'),
+    _NavItem(icon: Icons.people_alt_rounded,      label: 'Rafiki2Rafiki'),
     _NavItem(icon: Icons.person_rounded,          label: 'Profile'),
   ];
 

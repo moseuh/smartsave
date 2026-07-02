@@ -179,11 +179,37 @@ class _AskNiaScreenState extends State<AskNiaScreen> {
         sb.writeln('  - Closing balance: KES ${thisMonthStmt.closingBalance.toStringAsFixed(0)}');
       }
 
-      final cats = SmsFinanceService.expensesByCategory(_transactions);
-      if (cats.isNotEmpty) {
+      // Send actual merchant/description names so Nia can categorize per this user,
+      // not generic hardcoded buckets like "Shopping" for every unknown merchant.
+      final expenses = _transactions.where((t) => !t.isIncome).toList();
+      if (expenses.isNotEmpty) {
         sb.writeln('');
-        sb.writeln('Top spending categories (6 months):');
-        for (final e in cats.entries.take(6)) {
+        sb.writeln('Expense transactions — actual merchant names (use these to understand real spending patterns):');
+        // Group by description, sum amounts
+        final Map<String, double> merchantTotals = {};
+        for (final t in expenses) {
+          merchantTotals[t.description] = (merchantTotals[t.description] ?? 0) + t.amount;
+        }
+        final sorted = merchantTotals.entries.toList()
+          ..sort((a, b) => b.value.compareTo(a.value));
+        for (final e in sorted.take(20)) {
+          sb.writeln('  - ${e.key}: KES ${e.value.toStringAsFixed(0)}');
+        }
+        sb.writeln('(Note: categorize these yourself — e.g. "Naivas" = groceries, "KCB" = banking, "KPLC" = electricity. Do not use generic labels like "Shopping".)');
+      }
+
+      // Income sources
+      final income = _transactions.where((t) => t.isIncome).toList();
+      if (income.isNotEmpty) {
+        sb.writeln('');
+        sb.writeln('Income sources:');
+        final Map<String, double> incomeTotals = {};
+        for (final t in income) {
+          incomeTotals[t.description] = (incomeTotals[t.description] ?? 0) + t.amount;
+        }
+        final sortedIncome = incomeTotals.entries.toList()
+          ..sort((a, b) => b.value.compareTo(a.value));
+        for (final e in sortedIncome.take(10)) {
           sb.writeln('  - ${e.key}: KES ${e.value.toStringAsFixed(0)}');
         }
       }

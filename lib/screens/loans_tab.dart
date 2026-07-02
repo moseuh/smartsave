@@ -49,11 +49,11 @@ class _LoansTabState extends State<LoansTab> with SingleTickerProviderStateMixin
           Padding(
             padding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              const Text('Loans & Credit',
+              const Text('Rafiki2Rafiki',
                   style: TextStyle(color: Color(0xFF111827), fontSize: 26,
                       fontWeight: FontWeight.bold, letterSpacing: -0.5)),
               const SizedBox(height: 2),
-              const Text('Borrow together, grow together',
+              const Text('Borrow & lend with your people',
                   style: TextStyle(color: Color(0xFF6B7280), fontSize: 13)),
               const SizedBox(height: 16),
               // Tab bar
@@ -77,7 +77,7 @@ class _LoansTabState extends State<LoansTab> with SingleTickerProviderStateMixin
                   unselectedLabelStyle: const TextStyle(fontWeight: FontWeight.w500, fontSize: 13),
                   dividerColor: Colors.transparent,
                   tabs: const [
-                    Tab(text: 'Social Borrowing'),
+                    Tab(text: 'Rafiki2Rafiki'),
                     Tab(text: 'Nebo Loans'),
                   ],
                 ),
@@ -178,7 +178,7 @@ class _SocialBorrowingTabState extends State<_SocialBorrowingTab> {
                 const SizedBox(height: 16),
                 const Text('No links yet', style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold, color: Color(0xFF111827))),
                 const SizedBox(height: 6),
-                const Text('Create your first social borrowing link\nand share it with friends.',
+                const Text('Create your first Rafiki2Rafiki link\nand share it with friends.',
                     textAlign: TextAlign.center,
                     style: TextStyle(fontSize: 13, color: Color(0xFF6B7280), height: 1.5)),
               ]),

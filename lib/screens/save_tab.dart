@@ -193,7 +193,7 @@ class _SaveTabState extends State<SaveTab> {
                   else if (_goals.isEmpty)
                     _EmptyGoals(onTap: () => Navigator.push(context, _slide(GoalCreationScreen(userId: widget.userId))))
                   else
-                    ..._goals.map((g) => _GoalCard(goal: g, fmt: fmt)),
+                    ..._goals.map((g) => _GoalCard(goal: g, fmt: fmt, userId: widget.userId, onRefresh: _load)),
 
                   const SizedBox(height: 24),
 
@@ -329,7 +329,25 @@ class _ActionCard extends StatelessWidget {
 class _GoalCard extends StatelessWidget {
   final Map<String, dynamic> goal;
   final NumberFormat fmt;
-  const _GoalCard({required this.goal, required this.fmt});
+  final String userId;
+  final VoidCallback onRefresh;
+  const _GoalCard({required this.goal, required this.fmt, required this.userId, required this.onRefresh});
+
+  void _showContribute(BuildContext context) {
+    final goalId = goal['id'] ?? goal['goal_id'];
+    final name = goal['goal_name'] ?? goal['name'] ?? 'Goal';
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => _GoalContributeSheet(
+        userId: userId,
+        goalId: goalId?.toString() ?? '',
+        goalName: name.toString(),
+        onSuccess: onRefresh,
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -395,7 +413,206 @@ class _GoalCard extends StatelessWidget {
               Text('of KES ${fmt.format(target)}', style: const TextStyle(fontSize: 12, color: Color(0xFF6B7280))),
             ],
           ),
+          const SizedBox(height: 12),
+          SizedBox(
+            width: double.infinity,
+            child: GestureDetector(
+              onTap: () => _showContribute(context),
+              child: Container(
+                padding: const EdgeInsets.symmetric(vertical: 10),
+                decoration: BoxDecoration(
+                  color: AppColors.financeGreen,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: const Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(Icons.add_rounded, color: Colors.white, size: 18),
+                    SizedBox(width: 6),
+                    Text('Add Money to Goal', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600, fontSize: 13)),
+                  ],
+                ),
+              ),
+            ),
+          ),
         ],
+      ),
+    );
+  }
+}
+
+// ── _GoalContributeSheet ──────────────────────────────────────────────────────
+
+class _GoalContributeSheet extends StatefulWidget {
+  final String userId;
+  final String goalId;
+  final String goalName;
+  final VoidCallback onSuccess;
+  const _GoalContributeSheet({required this.userId, required this.goalId, required this.goalName, required this.onSuccess});
+
+  @override
+  State<_GoalContributeSheet> createState() => _GoalContributeSheetState();
+}
+
+class _GoalContributeSheetState extends State<_GoalContributeSheet> {
+  final _amtCtrl = TextEditingController();
+  final _phoneCtrl = TextEditingController();
+  bool _loading = false;
+  String? _error;
+  String? _checkoutRef;
+  bool _paid = false;
+  bool _polling = false;
+  int _pollCount = 0;
+  static const int _maxPolls = 22;
+
+  @override
+  void dispose() { _polling = false; _amtCtrl.dispose(); _phoneCtrl.dispose(); super.dispose(); }
+
+  Future<void> _sendSTK() async {
+    final amt = double.tryParse(_amtCtrl.text.replaceAll(',', ''));
+    if (amt == null || amt < 10) { setState(() => _error = 'Minimum contribution is KES 10'); return; }
+    if (_phoneCtrl.text.trim().isEmpty) { setState(() => _error = 'Enter your M-Pesa phone number'); return; }
+    setState(() { _loading = true; _error = null; });
+    try {
+      final body = {
+        'user_id': widget.userId,
+        'amount': amt,
+        'phone': _phoneCtrl.text.trim(),
+        if (widget.goalId.isNotEmpty) 'goal_id': int.tryParse(widget.goalId) ?? widget.goalId,
+      };
+      final res = await http.post(
+        Uri.parse(ApiConfig.getUrl('deposit')),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode(body),
+      ).timeout(const Duration(seconds: 20));
+      final data = jsonDecode(res.body);
+      if (res.statusCode == 200 && data['status'] == 'success') {
+        setState(() { _loading = false; _checkoutRef = data['checkout_id']?.toString() ?? ''; });
+        _startPolling();
+      } else {
+        setState(() { _loading = false; _error = data['message'] ?? 'Failed to send STK push'; });
+      }
+    } catch (_) {
+      setState(() { _loading = false; _error = 'Network error — check your connection'; });
+    }
+  }
+
+  void _startPolling() {
+    _polling = true; _pollCount = 0;
+    Future.doWhile(() async {
+      if (!_polling || !mounted) return false;
+      await Future.delayed(const Duration(seconds: 4));
+      if (!_polling || !mounted) return false;
+      _pollCount++;
+      if (_pollCount >= _maxPolls) {
+        if (mounted) setState(() { _polling = false; _checkoutRef = null; _error = 'Timed out. If debited, goal will update shortly.'; });
+        return false;
+      }
+      try {
+        final ref = _checkoutRef ?? '';
+        if (ref.isEmpty) return false;
+        final res = await http.get(Uri.parse(ApiConfig.transactionStatus(ref))).timeout(const Duration(seconds: 10));
+        final data = jsonDecode(res.body);
+        final status = (data['payment_status'] ?? data['status'] ?? '').toString().toUpperCase();
+        if (status == 'SUCCESS' || status == 'COMPLETE' || status == 'COMPLETED') {
+          if (mounted) { setState(() { _paid = true; _polling = false; }); widget.onSuccess(); }
+          return false;
+        } else if (status == 'FAILED' || status == 'CANCELLED' || status == 'EXPIRED') {
+          if (mounted) setState(() { _polling = false; _checkoutRef = null; _error = 'Payment ${status.toLowerCase()} — please try again'; });
+          return false;
+        }
+      } catch (_) {}
+      return true;
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final mq = MediaQuery.of(context);
+    final bottom = mq.viewInsets.bottom + mq.padding.bottom + 24;
+    return Container(
+      padding: EdgeInsets.fromLTRB(20, 20, 20, bottom),
+      decoration: const BoxDecoration(color: Colors.white, borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Center(child: Container(width: 40, height: 4, decoration: BoxDecoration(color: const Color(0xFFE5E7EB), borderRadius: BorderRadius.circular(2)))),
+          const SizedBox(height: 16),
+          if (_paid) ...[
+            Center(child: Column(children: [
+              Container(width: 64, height: 64, decoration: BoxDecoration(color: AppColors.financeGreen.withValues(alpha: 0.1), shape: BoxShape.circle),
+                  child: const Icon(Icons.check_circle_rounded, color: AppColors.financeGreen, size: 40)),
+              const SizedBox(height: 16),
+              Text('Added to ${widget.goalName}!', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF111827))),
+              const SizedBox(height: 6),
+              const Text('Your goal has been updated.', style: TextStyle(fontSize: 14, color: Color(0xFF6B7280))),
+              const SizedBox(height: 24),
+              SizedBox(width: double.infinity, child: ElevatedButton(
+                onPressed: () => Navigator.pop(context),
+                style: ElevatedButton.styleFrom(backgroundColor: AppColors.financeGreen, padding: const EdgeInsets.symmetric(vertical: 14), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14))),
+                child: const Text('Done', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+              )),
+            ])),
+          ] else if (_checkoutRef != null) ...[
+            Center(child: Column(children: [
+              const SizedBox(height: 8),
+              const CircularProgressIndicator(color: AppColors.financeGreen, strokeWidth: 3),
+              const SizedBox(height: 16),
+              const Text('Check your phone', style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold, color: Color(0xFF111827))),
+              const SizedBox(height: 6),
+              const Text('Enter your M-Pesa PIN to save to your goal.\nWaiting for confirmation...', style: TextStyle(fontSize: 13, color: Color(0xFF6B7280), height: 1.5), textAlign: TextAlign.center),
+              const SizedBox(height: 20),
+              TextButton(onPressed: () => setState(() { _checkoutRef = null; _polling = false; }), child: const Text('Cancel / Try again', style: TextStyle(color: Colors.red))),
+            ])),
+          ] else ...[
+            Row(children: [
+              Container(width: 40, height: 40, decoration: BoxDecoration(color: AppColors.financeGreen.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(12)),
+                  child: const Icon(Icons.flag_rounded, color: AppColors.financeGreen, size: 22)),
+              const SizedBox(width: 12),
+              Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                const Text('Save to Goal', style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold, color: Color(0xFF111827))),
+                Text(widget.goalName, style: const TextStyle(fontSize: 12, color: Color(0xFF6B7280))),
+              ])),
+            ]),
+            const SizedBox(height: 20),
+            _field(_amtCtrl, 'Amount (KES)', isNumber: true),
+            const SizedBox(height: 12),
+            _field(_phoneCtrl, 'M-Pesa Phone Number', isNumber: true),
+            if (_error != null) ...[
+              const SizedBox(height: 10),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                decoration: BoxDecoration(color: Colors.red.withValues(alpha: 0.08), borderRadius: BorderRadius.circular(8)),
+                child: Row(children: [const Icon(Icons.error_outline, color: Colors.red, size: 16), const SizedBox(width: 8), Expanded(child: Text(_error!, style: const TextStyle(fontSize: 12, color: Colors.red)))]),
+              ),
+            ],
+            const SizedBox(height: 24),
+            SizedBox(width: double.infinity, child: ElevatedButton(
+              onPressed: _loading ? null : _sendSTK,
+              style: ElevatedButton.styleFrom(backgroundColor: AppColors.financeGreen, padding: const EdgeInsets.symmetric(vertical: 16), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)), elevation: 0),
+              child: _loading
+                  ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                  : const Text('Send STK Push', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 15)),
+            )),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _field(TextEditingController ctrl, String hint, {bool isNumber = false}) {
+    return TextField(
+      controller: ctrl,
+      keyboardType: isNumber ? TextInputType.number : TextInputType.text,
+      style: const TextStyle(fontSize: 15, color: Color(0xFF111827)),
+      decoration: InputDecoration(
+        hintText: hint, hintStyle: const TextStyle(color: Color(0xFF9CA3AF)),
+        filled: true, fillColor: const Color(0xFFF9FAFB),
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Color(0xFFE5E7EB))),
+        enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Color(0xFFE5E7EB))),
+        focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: AppColors.financeGreen, width: 1.5)),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
       ),
     );
   }

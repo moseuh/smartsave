@@ -185,15 +185,23 @@ class SmsFinanceService {
     final reference = refMatch?.group(1);
 
     // ── 3. Extract amount ───────────────────────────────────────────
-    // M-Pesa always uses "Ksh" (not KES) in real messages
-    // Examples: "Ksh1,200.00" or "Ksh 500" or "KES 300.00"
-    final amountMatch = RegExp(
+    // M-Pesa messages have multiple Ksh values (amount, fee, balance).
+    // The TRANSACTION amount is always stated first (before "Transaction cost"
+    // or "New M-PESA balance"). Extract ALL amounts then pick the right one.
+    final allAmounts = RegExp(
       r'(?:Ksh|KES)\s*([\d,]+(?:\.\d{1,2})?)',
       caseSensitive: false,
-    ).firstMatch(body);
-    if (amountMatch == null) return null;
-    final amountStr = (amountMatch.group(1) ?? '0').replaceAll(',', '');
-    final amount = double.tryParse(amountStr) ?? 0;
+    ).allMatches(body).map((m) {
+      final s = (m.group(1) ?? '0').replaceAll(',', '');
+      return double.tryParse(s) ?? 0;
+    }).where((v) => v > 0).toList();
+
+    if (allAmounts.isEmpty) return null;
+
+    // The transaction amount is the FIRST Ksh value in the message.
+    // Fee is labelled "Transaction cost" and balance is labelled "New M-PESA balance" —
+    // so the first amount is always the actual transaction amount.
+    final amount = allAmounts.first;
     if (amount <= 0) return null;
 
     // ── 4. Extract balance after transaction ────────────────────────
@@ -247,8 +255,13 @@ class SmsFinanceService {
 
     // ── EXPENSES ───────────────────────────────────────────────────
 
-    // FULIZA – you borrowed; it's a debt/expense
-    else if (b.contains('fuliza')) {
+    // FULIZA – only when you actually borrowed (not informational Safaricom messages
+    // like "Your Fuliza limit is Ksh X" which don't represent a real transaction)
+    else if (b.contains('fuliza') &&
+        (b.contains('you have used') ||
+         b.contains('fuliza mpesa') ||
+         b.contains('borrowed') ||
+         b.contains('repay'))) {
       mpesaType = MpesaType.fuliza;
       isIncome = false;
       category = 'Fuliza';
