@@ -92,9 +92,10 @@ class _ConfirmPaymentState extends State<ConfirmPayment> {
   }
 
   Future<void> _confirmPayment() async {
+    if (_loading) return; // guard against double-tap firing this twice
     final amt = double.tryParse(_amountCtrl.text) ?? 0;
     if (_userId == null) return _show('Not logged in');
-    if (amt < 1) return _show('Enter a valid amount');
+    if (amt < 10) return _show('Minimum amount is KES 10');
 
     if (isBuyGoods && _tillCtrl.text.trim().isEmpty) return _show('Enter till number');
     if (!isBuyGoods && _paybillCtrl.text.trim().isEmpty) return _show('Enter paybill number');

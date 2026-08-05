@@ -5,6 +5,7 @@ import 'package:intl/intl.dart';
 import '../constants/app_theme.dart';
 import '../config/api_config.dart';
 import '../services/tab_refresh_registry.dart';
+import '../utils/validation_utils.dart';
 import 'goals_dashboard.dart';
 import 'roundup.dart';
 import 'SetSavingsGoalScreen.dart' show GoalCreationScreen;
@@ -349,93 +350,346 @@ class _GoalCard extends StatelessWidget {
     );
   }
 
+  void _showHistory(BuildContext context) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => GoalHistoryScreen(goal: goal)),
+    ).then((_) => onRefresh());
+  }
+
+  void _showOptions(BuildContext context) {
+    final isDefault = goal['is_default'] == true;
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => Container(
+        padding: EdgeInsets.fromLTRB(16, 8, 16, MediaQuery.of(ctx).padding.bottom + 32),
+        decoration: const BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+        ),
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          Container(width: 40, height: 4, decoration: BoxDecoration(color: const Color(0xFFE5E7EB), borderRadius: BorderRadius.circular(2))),
+          const SizedBox(height: 16),
+          ListTile(
+            leading: const Icon(Icons.edit_rounded, color: AppColors.financeGreen),
+            title: const Text('Edit Goal', style: TextStyle(fontWeight: FontWeight.w600)),
+            onTap: () {
+              Navigator.pop(context);
+              _showEdit(context);
+            },
+          ),
+          if (!isDefault)
+            ListTile(
+              leading: const Icon(Icons.delete_outline_rounded, color: Color(0xFFDC2626)),
+              title: const Text('Delete Goal', style: TextStyle(fontWeight: FontWeight.w600, color: Color(0xFFDC2626))),
+              subtitle: const Text('Balance moves to Savings Wallet', style: TextStyle(fontSize: 11)),
+              onTap: () {
+                Navigator.pop(context);
+                _confirmDelete(context);
+              },
+            ),
+        ]),
+      ),
+    );
+  }
+
+  void _showEdit(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => _GoalEditSheet(goal: goal, userId: userId, onSuccess: onRefresh),
+    );
+  }
+
+  void _confirmDelete(BuildContext context) {
+    final saved = double.tryParse((goal['current_amount'] ?? 0).toString()) ?? 0;
+    final name = goal['goal_name'] ?? goal['title'] ?? 'Goal';
+    showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text('Delete Goal?', style: TextStyle(fontWeight: FontWeight.bold)),
+        content: Text(
+          saved > 0
+              ? 'KES ${NumberFormat('#,##0').format(saved)} from "$name" will move to your Savings Wallet.'
+              : 'Are you sure you want to delete "$name"?',
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
+          TextButton(
+            onPressed: () async {
+              Navigator.pop(context);
+              await _deleteGoal(context);
+            },
+            child: const Text('Delete', style: TextStyle(color: Color(0xFFDC2626), fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _deleteGoal(BuildContext context) async {
+    final goalId = goal['id']?.toString() ?? '';
+    try {
+      final r = await http.delete(
+        Uri.parse('${ApiConfig.baseUrl}/goalsdelete/$goalId'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({'user_id': int.tryParse(userId) ?? userId}),
+      );
+      final data = jsonDecode(r.body);
+      if (r.statusCode == 200 && data['status'] == 'success') {
+        onRefresh();
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+            content: Text(data['message'] ?? 'Goal deleted'),
+            backgroundColor: AppColors.financeGreen,
+            behavior: SnackBarBehavior.floating,
+          ));
+        }
+      } else {
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+            content: Text(data['message'] ?? 'Delete failed'),
+            backgroundColor: Colors.red,
+            behavior: SnackBarBehavior.floating,
+          ));
+        }
+      }
+    } catch (_) {}
+  }
+
   @override
   Widget build(BuildContext context) {
-    final saved = double.tryParse(goal['saved_amount']?.toString() ?? '0') ?? 0;
-    final target = double.tryParse(goal['target_amount']?.toString() ?? '1') ?? 1;
-    final pct = (saved / target).clamp(0.0, 1.0);
-    final name = goal['goal_name'] ?? goal['name'] ?? 'Goal';
+    final saved = double.tryParse((goal['current_amount'] ?? goal['saved_amount'] ?? 0).toString()) ?? 0;
+    final target = double.tryParse((goal['goal_amount'] ?? goal['target_amount'] ?? 1).toString()) ?? 1;
+    final pct = target > 0 ? (saved / target).clamp(0.0, 1.0) : 0.0;
+    final name = goal['goal_name'] ?? goal['title'] ?? goal['name'] ?? 'Goal';
     final deadline = goal['deadline'] ?? goal['target_date'] ?? '';
     String dateStr = '';
     try { dateStr = DateFormat('d MMM yyyy').format(DateTime.parse(deadline)); } catch (_) {}
 
-    return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(18),
-        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.05), blurRadius: 10, offset: const Offset(0, 3))],
+    return GestureDetector(
+      onTap: () => _showHistory(context),
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 12),
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(18),
+          boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.05), blurRadius: 10, offset: const Offset(0, 3))],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Container(
+                  width: 40, height: 40,
+                  decoration: BoxDecoration(
+                    color: AppColors.financeGreen.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: const Icon(Icons.flag_rounded, color: AppColors.financeGreen, size: 22),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(name, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Color(0xFF111827))),
+                      if (dateStr.isNotEmpty)
+                        Text('Due $dateStr', style: const TextStyle(fontSize: 11, color: Color(0xFF9CA3AF))),
+                    ],
+                  ),
+                ),
+                // Add Money inline button
+                GestureDetector(
+                  onTap: () => _showContribute(context),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+                    decoration: BoxDecoration(
+                      color: AppColors.financeGreen,
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: const Row(mainAxisSize: MainAxisSize.min, children: [
+                      Icon(Icons.add_rounded, color: Colors.white, size: 15),
+                      SizedBox(width: 4),
+                      Text('Add', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700, fontSize: 12)),
+                    ]),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                // Options menu
+                GestureDetector(
+                  onTap: () => _showOptions(context),
+                  child: const Icon(Icons.more_vert_rounded, color: Color(0xFF9CA3AF), size: 20),
+                ),
+              ],
+            ),
+            const SizedBox(height: 14),
+            ClipRRect(
+              borderRadius: BorderRadius.circular(6),
+              child: LinearProgressIndicator(
+                value: pct,
+                backgroundColor: AppColors.financeGreenV3.withValues(alpha: 0.15),
+                valueColor: const AlwaysStoppedAnimation(AppColors.financeGreenV3),
+                minHeight: 7,
+              ),
+            ),
+            const SizedBox(height: 7),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text('KES ${fmt.format(saved)} saved', style: const TextStyle(fontSize: 11, color: Color(0xFF6B7280))),
+                Text('${(pct * 100).toStringAsFixed(0)}% of KES ${fmt.format(target)}', style: const TextStyle(fontSize: 11, color: Color(0xFF6B7280))),
+              ],
+            ),
+          ],
+        ),
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Container(
-                width: 40, height: 40,
-                decoration: BoxDecoration(
-                  color: AppColors.financeGreen.withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: const Icon(Icons.flag_rounded, color: AppColors.financeGreen, size: 22),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(name, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Color(0xFF111827))),
-                    if (dateStr.isNotEmpty)
-                      Text('Due $dateStr', style: const TextStyle(fontSize: 11, color: Color(0xFF9CA3AF))),
-                  ],
-                ),
-              ),
-              Text('${(pct * 100).toStringAsFixed(0)}%',
-                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: AppColors.financeGreen)),
-            ],
-          ),
-          const SizedBox(height: 14),
-          ClipRRect(
-            borderRadius: BorderRadius.circular(6),
-            child: LinearProgressIndicator(
-              value: pct,
-              backgroundColor: const Color(0xFFF3F4F6),
-              valueColor: const AlwaysStoppedAnimation(AppColors.financeGreenV3),
-              minHeight: 8,
+    );
+  }
+}
+
+// ── _GoalEditSheet ────────────────────────────────────────────────────────────
+
+class _GoalEditSheet extends StatefulWidget {
+  final Map<String, dynamic> goal;
+  final String userId;
+  final VoidCallback onSuccess;
+  const _GoalEditSheet({required this.goal, required this.userId, required this.onSuccess});
+
+  @override
+  State<_GoalEditSheet> createState() => _GoalEditSheetState();
+}
+
+class _GoalEditSheetState extends State<_GoalEditSheet> {
+  late final TextEditingController _nameCtrl;
+  late final TextEditingController _targetCtrl;
+  bool _loading = false;
+  final fmt = NumberFormat('#,##0');
+
+  @override
+  void initState() {
+    super.initState();
+    _nameCtrl = TextEditingController(text: widget.goal['goal_name'] ?? widget.goal['title'] ?? '');
+    final target = widget.goal['goal_amount'] ?? widget.goal['target_amount'] ?? 100;
+    _targetCtrl = TextEditingController(text: target.toString());
+  }
+
+  @override
+  void dispose() {
+    _nameCtrl.dispose();
+    _targetCtrl.dispose();
+    super.dispose();
+  }
+
+  Future<void> _save() async {
+    final goalId = widget.goal['id']?.toString() ?? '';
+    final isDefault = widget.goal['is_default'] == true;
+    setState(() => _loading = true);
+    try {
+      final body = <String, dynamic>{
+        'user_id': int.tryParse(widget.userId) ?? widget.userId,
+        'title': _nameCtrl.text.trim(),
+      };
+      if (!isDefault) {
+        final t = double.tryParse(_targetCtrl.text.trim()) ?? 0;
+        if (t < 100) {
+          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+            content: Text('Target must be at least KES 100'),
+            backgroundColor: Colors.red,
+            behavior: SnackBarBehavior.floating,
+          ));
+          setState(() => _loading = false);
+          return;
+        }
+        body['target_amount'] = t;
+      }
+      final r = await http.put(
+        Uri.parse('${ApiConfig.baseUrl}/goalsupdate/$goalId'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode(body),
+      );
+      final data = jsonDecode(r.body);
+      if (r.statusCode == 200 && data['status'] == 'success') {
+        widget.onSuccess();
+        if (mounted) Navigator.pop(context);
+      } else {
+        if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text(data['message'] ?? 'Update failed'),
+          backgroundColor: Colors.red,
+          behavior: SnackBarBehavior.floating,
+        ));
+      }
+    } catch (_) {}
+    if (mounted) setState(() => _loading = false);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isDefault = widget.goal['is_default'] == true;
+    return Padding(
+      padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
+      child: Container(
+        padding: EdgeInsets.fromLTRB(20, 12, 20, MediaQuery.of(context).padding.bottom + 28),
+        decoration: const BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        ),
+        child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Center(child: Container(width: 40, height: 4, decoration: BoxDecoration(color: const Color(0xFFE5E7EB), borderRadius: BorderRadius.circular(2)))),
+          const SizedBox(height: 16),
+          const Text('Edit Goal', style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold, color: Color(0xFF111827))),
+          const SizedBox(height: 16),
+          const Text('Goal Name', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Color(0xFF374151))),
+          const SizedBox(height: 6),
+          TextField(
+            controller: _nameCtrl,
+            enabled: !isDefault,
+            decoration: InputDecoration(
+              hintText: 'Goal name',
+              filled: true,
+              fillColor: isDefault ? const Color(0xFFF9FAFB) : Colors.white,
+              border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Color(0xFFE5E7EB))),
+              enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Color(0xFFE5E7EB))),
             ),
           ),
-          const SizedBox(height: 8),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text('KES ${fmt.format(saved)} saved', style: const TextStyle(fontSize: 12, color: Color(0xFF6B7280))),
-              Text('of KES ${fmt.format(target)}', style: const TextStyle(fontSize: 12, color: Color(0xFF6B7280))),
-            ],
-          ),
-          const SizedBox(height: 12),
+          if (!isDefault) ...[
+            const SizedBox(height: 14),
+            const Text('Target Amount (KES)', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Color(0xFF374151))),
+            const SizedBox(height: 6),
+            TextField(
+              controller: _targetCtrl,
+              keyboardType: TextInputType.number,
+              decoration: InputDecoration(
+                prefixText: 'KES ',
+                prefixStyle: const TextStyle(fontWeight: FontWeight.w600, color: Color(0xFF374151)),
+                filled: true,
+                fillColor: Colors.white,
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Color(0xFFE5E7EB))),
+                enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Color(0xFFE5E7EB))),
+              ),
+            ),
+          ],
+          const SizedBox(height: 20),
           SizedBox(
             width: double.infinity,
-            child: GestureDetector(
-              onTap: () => _showContribute(context),
-              child: Container(
-                padding: const EdgeInsets.symmetric(vertical: 10),
-                decoration: BoxDecoration(
-                  color: AppColors.financeGreen,
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: const Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(Icons.add_rounded, color: Colors.white, size: 18),
-                    SizedBox(width: 6),
-                    Text('Add Money to Goal', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600, fontSize: 13)),
-                  ],
-                ),
+            child: ElevatedButton(
+              onPressed: _loading ? null : _save,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.financeGreen,
+                padding: const EdgeInsets.symmetric(vertical: 14),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
               ),
+              child: _loading
+                  ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                  : const Text('Save Changes', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 15)),
             ),
           ),
-        ],
+        ]),
       ),
     );
   }
@@ -463,7 +717,26 @@ class _GoalContributeSheetState extends State<_GoalContributeSheet> {
   bool _paid = false;
   bool _polling = false;
   int _pollCount = 0;
-  static const int _maxPolls = 22;
+  static const int _maxPolls = 60;
+
+  @override
+  void initState() {
+    super.initState();
+    _prefillPhone();
+  }
+
+  Future<void> _prefillPhone() async {
+    try {
+      final r = await http.get(Uri.parse(ApiConfig.userDetailsById(widget.userId)));
+      if (r.statusCode == 200) {
+        final d = jsonDecode(r.body);
+        final phone = d['data']?['phone_number']?.toString();
+        if (mounted && phone != null && phone.isNotEmpty) {
+          setState(() => _phoneCtrl.text = phone);
+        }
+      }
+    } catch (_) {}
+  }
 
   @override
   void dispose() { _polling = false; _amtCtrl.dispose(); _phoneCtrl.dispose(); super.dispose(); }
@@ -471,7 +744,8 @@ class _GoalContributeSheetState extends State<_GoalContributeSheet> {
   Future<void> _sendSTK() async {
     final amt = double.tryParse(_amtCtrl.text.replaceAll(',', ''));
     if (amt == null || amt < 10) { setState(() => _error = 'Minimum contribution is KES 10'); return; }
-    if (_phoneCtrl.text.trim().isEmpty) { setState(() => _error = 'Enter your M-Pesa phone number'); return; }
+    final phoneError = ValidationUtils.validateKenyanPhone(_phoneCtrl.text);
+    if (phoneError != null) { setState(() => _error = phoneError); return; }
     setState(() { _loading = true; _error = null; });
     try {
       final body = {
@@ -501,7 +775,7 @@ class _GoalContributeSheetState extends State<_GoalContributeSheet> {
     _polling = true; _pollCount = 0;
     Future.doWhile(() async {
       if (!_polling || !mounted) return false;
-      await Future.delayed(const Duration(seconds: 4));
+      await Future.delayed(const Duration(seconds: 3));
       if (!_polling || !mounted) return false;
       _pollCount++;
       if (_pollCount >= _maxPolls) {
@@ -576,7 +850,34 @@ class _GoalContributeSheetState extends State<_GoalContributeSheet> {
               ])),
             ]),
             const SizedBox(height: 20),
-            _field(_amtCtrl, 'Amount (KES)', isNumber: true),
+            _field(_amtCtrl, 'Amount (KES)', isNumber: true, onChanged: (_) => setState(() {})),
+            const SizedBox(height: 8),
+            Builder(builder: (_) {
+              final amt = double.tryParse(_amtCtrl.text.replaceAll(',', '')) ?? 0;
+              if (amt <= 0) return const SizedBox.shrink();
+              final charge = (amt * 0.015).ceil().toDouble();
+              final total = amt + charge;
+              return Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                decoration: BoxDecoration(color: const Color(0xFFF0FDF4), borderRadius: BorderRadius.circular(10)),
+                child: Column(children: [
+                  Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+                    const Text('Save to goal', style: TextStyle(fontSize: 12, color: Color(0xFF6B7280))),
+                    Text('KES ${amt.toStringAsFixed(0)}', style: const TextStyle(fontSize: 12, color: Color(0xFF374151), fontWeight: FontWeight.w600)),
+                  ]),
+                  const SizedBox(height: 4),
+                  Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+                    const Text('Fee', style: TextStyle(fontSize: 12, color: Color(0xFF6B7280))),
+                    Text('KES ${charge.toStringAsFixed(0)}', style: const TextStyle(fontSize: 12, color: Color(0xFF374151), fontWeight: FontWeight.w600)),
+                  ]),
+                  const Divider(height: 12, color: Color(0xFFD1FAE5)),
+                  Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+                    const Text('M-Pesa total', style: TextStyle(fontSize: 13, color: Color(0xFF111827), fontWeight: FontWeight.bold)),
+                    Text('KES ${total.toStringAsFixed(0)}', style: const TextStyle(fontSize: 13, color: AppColors.financeGreen, fontWeight: FontWeight.bold)),
+                  ]),
+                ]),
+              );
+            }),
             const SizedBox(height: 12),
             _field(_phoneCtrl, 'M-Pesa Phone Number', isNumber: true),
             if (_error != null) ...[
@@ -601,9 +902,10 @@ class _GoalContributeSheetState extends State<_GoalContributeSheet> {
     );
   }
 
-  Widget _field(TextEditingController ctrl, String hint, {bool isNumber = false}) {
+  Widget _field(TextEditingController ctrl, String hint, {bool isNumber = false, void Function(String)? onChanged}) {
     return TextField(
       controller: ctrl,
+      onChanged: onChanged,
       keyboardType: isNumber ? TextInputType.number : TextInputType.text,
       style: const TextStyle(fontSize: 15, color: Color(0xFF111827)),
       decoration: InputDecoration(

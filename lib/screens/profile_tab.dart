@@ -2,12 +2,14 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../constants/app_theme.dart';
 import '../config/api_config.dart';
 import '../services/tab_refresh_registry.dart';
 import 'profile.dart' show Profile;
 import 'favourites.dart' show Favourites;
 import 'modern_login_screen.dart';
+import 'onboarding_flow.dart';
 
 // Notification preference keys
 const _kNotifPayments   = 'notif_payments';
@@ -168,6 +170,11 @@ class _ProfileTabState extends State<ProfileTab> {
                 _MenuTile(icon: Icons.security_rounded, label: 'Security & Privacy', onTap: () => _go(Profile(userId: widget.userId))),
                 const SizedBox(height: 20),
 
+                // Finances section
+                _SectionLabel('Finances'),
+                _MenuTile(icon: Icons.fact_check_outlined, label: 'Financial Profile', subtitle: 'Update your income, goals & preferences', onTap: () => _go(OnboardingFlow(userId: widget.userId))),
+                const SizedBox(height: 20),
+
                 // Opportunities section
                 _SectionLabel('Opportunities'),
                 _MenuTile(icon: Icons.favorite_outline_rounded, label: 'Favourites', subtitle: 'Your saved payees', onTap: () => _go(Favourites(userId: widget.userId))),
@@ -175,7 +182,7 @@ class _ProfileTabState extends State<ProfileTab> {
 
                 // Support section
                 _SectionLabel('Support'),
-                _MenuTile(icon: Icons.help_outline_rounded, label: 'Help Centre', onTap: () {}),
+                _MenuTile(icon: Icons.help_outline_rounded, label: 'Help Centre', onTap: () => _showHelpCentre()),
                 _MenuTile(icon: Icons.info_outline_rounded, label: 'About Nebo', onTap: () => _showAbout()),
                 const SizedBox(height: 20),
 
@@ -321,6 +328,72 @@ class _ProfileTabState extends State<ProfileTab> {
     );
   }
 
+  void _showHelpCentre() => showModalBottomSheet(
+        context: context,
+        backgroundColor: Colors.transparent,
+        isScrollControlled: true,
+        builder: (_) => DraggableScrollableSheet(
+          initialChildSize: 0.75,
+          minChildSize: 0.5,
+          maxChildSize: 0.9,
+          expand: false,
+          builder: (sheetCtx, scrollController) => Container(
+            decoration: const BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+            ),
+            child: ListView(
+              controller: scrollController,
+              padding: EdgeInsets.fromLTRB(20, 12, 20, MediaQuery.of(sheetCtx).padding.bottom + 32),
+              children: [
+                Center(
+                  child: Container(
+                    width: 40, height: 4,
+                    margin: const EdgeInsets.only(bottom: 20),
+                    decoration: BoxDecoration(color: const Color(0xFFE5E7EB), borderRadius: BorderRadius.circular(2)),
+                  ),
+                ),
+                const Text('Help Centre', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Color(0xFF111827))),
+                const SizedBox(height: 4),
+                const Text('Answers to common questions', style: TextStyle(fontSize: 13, color: Color(0xFF6B7280))),
+                const SizedBox(height: 20),
+                ..._faqs.map((f) => _FaqTile(question: f.$1, answer: f.$2)),
+                const SizedBox(height: 12),
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: AppColors.financeGreen.withValues(alpha: 0.06),
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    const Text('Still need help?', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14, color: Color(0xFF111827))),
+                    const SizedBox(height: 4),
+                    const Text('Our support team usually replies within a day.', style: TextStyle(fontSize: 12, color: Color(0xFF6B7280))),
+                    const SizedBox(height: 12),
+                    GestureDetector(
+                      onTap: () => launchUrl(Uri.parse('mailto:support@nebo.co.ke?subject=Nebo%20Support')),
+                      child: Row(children: [
+                        const Icon(Icons.email_outlined, color: AppColors.financeGreen, size: 18),
+                        const SizedBox(width: 8),
+                        const Text('support@nebo.co.ke', style: TextStyle(color: AppColors.financeGreen, fontSize: 13, fontWeight: FontWeight.w600)),
+                      ]),
+                    ),
+                  ]),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+
+  static final List<(String, String)> _faqs = [
+    ('How do I make a deposit?', 'Go to the Save tab and tap Deposit. Enter the amount and confirm via the M-Pesa STK push prompt on your phone.'),
+    ('How do I withdraw money?', 'From the Save tab, tap Withdraw, choose the goal or wallet to withdraw from, enter the amount, and confirm.'),
+    ('What is Round-Up Savings?', 'Round-Up rounds your everyday M-Pesa spending up to the nearest amount and saves the difference automatically into your chosen goal.'),
+    ('How do I create a savings goal?', 'Tap the + button on the Save tab, name your goal, set a target amount and date, and Nebo will help you track progress.'),
+    ('How does Debt Manager work?', 'Debt Manager tracks what you owe across loans and Fuliza, showing how much you\'ve repaid and what remains so you can plan repayments.'),
+  ];
+
   void _showAbout() => showDialog(
         context: context,
         builder: (_) => AlertDialog(
@@ -350,6 +423,37 @@ class _SectionLabel extends StatelessWidget {
         child: Text(label.toUpperCase(),
             style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Color(0xFF9CA3AF), letterSpacing: 1.2)),
       );
+}
+
+class _FaqTile extends StatelessWidget {
+  final String question;
+  final String answer;
+  const _FaqTile({required this.question, required this.answer});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 8),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF9FAFB),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Theme(
+        data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
+        child: ExpansionTile(
+          tilePadding: const EdgeInsets.symmetric(horizontal: 14),
+          childrenPadding: const EdgeInsets.fromLTRB(14, 0, 14, 14),
+          expandedCrossAxisAlignment: CrossAxisAlignment.start,
+          title: Text(question, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13.5, color: Color(0xFF111827))),
+          iconColor: AppColors.financeGreen,
+          collapsedIconColor: const Color(0xFF9CA3AF),
+          children: [
+            Text(answer, style: const TextStyle(fontSize: 12.5, color: Color(0xFF6B7280), height: 1.5)),
+          ],
+        ),
+      ),
+    );
+  }
 }
 
 class _MenuTile extends StatelessWidget {

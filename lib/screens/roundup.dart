@@ -57,7 +57,7 @@ class _RoundUpSettingsState extends State<RoundUpSettings> {
             id: rule['id'],
             type: rule['type'] ?? 'fixed',
             value: rule['value']?.toString() ?? '',
-            appliesTo: rule['applies_to'] ?? 'both',
+            appliesTo: (rule['applies_to'] ?? 'all') == 'both' ? 'all' : (rule['applies_to'] ?? 'all'),
             goalId: rule['goal_id'],
             goalName: rule['goal_name'],
             active: rule['active'] == true || rule['active'] == 1,
@@ -83,7 +83,7 @@ class _RoundUpSettingsState extends State<RoundUpSettings> {
       _snack('Maximum 3 round savings rules allowed', error: true);
       return;
     }
-    setState(() => _rules.add(_RuleModel(type: 'fixed', value: '0', appliesTo: 'both', active: true)));
+    setState(() => _rules.add(_RuleModel(type: 'fixed', value: '0', appliesTo: 'all', active: true)));
   }
 
   void _removeRule(int index) {
@@ -116,8 +116,8 @@ class _RoundUpSettingsState extends State<RoundUpSettings> {
         body: jsonEncode({
           'user_id': _userId,
           'is_enabled': hasActive,
-          'buy_goods_round_up': _rules.any((r) => r.active && (r.appliesTo == 'buy_goods' || r.appliesTo == 'both')),
-          'pay_bill_round_up': _rules.any((r) => r.active && (r.appliesTo == 'pay_bill' || r.appliesTo == 'both')),
+          'buy_goods_round_up': _rules.any((r) => r.active && ['buy_goods', 'both', 'all'].contains(r.appliesTo)),
+          'pay_bill_round_up': _rules.any((r) => r.active && ['pay_bill', 'both', 'all'].contains(r.appliesTo)),
           'rules': _rules.map((r) => {
             'type': r.type,
             'value': double.parse(r.value),
@@ -188,7 +188,7 @@ class _RoundUpSettingsState extends State<RoundUpSettings> {
                             style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Color(0xFF111827))),
                         SizedBox(height: 4),
                         Text(
-                          'When you pay, a small extra amount is added on top and saved to your wallet. You control the rules below.',
+                          'When you pay, a small extra amount is added on top and saved to your wallet. You control the rules below. A small fee applies to the total (payment + round savings).',
                           style: TextStyle(fontSize: 12, color: Color(0xFF6B7280), height: 1.4),
                         ),
                       ]),
@@ -288,7 +288,9 @@ class _RoundUpSettingsState extends State<RoundUpSettings> {
       if (r.type == 'percentage') extraPct += (exampleAmt * val) / 100;
     }
     final extra = extraFixed + extraPct;
-    final total = exampleAmt + extra;
+    final subtotal = exampleAmt + extra;
+    final fee = (subtotal * 0.015).ceilToDouble();
+    final total = subtotal + fee;
 
     return Container(
       padding: const EdgeInsets.all(16),
@@ -303,6 +305,7 @@ class _RoundUpSettingsState extends State<RoundUpSettings> {
         const SizedBox(height: 12),
         _previewRow('Payment amount', 'KES 100.00'),
         _previewRow('Round savings added', '+ KES ${extra.toStringAsFixed(2)}', green: true),
+        _previewRow('Fee', '+ KES ${fee.toStringAsFixed(2)}'),
         const Padding(padding: EdgeInsets.symmetric(vertical: 8), child: Divider(height: 1)),
         _previewRow('Total deducted', 'KES ${total.toStringAsFixed(2)}', bold: true),
       ]),
@@ -475,12 +478,12 @@ class _RuleCardState extends State<_RuleCard> {
         // Applies to selector
         const Text('Applies to:', style: TextStyle(fontSize: 11, color: Color(0xFF9CA3AF), fontWeight: FontWeight.w600)),
         const SizedBox(height: 6),
-        Row(children: [
+        Wrap(spacing: 6, runSpacing: 6, children: [
           _appliesToBtn('Buy Goods', 'buy_goods', r.appliesTo, () => widget.onChanged(r.copyWith(appliesTo: 'buy_goods'))),
-          const SizedBox(width: 6),
           _appliesToBtn('Pay Bill', 'pay_bill', r.appliesTo, () => widget.onChanged(r.copyWith(appliesTo: 'pay_bill'))),
-          const SizedBox(width: 6),
-          _appliesToBtn('Both', 'both', r.appliesTo, () => widget.onChanged(r.copyWith(appliesTo: 'both'))),
+          _appliesToBtn('Send Money', 'send_money', r.appliesTo, () => widget.onChanged(r.copyWith(appliesTo: 'send_money'))),
+          _appliesToBtn('Rafiki Repay', 'rafiki_repay', r.appliesTo, () => widget.onChanged(r.copyWith(appliesTo: 'rafiki_repay'))),
+          _appliesToBtn('All', 'all', r.appliesTo, () => widget.onChanged(r.copyWith(appliesTo: 'all'))),
         ]),
 
         // Goal picker

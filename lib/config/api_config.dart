@@ -72,6 +72,11 @@ class ApiConfig {
       getUrl('upload-profile-picture/$userId');
   static String get wallet => getUrl('wallet');
   static String walletById(String userId) => getUrl('wallet/$userId');
+  static String get goalsWithdraw => getUrl('goalswithdraw');
+  static String debtWithdrawToWallet(String debtId) =>
+      getUrl('onboarding/debts/$debtId/withdraw-to-wallet');
+  static String rafikiReleaseToWallet(String debtId) =>
+      getUrl('rafiki-debts/$debtId/release-to-wallet');
   static String get remittance => getUrl('remittance');
   static String get transactions => getUrl('transactions');
   static String transactionsById(String userId) =>

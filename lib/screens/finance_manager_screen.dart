@@ -72,7 +72,11 @@ class _FinanceManagerScreenState extends State<FinanceManagerScreen>
 
   double get _income => _monthStmt?.totalIncome ?? SmsFinanceService.totalIncome(_filtered);
   double get _expenses => _monthStmt?.expenses ?? SmsFinanceService.totalExpenses(_filtered);
-  double get _balance => (_monthStmt?.closingBalance ?? (_income - _expenses)).clamp(0, double.infinity);
+  // Real M-Pesa running account balance — NOT income minus expenses.
+  double get _mpesaBalance => _monthStmt?.closingBalance ?? 0;
+  // What was actually saved this period. Can be negative — a deficit
+  // month is real and should be shown as such, not hidden as KES 0.
+  double get _netSaved => _income - _expenses;
 
   void _showAddSheet({FinanceTransaction? editing}) {
     showModalBottomSheet(
@@ -171,7 +175,8 @@ class _FinanceManagerScreenState extends State<FinanceManagerScreen>
                   onMonthChanged: (m) => setState(() => _selectedMonth = m),
                   income: _income,
                   expenses: _expenses,
-                  balance: _balance,
+                  mpesaBalance: _mpesaBalance,
+                  netSaved: _netSaved,
                   smsGranted: _smsGranted,
                   onRequestSms: _requestSms,
                   fmt: fmt,
@@ -213,7 +218,10 @@ class _OverviewTab extends StatelessWidget {
   final List<String> months;
   final String selectedMonth;
   final ValueChanged<String> onMonthChanged;
-  final double income, expenses, balance;
+  final double income, expenses;
+  // mpesaBalance = real running M-Pesa account balance.
+  // netSaved = income - expenses for the period; can be negative.
+  final double mpesaBalance, netSaved;
   final bool smsGranted;
   final VoidCallback onRequestSms;
   final NumberFormat fmt;
@@ -221,14 +229,15 @@ class _OverviewTab extends StatelessWidget {
   const _OverviewTab({
     required this.all, required this.filtered, required this.months,
     required this.selectedMonth, required this.onMonthChanged,
-    required this.income, required this.expenses, required this.balance,
+    required this.income, required this.expenses,
+    required this.mpesaBalance, required this.netSaved,
     required this.smsGranted, required this.onRequestSms, required this.fmt,
   });
 
   @override
   Widget build(BuildContext context) {
     final categories = SmsFinanceService.expensesByCategory(filtered);
-    final savingsRate = income > 0 ? ((balance / income) * 100).clamp(0.0, 100.0) : 0.0;
+    final savingsRate = income > 0 ? ((netSaved / income) * 100).clamp(-100.0, 100.0) : 0.0;
     final byMonth = SmsFinanceService.groupByMonth(all);
     final sortedMonths = byMonth.keys.toList()..sort((a, b) => b.compareTo(a));
 
@@ -266,14 +275,23 @@ class _OverviewTab extends StatelessWidget {
           _MonthPicker(months: months, selected: selectedMonth, onChanged: onMonthChanged),
           const SizedBox(height: 16),
 
-          // Summary cards
+          // Summary cards — Income/Expenses are what happened; Net Saved is
+          // income minus expenses (can be negative — a deficit is real and
+          // shown honestly, not hidden as KES 0); M-Pesa Balance is the
+          // separate, real running account balance, not a derived figure.
           Row(children: [
             Expanded(child: _SummaryCard('Income', income, const Color(0xFF059669), Icons.arrow_downward_rounded, fmt)),
             const SizedBox(width: 10),
             Expanded(child: _SummaryCard('Expenses', expenses, const Color(0xFFDC2626), Icons.arrow_upward_rounded, fmt)),
+          ]),
+          const SizedBox(height: 10),
+          Row(children: [
+            Expanded(child: _SummaryCard('Net Saved', netSaved,
+                netSaved < 0 ? const Color(0xFFDC2626) : AppColors.financeGreen,
+                netSaved < 0 ? Icons.trending_down_rounded : Icons.trending_up_rounded, fmt)),
             const SizedBox(width: 10),
-            Expanded(child: _SummaryCard('M-Pesa Bal', balance,
-                AppColors.financeGreen,
+            Expanded(child: _SummaryCard('M-Pesa Balance', mpesaBalance,
+                const Color(0xFF6366F1),
                 Icons.account_balance_wallet_outlined, fmt)),
           ]),
           const SizedBox(height: 16),
@@ -303,8 +321,9 @@ class _OverviewTab extends StatelessWidget {
               final mTxs = byMonth[m]!;
               final mInc = SmsFinanceService.totalIncome(mTxs);
               final mExp = SmsFinanceService.totalExpenses(mTxs);
-              // Balance transaction = closing - opening; never shown negative
-              final mBal = (mInc - mExp).clamp(0, double.infinity);
+              // Net saved this month = income - expenses. Can be negative —
+              // a deficit month is shown honestly, not clamped to 0.
+              final mNet = mInc - mExp;
               final hasUnexplained = mInc > mExp + 0.01;
               final label = DateFormat('MMM yy').format(DateFormat('yyyy-MM').parse(m));
               return Container(
@@ -334,9 +353,13 @@ class _OverviewTab extends StatelessWidget {
                     const SizedBox(width: 8),
                     Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
                       Text(
-                        'KES ${fmt.format(mBal)}',
-                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 11, color: AppColors.financeGreen),
+                        mNet < 0 ? '-KES ${fmt.format(mNet.abs())}' : 'KES ${fmt.format(mNet)}',
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold, fontSize: 11,
+                          color: mNet < 0 ? const Color(0xFFDC2626) : AppColors.financeGreen,
+                        ),
                       ),
+                      Text('net', style: TextStyle(fontSize: 8, color: Colors.grey.shade400)),
                       if (hasUnexplained)
                         Text('bal txn', style: TextStyle(fontSize: 9, color: Colors.orange.shade700)),
                     ]),
@@ -501,8 +524,9 @@ class _BudgetTab extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final categories = SmsFinanceService.expensesByCategory(filtered);
-    final savedAmt = (income - expenses).clamp(0.0, double.infinity);
-    final savingsRate = income > 0 ? (savedAmt / income * 100).clamp(0.0, 100.0) : 0.0;
+    // Real net saved this period — can be negative on a deficit month.
+    final savedAmt = income - expenses;
+    final savingsRate = income > 0 ? (savedAmt / income * 100).clamp(-100.0, 100.0) : 0.0;
 
     // 50/30/20 rule targets
     final needs = income * 0.50;
@@ -550,7 +574,7 @@ class _BudgetTab extends StatelessWidget {
                     const SizedBox(width: 8),
                     Expanded(child: _budgetPill('Wants\n30%', wantsSpend, wants, Colors.white, Colors.white30)),
                     const SizedBox(width: 8),
-                    Expanded(child: _budgetPill('Savings\n20%', savedAmt, savingsTarget, Colors.white, Colors.white30)),
+                    Expanded(child: _budgetPill('Savings\n20%', savedAmt, savingsTarget, Colors.white, Colors.white30, higherIsBetter: true)),
                   ],
                 ),
               ],
@@ -582,8 +606,8 @@ class _BudgetTab extends StatelessWidget {
     );
   }
 
-  Widget _budgetPill(String label, double actual, double target, Color fg, Color bg) {
-    final ok = actual <= target;
+  Widget _budgetPill(String label, double actual, double target, Color fg, Color bg, {bool higherIsBetter = false}) {
+    final ok = higherIsBetter ? actual >= target : actual <= target;
     return Container(
       padding: const EdgeInsets.all(10),
       decoration: BoxDecoration(color: bg, borderRadius: BorderRadius.circular(10)),
@@ -591,8 +615,10 @@ class _BudgetTab extends StatelessWidget {
         children: [
           Text(label, style: TextStyle(color: fg, fontSize: 10, fontWeight: FontWeight.bold), textAlign: TextAlign.center),
           const SizedBox(height: 6),
-          Text('KES ${(actual / 1000).toStringAsFixed(1)}k',
-              style: TextStyle(color: ok ? fg : Colors.orange, fontWeight: FontWeight.bold, fontSize: 11)),
+          Text(
+            actual < 0 ? '-KES ${(actual.abs() / 1000).toStringAsFixed(1)}k' : 'KES ${(actual / 1000).toStringAsFixed(1)}k',
+            style: TextStyle(color: ok ? fg : Colors.orange, fontWeight: FontWeight.bold, fontSize: 11),
+          ),
           Text('of KES ${(target / 1000).toStringAsFixed(1)}k',
               style: TextStyle(color: fg.withValues(alpha: 0.7), fontSize: 9)),
         ],
@@ -968,7 +994,10 @@ class _SummaryCard extends StatelessWidget {
         const SizedBox(height: 8),
         Text(title, style: const TextStyle(fontSize: 11, color: Color(0xFF6B7280), fontWeight: FontWeight.w500)),
         const SizedBox(height: 4),
-        Text('KES ${fmt.format(amount)}', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: color)),
+        Text(
+          amount < 0 ? '-KES ${fmt.format(amount.abs())}' : 'KES ${fmt.format(amount)}',
+          style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: color),
+        ),
       ]),
     );
   }
@@ -1287,11 +1316,12 @@ class _StatementCardState extends State<_StatementCard> {
 
     final double totalIncome = widget.monthStmt != null
         ? widget.monthStmt!.totalIncome.toDouble()
-        : txs.where((t) => t.isIncome).fold(0.0, (s, t) => s + t.amount);
+        : SmsFinanceService.totalIncome(txs);
     final double totalExpense = widget.monthStmt != null
         ? widget.monthStmt!.expenses.toDouble()
-        : txs.where((t) => !t.isIncome).fold(0.0, (s, t) => s + t.amount);
-    final net = (totalIncome - totalExpense).clamp(0.0, double.infinity);
+        : SmsFinanceService.totalExpenses(txs);
+    // Real net for the period — can be negative on a deficit.
+    final net = totalIncome - totalExpense;
     final double unexplained = widget.monthStmt != null
         ? widget.monthStmt!.unexplainedIncome.toDouble()
         : 0.0;
@@ -1403,11 +1433,13 @@ class _StatementCardState extends State<_StatementCard> {
               children: [
                 const Text('NET BALANCE',
                     style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Color(0xFF111827))),
-                Text('KES ${fmt.format(net)}',
-                    style: TextStyle(
-                      fontWeight: FontWeight.bold, fontSize: 14,
-                      color: net > 0 ? const Color(0xFF059669) : const Color(0xFF374151),
-                    )),
+                Text(
+                  net < 0 ? '-KES ${fmt.format(net.abs())}' : 'KES ${fmt.format(net)}',
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold, fontSize: 14,
+                    color: net > 0 ? const Color(0xFF059669) : net < 0 ? const Color(0xFFDC2626) : const Color(0xFF374151),
+                  ),
+                ),
               ],
             ),
           ),

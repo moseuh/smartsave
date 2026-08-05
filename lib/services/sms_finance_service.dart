@@ -11,8 +11,9 @@ enum MpesaType {
   buyGoods,       // KES X paid to BUSINESS for account YYYY (Till)
   withdraw,       // KES X withdrawn from Agent XXXXX
   airtime,        // KES X airtime purchased
-  fuliza,         // Fuliza M-PESA – KES X
-  reversal,       // Transaction reversal
+  fuliza,         // Fuliza M-PESA borrowed – KES X
+  fulizaRepay,    // Fuliza M-PESA repaid – KES X (nets against a prior `fuliza` borrow)
+  reversal,       // Transaction reversal (nets against a prior expense of the same amount)
   salary,         // Salary / payroll credit
   unknown,
 }
@@ -255,13 +256,22 @@ class SmsFinanceService {
 
     // ── EXPENSES ───────────────────────────────────────────────────
 
-    // FULIZA – only when you actually borrowed (not informational Safaricom messages
-    // like "Your Fuliza limit is Ksh X" which don't represent a real transaction)
+    // FULIZA REPAYMENT – checked before the general borrow branch so a
+    // repay SMS (which may also mention "fuliza mpesa") lands here first.
+    // Nets against a prior `fuliza` borrow in SmsFinanceService.netted().
+    else if (b.contains('fuliza') && b.contains('repay')) {
+      mpesaType = MpesaType.fulizaRepay;
+      isIncome = false;
+      category = 'Fuliza';
+      description = 'Fuliza Repayment';
+    }
+
+    // FULIZA BORROW – only when you actually borrowed (not informational
+    // Safaricom messages like "Your Fuliza limit is Ksh X")
     else if (b.contains('fuliza') &&
         (b.contains('you have used') ||
          b.contains('fuliza mpesa') ||
-         b.contains('borrowed') ||
-         b.contains('repay'))) {
+         b.contains('borrowed'))) {
       mpesaType = MpesaType.fuliza;
       isIncome = false;
       category = 'Fuliza';
@@ -491,6 +501,15 @@ class SmsFinanceService {
   /// - Unexplained balance increases are treated as income
   /// - Balance can never go negative
   static BalanceStatement buildStatement(List<FinanceTransaction> txs) {
+    // Netting must NOT remove entries from the walk below — the real SMS
+    // balanceAfter readings reflect the true, un-netted sequence of events,
+    // so removing a leg would desync `expected` vs `actual` and corrupt
+    // unexplainedIncome detection. Instead: walk the true sequence for
+    // balance tracking, but skip netted-away legs when accumulating
+    // income/expenses, and fold in the synthetic Fuliza-fee entries
+    // separately (they carry no balanceAfter of their own).
+    final plan = _planNetting(txs);
+
     // Work oldest-first, only include txs that have a recorded balance
     final withBalance = txs.where((t) => t.balanceAfter != null).toList()
       ..sort((a, b) => a.date.compareTo(b.date));
@@ -524,14 +543,28 @@ class SmsFinanceService {
         accum.unexplainedIncome += unexplained;
       }
 
-      if (tx.isIncome) {
-        accum.income += tx.amount;
-      } else {
-        accum.expenses += tx.amount;
+      // Only count toward gross income/expenses if this leg survived
+      // netting — a Fuliza borrow/repay or expense/reversal that was
+      // matched away still moves the real balance (walked above) but
+      // shouldn't inflate the displayed totals.
+      if (!plan.consumed.contains(tx.id)) {
+        if (tx.isIncome) {
+          accum.income += tx.amount;
+        } else {
+          accum.expenses += tx.amount;
+        }
       }
 
       accum.closingBalance = actual.clamp(0, double.infinity);
       runningBalance = accum.closingBalance;
+    }
+
+    // Fold in synthetic Fuliza-fee entries (no balanceAfter of their own)
+    // into whichever month they landed in.
+    for (final fee in plan.feeEntries) {
+      final key = '${fee.date.year}-${fee.date.month.toString().padLeft(2, '0')}';
+      final accum = months[key];
+      if (accum != null) accum.expenses += fee.amount;
     }
 
     final sortedKeys = months.keys.toList()..sort((a, b) => b.compareTo(a));
@@ -553,6 +586,96 @@ class SmsFinanceService {
     );
   }
 
+  // ── Netting: collapse round-trips that inflate gross totals ─────────
+  // Fuliza borrow+repay and expense+reversal are each a single economic
+  // event split across two SMS. Left as-is they double-count in gross
+  // Income/Expenses and in the Fuliza spending-breakdown category. This
+  // returns a new list where matched pairs are collapsed/removed:
+  //  - Fuliza borrow + its later repay → one net expense (the fee, if
+  //    repay > borrow) or dropped entirely (if repay == borrow, no fee
+  //    captured in these two SMS).
+  //  - Expense + its later reversal of the same amount → both removed
+  //    (no net economic activity occurred).
+  // Unmatched borrows/repays/reversals are left untouched — never force
+  // a match that isn't really there.
+  static List<FinanceTransaction> netted(List<FinanceTransaction> txs) {
+    final plan = _planNetting(txs);
+    final result = <FinanceTransaction>[
+      for (final tx in txs)
+        if (!plan.consumed.contains(tx.id)) tx,
+      ...plan.feeEntries,
+    ];
+    return result;
+  }
+
+  // Computes which transaction IDs get folded away by netting, plus any
+  // synthetic "fee" entries created from matched Fuliza pairs. Exposed
+  // separately (not just via netted()'s returned list) because
+  // buildStatement() needs to know which IDs to exclude from its
+  // income/expense accumulators while still walking the TRUE transaction
+  // sequence for balance reconciliation — removing entries from the
+  // sequence itself would desync the running-balance math from what the
+  // SMS actually reported happening, in order.
+  static _NettingPlan _planNetting(List<FinanceTransaction> txs) {
+    final sorted = [...txs]..sort((a, b) => a.date.compareTo(b.date));
+    final consumed = <String>{};
+    final feeEntries = <FinanceTransaction>[];
+
+    bool amountsMatch(double a, double b) => (a - b).abs() < 1;
+
+    for (final tx in sorted) {
+      if (consumed.contains(tx.id)) continue;
+
+      if (tx.mpesaType == MpesaType.fuliza) {
+        // Look ahead for a matching repay within 30 days.
+        final repay = sorted.firstWhere(
+          (t) => !consumed.contains(t.id) &&
+              t.mpesaType == MpesaType.fulizaRepay &&
+              t.date.isAfter(tx.date) &&
+              t.date.difference(tx.date).inDays <= 30,
+          orElse: () => tx, // sentinel: "no match found"
+        );
+        if (!identical(repay, tx)) {
+          consumed.add(tx.id);
+          consumed.add(repay.id);
+          final fee = repay.amount - tx.amount;
+          if (fee > 1) {
+            feeEntries.add(FinanceTransaction(
+              id: '${tx.id}_fee',
+              amount: fee,
+              isIncome: false,
+              category: 'Fuliza',
+              description: 'Fuliza Fee',
+              date: repay.date,
+              source: tx.source,
+              mpesaType: MpesaType.fulizaRepay,
+            ));
+          }
+          continue;
+        }
+      }
+
+      if (!tx.isIncome && tx.mpesaType != MpesaType.fuliza && tx.mpesaType != MpesaType.fulizaRepay) {
+        // Look ahead for a reversal of this exact expense within 7 days.
+        final reversal = sorted.firstWhere(
+          (t) => !consumed.contains(t.id) &&
+              t.mpesaType == MpesaType.reversal &&
+              amountsMatch(t.amount, tx.amount) &&
+              t.date.isAfter(tx.date) &&
+              t.date.difference(tx.date).inDays <= 7,
+          orElse: () => tx, // sentinel: "no match found"
+        );
+        if (!identical(reversal, tx)) {
+          consumed.add(tx.id);
+          consumed.add(reversal.id);
+          continue;
+        }
+      }
+    }
+
+    return _NettingPlan(consumed: consumed, feeEntries: feeEntries);
+  }
+
   // ── Summary helpers ────────────────────────────────────────────────
   static Map<String, List<FinanceTransaction>> groupByMonth(List<FinanceTransaction> txs) {
     final map = <String, List<FinanceTransaction>>{};
@@ -563,15 +686,19 @@ class SmsFinanceService {
     return map;
   }
 
-  static double totalIncome(List<FinanceTransaction> txs) =>
-      txs.where((t) => t.isIncome).fold(0, (s, t) => s + t.amount);
+  static double totalIncome(List<FinanceTransaction> txs) {
+    final n = netted(txs);
+    return n.where((t) => t.isIncome).fold(0, (s, t) => s + t.amount);
+  }
 
-  static double totalExpenses(List<FinanceTransaction> txs) =>
-      txs.where((t) => !t.isIncome).fold(0, (s, t) => s + t.amount);
+  static double totalExpenses(List<FinanceTransaction> txs) {
+    final n = netted(txs);
+    return n.where((t) => !t.isIncome).fold(0, (s, t) => s + t.amount);
+  }
 
   static Map<String, double> expensesByCategory(List<FinanceTransaction> txs) {
     final map = <String, double>{};
-    for (final t in txs.where((t) => !t.isIncome)) {
+    for (final t in netted(txs).where((t) => !t.isIncome)) {
       map[t.category] = (map[t.category] ?? 0) + t.amount;
     }
     return Map.fromEntries(
@@ -667,4 +794,10 @@ class _MonthAccum {
   _MonthAccum(this.key, double opening)
       : openingBalance = opening,
         closingBalance = opening;
+}
+
+class _NettingPlan {
+  final Set<String> consumed;
+  final List<FinanceTransaction> feeEntries;
+  const _NettingPlan({required this.consumed, required this.feeEntries});
 }

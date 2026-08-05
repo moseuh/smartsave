@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
+import 'package:intl/intl.dart';
 import 'dart:convert';
 import '../constants/app_constants.dart';
 import '../constants/app_theme.dart';
@@ -143,6 +144,15 @@ class _ProfileState extends State<Profile> {
     _phoneController.dispose();
     _dobController.dispose();
     super.dispose();
+  }
+
+  String _formatDob(String raw) {
+    if (raw.isEmpty) return 'N/A';
+    try {
+      return DateFormat('d MMMM yyyy').format(DateTime.parse(raw));
+    } catch (_) {
+      return raw;
+    }
   }
 
   void _openEditDetails() {
@@ -492,7 +502,7 @@ class _ProfileState extends State<Profile> {
                           _buildInfoRow(Icons.person_outline, 'Full Name', name),
                           _buildInfoRow(Icons.email_outlined, 'Email', email.isNotEmpty ? email : 'N/A'),
                           _buildInfoRow(Icons.phone_outlined, 'Phone Number', phone.isNotEmpty ? phone : 'N/A'),
-                          _buildInfoRow(Icons.cake_outlined, 'Date of Birth', dob.isNotEmpty ? dob : 'N/A'),
+                          _buildInfoRow(Icons.cake_outlined, 'Date of Birth', _formatDob(dob)),
                         ]),
                         const SizedBox(height: 16),
                         SizedBox(

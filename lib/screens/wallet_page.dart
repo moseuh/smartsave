@@ -610,10 +610,10 @@ class _WalletPageState extends State<WalletPage> {
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (_) => Padding(
-        padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
+      builder: (sheetCtx) => Padding(
+        padding: EdgeInsets.only(bottom: MediaQuery.of(sheetCtx).viewInsets.bottom),
         child: Container(
-          padding: const EdgeInsets.fromLTRB(24, 20, 24, 32),
+          padding: EdgeInsets.fromLTRB(24, 20, 24, MediaQuery.of(sheetCtx).padding.bottom + 32),
           decoration: const BoxDecoration(
             color: Colors.white,
             borderRadius: BorderRadius.vertical(top: Radius.circular(24)),

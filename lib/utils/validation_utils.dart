@@ -64,6 +64,25 @@ class ValidationUtils {
     return null;
   }
 
+  /// Kenyan M-Pesa phone validation — accepts 07XX/01XX, 2547XX/2541XX, 7XX/1XX
+  /// Returns null when valid, otherwise a user-facing error message.
+  static String? validateKenyanPhone(String? value) {
+    if (value == null || value.trim().isEmpty) {
+      return 'Please enter a phone number';
+    }
+    final s = value.trim().replaceAll(RegExp(r'[\s\-\(\)\+]'), '');
+    if (!RegExp(r'^\d+$').hasMatch(s)) {
+      return 'Phone number can only contain digits';
+    }
+    String n = s;
+    if (n.startsWith('0')) n = '254${n.substring(1)}';
+    if ((n.startsWith('7') || n.startsWith('1')) && n.length == 9) n = '254$n';
+    if (!RegExp(r'^254[71]\d{8}$').hasMatch(n)) {
+      return 'Enter a valid Kenyan number e.g. 0712345678';
+    }
+    return null;
+  }
+
   /// Required field validation
   static String? validateRequired(String? value, String fieldName) {
     if (value == null || value.isEmpty) {

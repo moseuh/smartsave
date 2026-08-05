@@ -1,7 +1,7 @@
 name: smartsave
 description: "SmartSave - Your intelligent financial companion"
 publish_to: 'none'
-version: 0.1.0
+version: 1.0.3+3
 
 environment:
   sdk: ^3.6.1
@@ -50,6 +50,7 @@ dependencies:
 
   flutter_svg: ^2.3.0
   onesignal_flutter: ^5.3.1
+  flutter_expandable_fab: ^2.3.0
 
 dev_dependencies:
   flutter_test:

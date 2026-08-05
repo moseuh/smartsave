@@ -56,10 +56,10 @@ class _GoalHistoryScreenState extends State<GoalHistoryScreen> {
   @override
   Widget build(BuildContext context) {
     final g      = widget.goal;
-    final name   = g['title']?.toString().isNotEmpty == true ? g['title'] : g['goal_name'] ?? 'Goal';
+    final name   = g['goal_name']?.toString().isNotEmpty == true ? g['goal_name'] : g['title'] ?? 'Goal';
     final type   = g['goal_type']?.toString() ?? '';
     final color  = _goalColor(type);
-    final target = double.tryParse(g['target_amount']?.toString() ?? '0') ?? 0;
+    final target = double.tryParse((g['goal_amount'] ?? g['target_amount'] ?? 0).toString()) ?? 0;
     final saved  = double.tryParse(g['current_amount']?.toString() ?? '0') ?? 0;
     final pct    = target > 0 ? (saved / target).clamp(0.0, 1.0) : 0.0;
 
@@ -169,44 +169,105 @@ class _TxRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final amt  = (tx['amount'] as num?)?.toDouble() ?? 0;
-    final type = tx['type']?.toString() ?? 'savings';
     final time = tx['created_at']?.toString() ?? '';
-    final isRoundup = type.contains('buy_goods') || type.contains('pay_bill');
+    final isOut = (tx['direction']?.toString() ?? 'in') == 'out';
+    final isRoundup = tx['label']?.toString() == 'Round-up savings';
+    final label = tx['label']?.toString() ?? (isOut ? 'Payment' : 'Deposit');
+    final rowColor = isOut ? const Color(0xFFDC2626) : color;
 
-    return Container(
-      margin: const EdgeInsets.only(bottom: 10),
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(14),
-        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.03), blurRadius: 6)],
-      ),
-      child: Row(children: [
-        Container(
-          width: 40, height: 40,
-          decoration: BoxDecoration(
-            color: color.withValues(alpha: 0.1),
-            borderRadius: BorderRadius.circular(12),
-          ),
-          child: Icon(
-            isRoundup ? Icons.savings_rounded : Icons.add_circle_outline_rounded,
-            size: 20, color: color,
-          ),
+    return GestureDetector(
+      onTap: () => _showDetail(context),
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 10),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(14),
+          boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.03), blurRadius: 6)],
         ),
-        const SizedBox(width: 12),
-        Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text(
-            isRoundup ? 'Round-up savings' : 'Manual contribution',
-            style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14, color: Color(0xFF111827)),
+        child: Row(children: [
+          Container(
+            width: 40, height: 40,
+            decoration: BoxDecoration(
+              color: rowColor.withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Icon(
+              isOut ? Icons.arrow_upward_rounded
+                  : isRoundup ? Icons.savings_rounded : Icons.add_circle_outline_rounded,
+              size: 20, color: rowColor,
+            ),
           ),
-          if (time.isNotEmpty)
-            Text(_formatTime(time), style: const TextStyle(fontSize: 11, color: Color(0xFF9CA3AF))),
-        ])),
-        Text('+KES ${fmt.format(amt)}',
-            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: color)),
-      ]),
+          const SizedBox(width: 12),
+          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text(
+              label,
+              style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14, color: Color(0xFF111827)),
+              maxLines: 1, overflow: TextOverflow.ellipsis,
+            ),
+            if (time.isNotEmpty)
+              Text(_formatTime(time), style: const TextStyle(fontSize: 11, color: Color(0xFF9CA3AF))),
+          ])),
+          Text('${isOut ? '-' : '+'}KES ${fmt.format(amt)}',
+              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: rowColor)),
+        ]),
+      ),
     );
   }
+
+  void _showDetail(BuildContext context) {
+    final amt = (tx['amount'] as num?)?.toDouble() ?? 0;
+    final type = tx['type']?.toString() ?? '';
+    final charge = (tx['service_charge'] as num?)?.toDouble() ?? 0;
+    final total = (tx['total_charged'] as num?)?.toDouble() ?? amt + charge;
+    final label = tx['label']?.toString() ?? (type.contains('deposit') ? 'Deposit' : 'Transaction');
+    final time = tx['created_at']?.toString() ?? '';
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => Container(
+        padding: EdgeInsets.fromLTRB(24, 24, 24, MediaQuery.of(ctx).padding.bottom + 24),
+        decoration: const BoxDecoration(color: Colors.white, borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          Container(width: 40, height: 4, decoration: BoxDecoration(color: const Color(0xFFE5E7EB), borderRadius: BorderRadius.circular(2))),
+          const SizedBox(height: 20),
+          Builder(builder: (_) {
+            final isOut = (tx['direction']?.toString() ?? 'in') == 'out';
+            final dColor = isOut ? const Color(0xFFDC2626) : color;
+            return Column(children: [
+              Container(width: 60, height: 60,
+                decoration: BoxDecoration(color: dColor.withValues(alpha: 0.1), shape: BoxShape.circle),
+                child: Icon(isOut ? Icons.arrow_upward_rounded : Icons.arrow_downward_rounded, color: dColor, size: 28)),
+              const SizedBox(height: 12),
+              Text(label, style: const TextStyle(fontSize: 17, fontWeight: FontWeight.bold, color: Color(0xFF111827))),
+              const SizedBox(height: 4),
+              Text('${isOut ? '-' : '+'}KES ${fmt.format(amt)}', style: TextStyle(fontSize: 24, fontWeight: FontWeight.w800, color: dColor)),
+            ]);
+          }),
+          const SizedBox(height: 20),
+          if (time.isNotEmpty) _row('Date', () {
+            try { return DateFormat('d MMM yyyy, HH:mm').format(DateTime.parse(time).toLocal()); }
+            catch (_) { return time; }
+          }()),
+          if (charge > 0) ...[
+            const Divider(height: 20, color: Color(0xFFF3F4F6)),
+            _row('Amount', 'KES ${fmt.format(amt)}'),
+            _row('Fee', 'KES ${fmt.format(charge)}'),
+            _row('Total charged', 'KES ${fmt.format(total)}'),
+          ],
+          const SizedBox(height: 16),
+        ]),
+      ),
+    );
+  }
+
+  Widget _row(String label, String value) => Padding(
+    padding: const EdgeInsets.symmetric(vertical: 5),
+    child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+      Text(label, style: const TextStyle(color: Color(0xFF6B7280), fontSize: 13)),
+      Text(value, style: const TextStyle(color: Color(0xFF111827), fontSize: 13, fontWeight: FontWeight.w600)),
+    ]),
+  );
 
   String _formatTime(String iso) {
     try {
@@ -259,7 +320,7 @@ class _GoalsDashboardState extends State<GoalsDashboard> {
   }
 
   double _progress(Map<String, dynamic> g) {
-    final target = double.tryParse(g['target_amount']?.toString() ?? '0') ?? 0;
+    final target = double.tryParse((g['goal_amount'] ?? g['target_amount'] ?? 0).toString()) ?? 0;
     final current = double.tryParse(g['current_amount']?.toString() ?? '0') ?? 0;
     return target > 0 ? (current / target).clamp(0.0, 1.0) : 0.0;
   }
@@ -301,7 +362,7 @@ class _GoalsDashboardState extends State<GoalsDashboard> {
 
   @override
   Widget build(BuildContext context) {
-    final totalTarget = goals.fold(0.0, (s, g) => s + (double.tryParse(g['target_amount']?.toString() ?? '0') ?? 0));
+    final totalTarget = goals.fold(0.0, (s, g) => s + (double.tryParse((g['goal_amount'] ?? g['target_amount'] ?? 0).toString()) ?? 0));
     final totalSaved = goals.fold(0.0, (s, g) => s + (double.tryParse(g['current_amount']?.toString() ?? '0') ?? 0));
     final overallPct = totalTarget > 0 ? (totalSaved / totalTarget).clamp(0.0, 1.0) : 0.0;
 
@@ -447,12 +508,12 @@ class _GoalCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final target = double.tryParse(goal['target_amount']?.toString() ?? '0') ?? 0;
+    final target = double.tryParse((goal['goal_amount'] ?? goal['target_amount'] ?? 0).toString()) ?? 0;
     final current = double.tryParse(goal['current_amount']?.toString() ?? '0') ?? 0;
-    final name = goal['title']?.toString().isNotEmpty == true
-        ? goal['title']
-        : goal['goal_name']?.toString().isNotEmpty == true
-            ? goal['goal_name']
+    final name = goal['goal_name']?.toString().isNotEmpty == true
+        ? goal['goal_name']
+        : goal['title']?.toString().isNotEmpty == true
+            ? goal['title']
             : 'My Goal';
     final type = goal['goal_type']?.toString() ?? 'General';
     final isComplete = progress >= 1.0;
@@ -517,7 +578,7 @@ class _GoalCard extends StatelessWidget {
               borderRadius: BorderRadius.circular(6),
               child: LinearProgressIndicator(
                 value: progress,
-                backgroundColor: const Color(0xFFF3F4F6),
+                backgroundColor: (isComplete ? const Color(0xFF059669) : color).withValues(alpha: 0.15),
                 valueColor: AlwaysStoppedAnimation(isComplete ? const Color(0xFF059669) : color),
                 minHeight: 8,
               ),

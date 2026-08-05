@@ -6,6 +6,7 @@ import 'package:intl/intl.dart';
 import 'expenditure_screen.dart';
 import 'finance_manager_screen.dart';
 import 'ask_nia_screen.dart';
+import 'debt_manager_screen.dart';
 
 class FinanceTab extends StatefulWidget {
   final String userId;
@@ -117,8 +118,26 @@ class _FinanceTabState extends State<FinanceTab> {
 
   double get _income => SmsFinanceService.totalIncome(_filtered);
   double get _expenses => SmsFinanceService.totalExpenses(_filtered);
-  double get _balance => _statement?.currentBalance ?? 0;
-  double get _savingsRate => _income > 0 ? ((_income - _expenses) / _income * 100).clamp(0.0, 100.0) : 0.0;
+
+  // Real M-Pesa running balance for the selected period — the most recent
+  // month's closing balance within _range, not always "today's" balance.
+  double get _balance {
+    final months = _statement?.months;
+    if (months == null || months.isEmpty) return 0;
+    final r = _range;
+    final inRange = months.where((m) {
+      final parts = m.month.split('-');
+      final y = int.parse(parts[0]);
+      final mo = int.parse(parts[1]);
+      final monthStart = DateTime(y, mo, 1);
+      final monthEnd = DateTime(y, mo + 1, 1).subtract(const Duration(seconds: 1));
+      return !monthEnd.isBefore(r.start) && !monthStart.isAfter(r.end);
+    }).toList();
+    if (inRange.isEmpty) return _statement!.currentBalance;
+    return inRange.first.closingBalance;
+  }
+
+  double get _savingsRate => _income > 0 ? ((_income - _expenses) / _income * 100).clamp(-100.0, 100.0) : 0.0;
 
   Future<void> _pickPeriod() async {
     final chosen = await showModalBottomSheet<_Period>(
@@ -292,6 +311,14 @@ class _FinanceTabState extends State<FinanceTab> {
                   subtitle: 'Auto-parsed M-Pesa & bank transactions by month',
                   gradient: const LinearGradient(colors: [Color(0xFF2D8A47), Color(0xFF51AA44)]),
                   onTap: () => _go(ExpenditureScreen(userId: widget.userId)),
+                ),
+                const SizedBox(height: 12),
+                _ModuleCard(
+                  icon: Icons.account_balance_outlined,
+                  title: 'Debt Manager',
+                  subtitle: 'Track what you owe, top up, and pay it down',
+                  gradient: const LinearGradient(colors: [Color(0xFF51AA44), Color(0xFF7FC26E)]),
+                  onTap: () => _go(DebtManagerScreen(userId: widget.userId)),
                 ),
                 const SizedBox(height: 24),
 
@@ -546,7 +573,7 @@ class _PeriodSheet extends StatelessWidget {
               onTap: () => Navigator.pop(context, period),
             );
           }),
-          const SizedBox(height: 16),
+          SizedBox(height: MediaQuery.of(context).padding.bottom + 16),
         ],
       ),
     );

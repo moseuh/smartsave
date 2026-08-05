@@ -420,23 +420,40 @@ class _TxRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final type = (tx['type']?.toString() ?? '').toLowerCase();
-    final isIn = type.contains('deposit');
+    final isIn = type.contains('deposit') || type.contains('rafiki_borrow');
     final amount = double.tryParse((tx['total_amount'] ?? 0).toString()) ?? 0;
+    final status = (tx['transaction_status'] ?? tx['status'] ?? 'completed').toString().toLowerCase();
+    final refundedToWallet = tx['refunded_to_wallet'] == true;
 
     final title = tx['business_name']?.toString().isNotEmpty == true
         ? tx['business_name'].toString()
-        : isIn
-            ? 'Wallet Deposit'
-            : type.contains('pay_bill')
-                ? 'Pay Bill'
-                : type.contains('buy_goods')
-                    ? 'Buy Goods'
-                    : 'Transaction';
+        : type.contains('rafiki_borrow')
+            ? 'Rafiki2Rafiki'
+            : type.contains('deposit')
+                ? 'Wallet Deposit'
+                : type.contains('pay_bill')
+                    ? 'Pay Bill'
+                    : type.contains('buy_goods')
+                        ? 'Buy Goods'
+                        : 'Transaction';
 
     String timeStr = '';
     try {
       timeStr = DateFormat('HH:mm').format(DateTime.parse(tx['created_at'] ?? '').toLocal());
     } catch (_) {}
+
+    Color statusColor;
+    String statusLabel;
+    if (status == 'failed') {
+      statusColor = refundedToWallet ? const Color(0xFF2563EB) : const Color(0xFFDC2626);
+      statusLabel = refundedToWallet ? 'Refunded to wallet' : 'Failed';
+    } else if (status == 'pending') {
+      statusColor = const Color(0xFFF59E0B);
+      statusLabel = 'Pending';
+    } else {
+      statusColor = const Color(0xFF059669);
+      statusLabel = 'Completed';
+    }
 
     final color = isIn ? const Color(0xFF059669) : const Color(0xFFDC2626);
     final bgColor = isIn ? const Color(0xFFECFDF5) : const Color(0xFFFEF2F2);
@@ -482,10 +499,10 @@ class _TxRow extends StatelessWidget {
                     children: [
                       Container(
                         width: 6, height: 6,
-                        decoration: const BoxDecoration(color: Color(0xFF059669), shape: BoxShape.circle),
+                        decoration: BoxDecoration(color: statusColor, shape: BoxShape.circle),
                       ),
                       const SizedBox(width: 5),
-                      const Text('Completed', style: TextStyle(fontSize: 11, color: Color(0xFF059669), fontWeight: FontWeight.w500)),
+                      Text(statusLabel, style: TextStyle(fontSize: 11, color: statusColor, fontWeight: FontWeight.w500)),
                       if (timeStr.isNotEmpty) ...[
                         const SizedBox(width: 8),
                         Text(timeStr, style: const TextStyle(fontSize: 11, color: Color(0xFF9CA3AF))),
@@ -496,8 +513,15 @@ class _TxRow extends StatelessWidget {
               ),
             ),
             Text(
-              '${isIn ? '+' : '-'}KES ${fmt.format(amount.abs())}',
-              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: color),
+              status == 'failed'
+                  ? 'KES ${fmt.format(amount.abs())}'
+                  : '${isIn ? '+' : '-'}KES ${fmt.format(amount.abs())}',
+              style: TextStyle(
+                fontWeight: FontWeight.bold,
+                fontSize: 14,
+                color: status == 'failed' ? const Color(0xFF9CA3AF) : color,
+                decoration: status == 'failed' ? TextDecoration.lineThrough : null,
+              ),
             ),
           ],
         ),
@@ -524,22 +548,24 @@ class _TxDetailSheet extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final type = (tx['type']?.toString() ?? '').toLowerCase();
-    final isIn = type.contains('deposit');
+    final isIn = type.contains('deposit') || type.contains('rafiki_borrow');
     final amount = double.tryParse((tx['total_amount'] ?? 0).toString()) ?? 0;
     final savings = double.tryParse((tx['savings_amount'] ?? 0).toString()) ?? 0;
     final status = (tx['transaction_status'] ?? tx['status'] ?? 'completed').toString().toLowerCase();
 
     final title = tx['business_name']?.toString().isNotEmpty == true
         ? tx['business_name'].toString()
-        : isIn
-            ? 'Wallet Deposit'
-            : type.contains('pay_bill')
-                ? 'Pay Bill'
-                : type.contains('buy_goods')
-                    ? 'Buy Goods'
-                    : type.contains('withdraw')
-                        ? 'Withdrawal'
-                        : 'Transaction';
+        : type.contains('rafiki_borrow')
+            ? 'Rafiki2Rafiki'
+            : type.contains('deposit')
+                ? 'Wallet Deposit'
+                : type.contains('pay_bill')
+                    ? 'Pay Bill'
+                    : type.contains('buy_goods')
+                        ? 'Buy Goods'
+                        : type.contains('withdraw')
+                            ? 'Withdrawal'
+                            : 'Transaction';
 
     String dateStr = '';
     try {
@@ -563,14 +589,17 @@ class _TxDetailSheet extends StatelessWidget {
       icon = Icons.receipt_long_rounded;
     }
 
+    final refundedToWallet = tx['refunded_to_wallet'] == true;
+    final errorMessage = tx['error_message']?.toString();
+
     Color statusColor;
     String statusLabel;
     if (status == 'completed') {
       statusColor = const Color(0xFF059669);
       statusLabel = 'Completed';
     } else if (status == 'failed') {
-      statusColor = const Color(0xFFDC2626);
-      statusLabel = 'Failed';
+      statusColor = refundedToWallet ? const Color(0xFF2563EB) : const Color(0xFFDC2626);
+      statusLabel = refundedToWallet ? 'Refunded to Wallet' : 'Failed';
     } else {
       statusColor = const Color(0xFFF59E0B);
       statusLabel = 'Pending';
@@ -603,8 +632,14 @@ class _TxDetailSheet extends StatelessWidget {
               style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF111827))),
           const SizedBox(height: 6),
           Text(
-            '${isIn ? '+' : '-'}KES ${fmt.format(amount.abs())}',
-            style: TextStyle(fontSize: 28, fontWeight: FontWeight.w800, color: color, letterSpacing: -0.5),
+            status == 'failed'
+                ? 'KES ${fmt.format(amount.abs())}'
+                : '${isIn ? '+' : '-'}KES ${fmt.format(amount.abs())}',
+            style: TextStyle(
+              fontSize: 28, fontWeight: FontWeight.w800, letterSpacing: -0.5,
+              color: status == 'failed' ? const Color(0xFF9CA3AF) : color,
+              decoration: status == 'failed' ? TextDecoration.lineThrough : null,
+            ),
           ),
           const SizedBox(height: 8),
 
@@ -640,6 +675,48 @@ class _TxDetailSheet extends StatelessWidget {
             _DetailRow(label: 'Amount Saved', value: 'KES ${fmt.format(savings)}', valueColor: const Color(0xFF059669)),
           if ((tx['id'] ?? '').toString().isNotEmpty)
             _DetailRow(label: 'Transaction ID', value: '#${tx['id']}'),
+
+          if (status == 'failed' && errorMessage != null && errorMessage.isNotEmpty) ...[
+            const SizedBox(height: 12),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                color: refundedToWallet ? const Color(0xFFEFF6FF) : const Color(0xFFFEF2F2),
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(
+                  color: (refundedToWallet ? const Color(0xFF2563EB) : const Color(0xFFDC2626)).withValues(alpha: 0.2),
+                ),
+              ),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Icon(
+                    refundedToWallet ? Icons.wallet_rounded : Icons.error_outline_rounded,
+                    size: 18,
+                    color: refundedToWallet ? const Color(0xFF2563EB) : const Color(0xFFDC2626),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          refundedToWallet ? 'Money returned to your wallet' : 'What happened',
+                          style: TextStyle(
+                            fontSize: 12, fontWeight: FontWeight.bold,
+                            color: refundedToWallet ? const Color(0xFF2563EB) : const Color(0xFFDC2626),
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(errorMessage, style: const TextStyle(fontSize: 12, color: Color(0xFF6B7280), height: 1.4)),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
 
           const SizedBox(height: 24),
 

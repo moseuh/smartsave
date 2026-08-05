@@ -8,10 +8,17 @@ import 'favourites.dart';
 import 'package:flutter_contacts/flutter_contacts.dart';
 import 'package:flutter_spinkit/flutter_spinkit.dart';
 import '../services/transaction_auth_service.dart';
+import '../utils/validation_utils.dart';
+import '../utils/phone_prompt.dart';
 
 // ─────────────────────────────────────────────────────────────────
 //  BuyGoodsSelect — Payment Screen (Buy Goods · Pay Bill · Send Money)
 // ─────────────────────────────────────────────────────────────────
+
+// Mirrors the server's serviceCharge(): 1.5% rounded UP to the next whole KES.
+// The M-Pesa combined flows must deposit enough to also cover the
+// wallet-to-merchant fee, which the server deducts from the wallet.
+int serviceFee(num amount) => (amount * 0.015).ceil();
 
 class BuyGoodsSelect extends StatefulWidget {
   final String userId;
@@ -79,20 +86,17 @@ class _BuyGoodsSelectState extends State<BuyGoodsSelect>
     return '';
   }
 
-  // Returns round-up savings amount based on active rules
-  double _calcRoundUp(double amount, bool isBuyGoods) {
+  // Returns round-up savings amount based on active rules.
+  // payType: 'buy_goods' | 'pay_bill' | 'send_money'
+  double _calcRoundUp(double amount, String payType) {
     if (roundupSettings == null) return 0;
-    final enabled = roundupSettings!['is_enabled'] == true;
-    final applies = isBuyGoods
-        ? roundupSettings!['buy_goods_round_up'] == true
-        : roundupSettings!['pay_bill_round_up'] == true;
-    if (!enabled || !applies || amount <= 0) return 0;
+    if (roundupSettings!['is_enabled'] != true || amount <= 0) return 0;
 
-    // Use rules if available
+    // Use rules if available — 'all'/'both' apply everywhere
     final activeRules = roundupRules.where((r) {
-      final a = r['applies_to']?.toString() ?? 'both';
+      final a = r['applies_to']?.toString() ?? 'all';
       final active = r['is_active'] == true || r['active'] == true;
-      return active && (a == 'both' || (isBuyGoods ? a == 'buy_goods' : a == 'pay_bill'));
+      return active && (a == 'all' || a == 'both' || a == payType);
     }).toList();
 
     if (activeRules.isNotEmpty) {
@@ -102,7 +106,9 @@ class _BuyGoodsSelectState extends State<BuyGoodsSelect>
         final val = double.tryParse(rule['value']?.toString() ?? '0') ?? 0;
         if (val <= 0) continue;
         if (type == 'percentage') {
-          total += amount * val / 100;
+          // Match server rounding (calcRoundSavings in payments.js) so the
+          // amount shown here is exactly what gets charged/credited.
+          total += (amount * val / 100 * 100).round() / 100;
         } else {
           // fixed: round up to next multiple
           final rounded = amount % val == 0 ? amount + val : (amount / val).ceil() * val;
@@ -122,6 +128,7 @@ class _BuyGoodsSelectState extends State<BuyGoodsSelect>
     final rounded = amount % rv == 0 ? amount + rv : (amount / rv).ceil() * rv;
     return (rounded - amount).clamp(0, maxRU);
   }
+
 
   String _normalizePhone(String raw) {
     var s = raw.trim().replaceAll(RegExp(r'[\s\-\(\)\+]'), '');
@@ -201,6 +208,9 @@ class _BuyGoodsSelectState extends State<BuyGoodsSelect>
                   userId: widget.userId,
                   userPhone: _userPhone,
                   normalizePhone: _normalizePhone,
+                  calcRoundUp: _calcRoundUp,
+                  roundupSettings: roundupSettings,
+                  roundupRules: roundupRules,
                 ),
               ],
             ),
@@ -214,7 +224,7 @@ class _BuyGoodsSelectState extends State<BuyGoodsSelect>
 
 class _BuyGoodsTab extends StatefulWidget {
   final String userId, userPhone;
-  final double Function(double, bool) calcRoundUp;
+  final double Function(double, String) calcRoundUp;
   final String Function(String) normalizePhone;
   final Map<String, dynamic>? roundupSettings;
   final List<Map<String, dynamic>> roundupRules;
@@ -239,6 +249,8 @@ class _BuyGoodsTabState extends State<_BuyGoodsTab> {
   double _roundUp = 0;
   bool _useMpesa = true;       // M-Pesa checked by default
   bool _useRoundSavings = false; // round savings opt-in
+  late String _phone = widget.userPhone;
+  late final _mpesaPhoneCtrl = TextEditingController(text: widget.userPhone);
 
   List<Map<String, dynamic>> _favourites = [];
 
@@ -247,8 +259,7 @@ class _BuyGoodsTabState extends State<_BuyGoodsTab> {
     super.initState();
     _amtCtrl.addListener(_recalc);
     _loadFavourites();
-    _useRoundSavings = widget.roundupSettings?['is_enabled'] == true &&
-        widget.roundupSettings?['buy_goods_round_up'] == true;
+    _useRoundSavings = _hasRoundupConfig;
   }
 
   @override
@@ -256,6 +267,7 @@ class _BuyGoodsTabState extends State<_BuyGoodsTab> {
     _tillCtrl.dispose();
     _amtCtrl.dispose();
     _amtFocus.dispose();
+    _mpesaPhoneCtrl.dispose();
     super.dispose();
   }
 
@@ -287,28 +299,75 @@ class _BuyGoodsTabState extends State<_BuyGoodsTab> {
 
   void _recalc() {
     final amt = double.tryParse(_amtCtrl.text) ?? 0;
-    final ru = _useRoundSavings ? widget.calcRoundUp(amt, true) : 0.0;
+    final ru = _useRoundSavings ? widget.calcRoundUp(amt, 'buy_goods') : 0.0;
     setState(() => _roundUp = ru);
   }
 
   double get _payAmt => double.tryParse(_amtCtrl.text) ?? 0;
   double get _total => _payAmt + _roundUp;
 
-  bool get _hasRoundupConfig =>
-      widget.roundupSettings != null &&
-      widget.roundupSettings!['is_enabled'] == true &&
-      widget.roundupSettings!['buy_goods_round_up'] == true;
+  // Rule-based: show roundup whenever an active rule applies to buy_goods
+  // (settings flags can be stale — rules are the source of truth)
+  bool get _hasRoundupConfig {
+    if (widget.roundupSettings?['is_enabled'] != true) return false;
+    return widget.roundupRules.any((r) {
+      final a = r['applies_to']?.toString() ?? 'all';
+      final active = r['is_active'] == true || r['active'] == true;
+      return active && (a == 'all' || a == 'both' || a == 'buy_goods');
+    });
+  }
+
+  // The goal the user configured round savings to land in for this payment
+  // type — sent to the server so it doesn't silently drop the credit or
+  // fall back to the wrong goal.
+  int? get _roundupGoalId {
+    final activeRules = widget.roundupRules.where((r) {
+      final a = r['applies_to']?.toString() ?? 'all';
+      final active = r['is_active'] == true || r['active'] == true;
+      return active && (a == 'all' || a == 'both' || a == 'buy_goods');
+    }).toList();
+    for (final rule in activeRules) {
+      final gid = rule['goal_id'];
+      if (gid != null) return int.tryParse(gid.toString());
+    }
+    return null;
+  }
 
   Future<void> _confirm() async {
+    if (_loading) return; // guard against double-tap firing this twice
     final till = _tillCtrl.text.trim();
     final amt = double.tryParse(_amtCtrl.text.trim()) ?? 0;
-    if (till.isEmpty || amt <= 0) {
-      _snack('Enter till number and amount');
+    if (till.isEmpty) {
+      _snack('Enter till number');
       return;
     }
-    final authed = await TransactionAuthService.authenticate(context);
-    if (!authed) return;
+    if (amt < 10) {
+      _snack('Minimum amount is KES 10');
+      return;
+    }
+    if (_useMpesa) {
+      final phoneError = ValidationUtils.validateKenyanPhone(_mpesaPhoneCtrl.text);
+      if (phoneError != null) {
+        _snack(phoneError);
+        return;
+      }
+      _phone = _mpesaPhoneCtrl.text.trim();
+    }
     setState(() => _loading = true);
+    final authed = await TransactionAuthService.authenticate(context);
+    if (!authed) {
+      if (mounted) setState(() => _loading = false);
+      return;
+    }
+    if (_useMpesa) {
+      if (!mounted) return;
+      final phone = await ensurePhoneNumber(context, widget.userId, _phone);
+      if (phone == null) {
+        if (mounted) setState(() => _loading = false);
+        return;
+      }
+      _phone = phone;
+    }
     try {
       if (_useMpesa) {
         // STK push flow: M-Pesa → wallet → till
@@ -320,13 +379,14 @@ class _BuyGoodsTabState extends State<_BuyGoodsTab> {
             'till_number': till,
             'amount': amt,
             'round_up_savings': _roundUp,
+            if (_roundUp > 0 && _roundupGoalId != null) 'goal_id': _roundupGoalId,
           }),
         ).timeout(const Duration(seconds: 20));
         final data = jsonDecode(r.body);
         if (r.statusCode == 200 && data['status'] == 'success') {
           final txId = data['checkout_id']?.toString() ?? data['transactionId']?.toString() ?? '';
           if (mounted) setState(() => _loading = false);
-          _showMpesaProcessing(txId: txId, amt: _total, label: 'Till $till');
+          _showMpesaProcessing(txId: txId, amt: amt, label: 'Till $till');
           return;
         } else {
           _snack(_friendlyError(data['message']), error: true);
@@ -341,11 +401,12 @@ class _BuyGoodsTabState extends State<_BuyGoodsTab> {
             'till_number': till,
             'amount': amt,
             'round_up_savings': _roundUp,
+            if (_roundUp > 0 && _roundupGoalId != null) 'goal_id': _roundupGoalId,
           }),
         ).timeout(const Duration(seconds: 20));
         final data = jsonDecode(r.body);
         if (r.statusCode == 200 && data['status'] == 'success') {
-          _showSuccess(amt: _total, label: 'Till $till');
+          _showSuccess(amt: amt, label: 'Till $till');
           _tillCtrl.clear();
           _amtCtrl.clear();
           setState(() => _roundUp = 0);
@@ -507,12 +568,18 @@ class _BuyGoodsTabState extends State<_BuyGoodsTab> {
             roundupRules: widget.roundupRules,
           ),
 
+          if (_useMpesa) ...[
+            const SizedBox(height: 12),
+            _MpesaNumberField(controller: _mpesaPhoneCtrl),
+          ],
+
           const SizedBox(height: 16),
           _SummaryCard(
             payAmt: _payAmt,
             roundUp: _roundUp,
             total: _total,
             source: _useMpesa ? 'M-Pesa → Wallet → Till' : 'Wallet → Till',
+            useMpesa: _useMpesa,
           ),
         ]),
       ),
@@ -530,7 +597,7 @@ class _BuyGoodsTabState extends State<_BuyGoodsTab> {
 
 class _PayBillTab extends StatefulWidget {
   final String userId, userPhone;
-  final double Function(double, bool) calcRoundUp;
+  final double Function(double, String) calcRoundUp;
   final String Function(String) normalizePhone;
   final Map<String, dynamic>? roundupSettings;
   final List<Map<String, dynamic>> roundupRules;
@@ -556,6 +623,8 @@ class _PayBillTabState extends State<_PayBillTab> {
   double _roundUp = 0;
   bool _useMpesa = true;
   bool _useRoundSavings = false;
+  late String _phone = widget.userPhone;
+  late final _mpesaPhoneCtrl = TextEditingController(text: widget.userPhone);
 
   List<Map<String, dynamic>> _favourites = [];
 
@@ -564,8 +633,7 @@ class _PayBillTabState extends State<_PayBillTab> {
     super.initState();
     _amtCtrl.addListener(_recalc);
     _loadFavourites();
-    _useRoundSavings = widget.roundupSettings?['is_enabled'] == true &&
-        widget.roundupSettings?['pay_bill_round_up'] == true;
+    _useRoundSavings = _hasRoundupConfig;
   }
 
   @override
@@ -574,6 +642,7 @@ class _PayBillTabState extends State<_PayBillTab> {
     _accountCtrl.dispose();
     _amtCtrl.dispose();
     _amtFocus.dispose();
+    _mpesaPhoneCtrl.dispose();
     super.dispose();
   }
 
@@ -606,29 +675,72 @@ class _PayBillTabState extends State<_PayBillTab> {
 
   void _recalc() {
     final amt = double.tryParse(_amtCtrl.text) ?? 0;
-    final ru = _useRoundSavings ? widget.calcRoundUp(amt, false) : 0.0;
+    final ru = _useRoundSavings ? widget.calcRoundUp(amt, 'pay_bill') : 0.0;
     setState(() => _roundUp = ru);
   }
 
   double get _payAmt => double.tryParse(_amtCtrl.text) ?? 0;
   double get _total => _payAmt + _roundUp;
 
-  bool get _hasRoundupConfig =>
-      widget.roundupSettings != null &&
-      widget.roundupSettings!['is_enabled'] == true &&
-      widget.roundupSettings!['pay_bill_round_up'] == true;
+  // Rule-based: show roundup whenever an active rule applies to pay_bill
+  bool get _hasRoundupConfig {
+    if (widget.roundupSettings?['is_enabled'] != true) return false;
+    return widget.roundupRules.any((r) {
+      final a = r['applies_to']?.toString() ?? 'all';
+      final active = r['is_active'] == true || r['active'] == true;
+      return active && (a == 'all' || a == 'both' || a == 'pay_bill');
+    });
+  }
+
+  int? get _roundupGoalId {
+    final activeRules = widget.roundupRules.where((r) {
+      final a = r['applies_to']?.toString() ?? 'all';
+      final active = r['is_active'] == true || r['active'] == true;
+      return active && (a == 'all' || a == 'both' || a == 'pay_bill');
+    }).toList();
+    for (final rule in activeRules) {
+      final gid = rule['goal_id'];
+      if (gid != null) return int.tryParse(gid.toString());
+    }
+    return null;
+  }
 
   Future<void> _confirm() async {
+    if (_loading) return; // guard against double-tap firing this twice
     final paybill = _paybillCtrl.text.trim();
     final account = _accountCtrl.text.trim();
     final amt = double.tryParse(_amtCtrl.text.trim()) ?? 0;
-    if (paybill.isEmpty || amt <= 0) {
-      _snack('Enter paybill number and amount');
+    if (paybill.isEmpty) {
+      _snack('Enter paybill number');
       return;
     }
-    final authed = await TransactionAuthService.authenticate(context);
-    if (!authed) return;
+    if (amt < 10) {
+      _snack('Minimum amount is KES 10');
+      return;
+    }
+    if (_useMpesa) {
+      final phoneError = ValidationUtils.validateKenyanPhone(_mpesaPhoneCtrl.text);
+      if (phoneError != null) {
+        _snack(phoneError);
+        return;
+      }
+      _phone = _mpesaPhoneCtrl.text.trim();
+    }
     setState(() => _loading = true);
+    final authed = await TransactionAuthService.authenticate(context);
+    if (!authed) {
+      if (mounted) setState(() => _loading = false);
+      return;
+    }
+    if (_useMpesa) {
+      if (!mounted) return;
+      final phone = await ensurePhoneNumber(context, widget.userId, _phone);
+      if (phone == null) {
+        if (mounted) setState(() => _loading = false);
+        return;
+      }
+      _phone = phone;
+    }
     try {
       if (_useMpesa) {
         // STK push: M-Pesa deposits to wallet, then wallet pays paybill
@@ -638,8 +750,11 @@ class _PayBillTabState extends State<_PayBillTab> {
         // Actually, call deposit STK for total, then on callback paybill is paid from wallet.
         // Simpler: just deposit total via STK, show processing, user re-confirms after.
         // Best UX: STK push amount, then once confirmed show "M-Pesa received, paying bill..."
-        // We call /deposit for the total (amt + roundup), then after success call /process-paybill-payment.
-        final totalToDeposit = _total;
+        // We call /deposit for the total (amt + roundup + merchant fee), then
+        // after success call /process-paybill-payment. The merchant fee must be
+        // deposited too — the paybill leg deducts amt + roundup + fee from the
+        // wallet, so without it a fresh wallet comes up short by the fee.
+        final totalToDeposit = _total + serviceFee(_total);
         final depositR = await http.post(
           Uri.parse('${AppConstants.apiBaseUrl}/deposit'),
           headers: {'Content-Type': 'application/json'},
@@ -674,6 +789,7 @@ class _PayBillTabState extends State<_PayBillTab> {
             'merchant_paybill': paybill,
             'merchant_account': account,
             'round_up_savings': _roundUp,
+            if (_roundUp > 0 && _roundupGoalId != null) 'goal_id': _roundupGoalId,
           }),
         ).timeout(const Duration(seconds: 20));
         final data = jsonDecode(r.body);
@@ -717,6 +833,7 @@ class _PayBillTabState extends State<_PayBillTab> {
         account: account,
         amt: amt,
         roundUp: roundUp,
+        roundupGoalId: _roundupGoalId,
         onDone: () {
           _paybillCtrl.clear();
           _accountCtrl.clear();
@@ -849,12 +966,19 @@ class _PayBillTabState extends State<_PayBillTab> {
             roundupRules: widget.roundupRules,
           ),
 
+          if (_useMpesa) ...[
+            const SizedBox(height: 12),
+            _MpesaNumberField(controller: _mpesaPhoneCtrl),
+          ],
+
           const SizedBox(height: 16),
           _SummaryCard(
             payAmt: _payAmt,
             roundUp: _roundUp,
             total: _total,
             source: _useMpesa ? 'M-Pesa → Wallet → PayBill' : 'Wallet → PayBill',
+            useMpesa: _useMpesa,
+            twoStepMpesa: true,
           ),
         ]),
       ),
@@ -873,10 +997,16 @@ class _PayBillTabState extends State<_PayBillTab> {
 class _SendMoneyTab extends StatefulWidget {
   final String userId, userPhone;
   final String Function(String) normalizePhone;
+  final double Function(double, String) calcRoundUp;
+  final Map<String, dynamic>? roundupSettings;
+  final List<Map<String, dynamic>> roundupRules;
   const _SendMoneyTab({
     required this.userId,
     required this.userPhone,
     required this.normalizePhone,
+    required this.calcRoundUp,
+    required this.roundupSettings,
+    required this.roundupRules,
   });
 
   @override
@@ -889,6 +1019,10 @@ class _SendMoneyTabState extends State<_SendMoneyTab> {
   final _noteCtrl = TextEditingController();
   final _searchCtrl = TextEditingController();
   bool _loading = false;
+  bool _useRoundup = false;
+  bool _useMpesa = true;
+  late String _ownPhone = widget.userPhone;
+  late final _mpesaPhoneCtrl = TextEditingController(text: widget.userPhone);
 
   List<Map<String, dynamic>> _recent = [];
   List<Contact> _contacts = [];
@@ -896,9 +1030,39 @@ class _SendMoneyTabState extends State<_SendMoneyTab> {
   bool _loadingContacts = false;
   bool _showContacts = false;
 
+  int get _sendAmt => int.tryParse(_amtCtrl.text.trim()) ?? 0;
+  int get _roundupAmt => _useRoundup && _sendAmt > 0
+      ? widget.calcRoundUp(_sendAmt.toDouble(), 'send_money').round()
+      : 0;
+  int get _charge => _sendAmt > 0 ? ((_sendAmt * 0.015).ceil()).toInt() : 0;
+  int get _total => _sendAmt + _charge + _roundupAmt;
+
+  bool get _hasRoundupConfig {
+    if (widget.roundupSettings?['is_enabled'] != true) return false;
+    return widget.roundupRules.any((r) {
+      final a = r['applies_to']?.toString() ?? 'all';
+      final active = r['is_active'] == true || r['active'] == true;
+      return active && (a == 'all' || a == 'both' || a == 'send_money');
+    });
+  }
+
+  int? get _roundupGoalId {
+    final activeRules = widget.roundupRules.where((r) {
+      final a = r['applies_to']?.toString() ?? 'all';
+      final active = r['is_active'] == true || r['active'] == true;
+      return active && (a == 'all' || a == 'both' || a == 'send_money');
+    }).toList();
+    for (final rule in activeRules) {
+      final gid = rule['goal_id'];
+      if (gid != null) return int.tryParse(gid.toString());
+    }
+    return null;
+  }
+
   @override
   void initState() {
     super.initState();
+    _useRoundup = _hasRoundupConfig;
     _loadRecent();
     _searchCtrl.addListener(_filterContacts);
   }
@@ -966,30 +1130,104 @@ class _SendMoneyTabState extends State<_SendMoneyTab> {
   }
 
   Future<void> _send() async {
+    if (_loading) return; // guard against double-tap firing this twice
     final phone = _phoneCtrl.text.trim();
-    final amt = double.tryParse(_amtCtrl.text.trim()) ?? 0;
-    if (phone.isEmpty || amt <= 0) {
-      _snack('Enter phone number and amount');
+    final amt = _sendAmt;
+    if (phone.isEmpty) {
+      _snack('Enter phone number');
       return;
     }
-    final authed = await TransactionAuthService.authenticate(context);
-    if (!authed) return;
-    final normalized = widget.normalizePhone(phone);
+    if (amt < 10) {
+      _snack('Minimum amount is KES 10');
+      return;
+    }
+    final phoneError = ValidationUtils.validateKenyanPhone(phone);
+    if (phoneError != null) {
+      _snack(phoneError);
+      return;
+    }
+    if (_useMpesa) {
+      final ownPhoneError = ValidationUtils.validateKenyanPhone(_mpesaPhoneCtrl.text);
+      if (ownPhoneError != null) {
+        _snack(ownPhoneError);
+        return;
+      }
+      _ownPhone = _mpesaPhoneCtrl.text.trim();
+    }
     setState(() => _loading = true);
+    final authed = await TransactionAuthService.authenticate(context);
+    if (!authed) {
+      if (mounted) setState(() => _loading = false);
+      return;
+    }
+    if (_useMpesa) {
+      if (!mounted) return;
+      final ownPhone = await ensurePhoneNumber(context, widget.userId, _ownPhone);
+      if (ownPhone == null) {
+        if (mounted) setState(() => _loading = false);
+        return;
+      }
+      _ownPhone = ownPhone;
+    }
+    final normalized = widget.normalizePhone(phone);
+    // Snapshot the roundup amount/goal now — _roundupAmt is a live getter off
+    // _amtCtrl, and the STK deposit below can sit awaiting PIN entry for a
+    // while; using the getter again afterward could pick up a since-changed
+    // value and desync what was actually deposited from what gets withdrawn.
+    final roundupSnapshot = _roundupAmt;
+    final roundupGoalSnapshot = _roundupGoalId;
+
+    if (_useMpesa) {
+      // STK push: M-Pesa deposits to wallet, then wallet sends to recipient.
+      // Include the send fee — /withdraw deducts amt + fee from the wallet.
+      try {
+        final depositR = await http.post(
+          Uri.parse('${AppConstants.apiBaseUrl}/deposit'),
+          headers: {'Content-Type': 'application/json'},
+          body: jsonEncode({
+            'user_id': int.tryParse(widget.userId) ?? widget.userId,
+            'amount': amt + roundupSnapshot + serviceFee(amt),
+          }),
+        ).timeout(const Duration(seconds: 20));
+        final depositData = jsonDecode(depositR.body);
+        if (depositR.statusCode == 200 && depositData['status'] == 'success') {
+          final txId = depositData['checkout_id']?.toString() ?? depositData['deposit_id']?.toString() ?? '';
+          if (mounted) setState(() => _loading = false);
+          _showMpesaProcessingSend(
+            txId: txId, phone: phone, normalized: normalized, amt: amt.toDouble(),
+            roundUp: roundupSnapshot, roundupGoalId: roundupGoalSnapshot,
+          );
+          return;
+        } else {
+          _snack(depositData['message'] ?? 'Failed to send STK push', error: true);
+        }
+      } catch (e) {
+        _snack('Network error — check connection', error: true);
+      }
+      if (mounted) setState(() => _loading = false);
+      return;
+    }
+
+    // Wallet direct
     try {
+      final body = {
+        'user_id': int.tryParse(widget.userId) ?? widget.userId,
+        'amount': amt,
+        'phone': normalized,
+      };
+      if (roundupSnapshot > 0) {
+        body['savings_amount'] = roundupSnapshot;
+        if (roundupGoalSnapshot != null) body['goal_id'] = roundupGoalSnapshot as Object;
+      }
       final r = await http.post(
         Uri.parse('${AppConstants.apiBaseUrl}/withdraw'),
         headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({
-          'user_id': int.tryParse(widget.userId) ?? widget.userId,
-          'amount': amt.toInt(),
-          'phone': normalized,
-        }),
+        body: jsonEncode(body),
       ).timeout(const Duration(seconds: 20));
       final data = jsonDecode(r.body);
       if (r.statusCode == 200 && data['status'] == 'success') {
         _saveRecent(phone, normalized);
-        _showSuccess(amt, phone);
+        _showSuccess(amt.toDouble(), phone);
       } else {
         _snack(data['message'] ?? 'Transfer failed. Please try again.', error: true);
       }
@@ -997,6 +1235,33 @@ class _SendMoneyTabState extends State<_SendMoneyTab> {
       _snack('Network error — check connection', error: true);
     }
     if (mounted) setState(() => _loading = false);
+  }
+
+  void _showMpesaProcessingSend({
+    required String txId, required String phone, required String normalized, required double amt,
+    required int roundUp, required int? roundupGoalId,
+  }) {
+    showModalBottomSheet(
+      context: context,
+      isDismissible: false,
+      enableDrag: false,
+      backgroundColor: Colors.transparent,
+      builder: (_) => _SendMoneyMpesaSheet(
+        txId: txId,
+        userId: widget.userId,
+        phone: phone,
+        normalizedPhone: normalized,
+        amt: amt,
+        roundUp: roundUp.toDouble(),
+        roundupGoalId: roundupGoalId,
+        onDone: () {
+          _saveRecent(phone, normalized);
+          _phoneCtrl.clear();
+          _amtCtrl.clear();
+          setState(() => _useRoundup = _hasRoundupConfig);
+        },
+      ),
+    );
   }
 
   Future<void> _saveRecent(String displayPhone, String normalized) async {
@@ -1081,6 +1346,7 @@ class _SendMoneyTabState extends State<_SendMoneyTab> {
     _amtCtrl.dispose();
     _noteCtrl.dispose();
     _searchCtrl.dispose();
+    _mpesaPhoneCtrl.dispose();
     super.dispose();
   }
 
@@ -1216,8 +1482,46 @@ class _SendMoneyTabState extends State<_SendMoneyTab> {
           _label('Amount (KES)'),
           _field(_amtCtrl, '0.00',
               keyboardType: const TextInputType.numberWithOptions(decimal: true),
+              onChanged: (_) => setState(() {}),
               prefix: const Text('KES ', style: TextStyle(fontWeight: FontWeight.w600, color: Color(0xFF374151)))),
           const SizedBox(height: 14),
+
+          // ── Payment Options — same widget & style as Till & PayBill ──
+          _PaymentOptions(
+            useMpesa: _useMpesa,
+            useRoundSavings: _useRoundup,
+            hasRoundupConfig: _hasRoundupConfig,
+            onMpesaChanged: (v) => setState(() => _useMpesa = v),
+            onRoundSavingsChanged: (v) => setState(() => _useRoundup = v),
+            roundupSettings: widget.roundupSettings,
+            roundupRules: widget.roundupRules,
+          ),
+
+          if (_useMpesa) ...[
+            const SizedBox(height: 12),
+            _MpesaNumberField(controller: _mpesaPhoneCtrl, label: 'Your M-Pesa Number'),
+          ],
+          const SizedBox(height: 14),
+
+          // ── Fee summary ──────────────────────────────────────────
+          if (_sendAmt > 0) ...[
+            Container(
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                color: const Color(0xFFF0FDF4),
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: AppColors.financeGreen.withValues(alpha: 0.15)),
+              ),
+              child: Column(children: [
+                _summaryRow('Send amount', 'KES $_sendAmt'),
+                _summaryRow('Fee', 'KES $_charge'),
+                if (_roundupAmt > 0) _summaryRow('Round-up saved', 'KES $_roundupAmt'),
+                const Divider(height: 14, color: Color(0xFFE5E7EB)),
+                _summaryRow('Total deducted', 'KES ${_sendAmt + _charge + _roundupAmt}', bold: true),
+              ]),
+            ),
+            const SizedBox(height: 14),
+          ],
 
           _label('Note (optional)'),
           _field(_noteCtrl, 'e.g. Rent for June',
@@ -1230,6 +1534,14 @@ class _SendMoneyTabState extends State<_SendMoneyTab> {
       ),
     );
   }
+
+  Widget _summaryRow(String label, String value, {bool bold = false}) => Padding(
+    padding: const EdgeInsets.symmetric(vertical: 3),
+    child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+      Text(label, style: TextStyle(fontSize: 12, color: bold ? const Color(0xFF111827) : const Color(0xFF6B7280), fontWeight: bold ? FontWeight.w700 : FontWeight.normal)),
+      Text(value, style: TextStyle(fontSize: 12, color: bold ? AppColors.financeGreen : const Color(0xFF111827), fontWeight: bold ? FontWeight.w700 : FontWeight.w500)),
+    ]),
+  );
 }
 
 // ─────────────────────────────────────────────────────────────────
@@ -1370,6 +1682,49 @@ class _PaymentOptions extends StatelessWidget {
             ? const Icon(Icons.check_rounded, size: 13, color: Colors.white)
             : null,
       );
+}
+
+// Shows which M-Pesa number the STK push will go to (defaulted to the
+// registered number) with an always-visible, editable field — so the payer
+// can see and change the line before confirming, instead of it being decided
+// silently or only surfaced via a "no number on file" dialog.
+class _MpesaNumberField extends StatelessWidget {
+  final TextEditingController controller;
+  final String label;
+  const _MpesaNumberField({required this.controller, this.label = 'M-Pesa Number'});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: const Color(0xFFE5E7EB)),
+      ),
+      child: Row(children: [
+        const Icon(Icons.phone_android_rounded, size: 16, color: AppColors.financeGreen),
+        const SizedBox(width: 10),
+        Expanded(
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text(label, style: const TextStyle(fontSize: 10, color: Color(0xFF9CA3AF), fontWeight: FontWeight.w600)),
+            TextField(
+              controller: controller,
+              keyboardType: TextInputType.phone,
+              style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: Color(0xFF111827)),
+              decoration: const InputDecoration(
+                isDense: true,
+                border: InputBorder.none,
+                contentPadding: EdgeInsets.symmetric(vertical: 2),
+                hintText: '07XXXXXXXX',
+              ),
+            ),
+          ]),
+        ),
+        const Icon(Icons.edit_rounded, size: 14, color: Color(0xFF9CA3AF)),
+      ]),
+    );
+  }
 }
 
 // ─────────────────────────────────────────────────────────────────
@@ -1521,6 +1876,7 @@ class _ProcessingSheetState extends State<_ProcessingSheet> {
 class _PaybillMpesaSheet extends StatefulWidget {
   final String txId, userId, paybill, account;
   final double amt, roundUp;
+  final int? roundupGoalId;
   final VoidCallback onDone;
 
   const _PaybillMpesaSheet({
@@ -1530,6 +1886,7 @@ class _PaybillMpesaSheet extends StatefulWidget {
     required this.account,
     required this.amt,
     required this.roundUp,
+    this.roundupGoalId,
     required this.onDone,
   });
 
@@ -1588,6 +1945,7 @@ class _PaybillMpesaSheetState extends State<_PaybillMpesaSheet> {
           'merchant_paybill': widget.paybill,
           'merchant_account': widget.account,
           'round_up_savings': widget.roundUp,
+          if (widget.roundUp > 0 && widget.roundupGoalId != null) 'goal_id': widget.roundupGoalId,
         }),
       ).timeout(const Duration(seconds: 20));
       final data = jsonDecode(r.body);
@@ -1694,6 +2052,190 @@ class _PaybillMpesaSheetState extends State<_PaybillMpesaSheet> {
 }
 
 // ─────────────────────────────────────────────────────────────────
+//  SEND MONEY — STK deposit then wallet→recipient withdraw
+// ─────────────────────────────────────────────────────────────────
+
+class _SendMoneyMpesaSheet extends StatefulWidget {
+  final String txId, userId, phone, normalizedPhone;
+  final double amt, roundUp;
+  final int? roundupGoalId;
+  final VoidCallback onDone;
+
+  const _SendMoneyMpesaSheet({
+    required this.txId,
+    required this.userId,
+    required this.phone,
+    required this.normalizedPhone,
+    required this.amt,
+    required this.roundUp,
+    this.roundupGoalId,
+    required this.onDone,
+  });
+
+  @override
+  State<_SendMoneyMpesaSheet> createState() => _SendMoneyMpesaSheetState();
+}
+
+class _SendMoneyMpesaSheetState extends State<_SendMoneyMpesaSheet> {
+  String _stage = 'waiting_pin';
+  String? _error;
+  int _elapsed = 0;
+  Timer? _timer;
+
+  @override
+  void initState() {
+    super.initState();
+    _pollDeposit();
+  }
+
+  void _pollDeposit() {
+    _timer = Timer.periodic(const Duration(seconds: 5), (_) async {
+      if (!mounted) return;
+      _elapsed += 5;
+      if (_elapsed >= 60) {
+        _timer?.cancel();
+        if (mounted) setState(() { _stage = 'failed'; _error = 'Payment timed out. Please try again.'; });
+        return;
+      }
+      try {
+        final r = await http.get(
+          Uri.parse('${AppConstants.apiBaseUrl}/transaction-status/${widget.txId}'),
+        ).timeout(const Duration(seconds: 8));
+        final d = jsonDecode(r.body);
+        final status = ((d['data']?['transaction_status'] ?? d['payment_status'] ?? d['status'] ?? '')).toString().toLowerCase();
+        if (status == 'completed' || status == 'success') {
+          _timer?.cancel();
+          if (mounted) setState(() => _stage = 'sending');
+          await _sendToRecipient();
+        } else if (status == 'failed' || status == 'cancelled') {
+          _timer?.cancel();
+          final errMsg = d['data']?['error_message'] ?? d['message'] ?? 'M-Pesa payment failed.';
+          if (mounted) setState(() { _stage = 'failed'; _error = errMsg.toString(); });
+        }
+      } catch (_) {}
+    });
+  }
+
+  Future<void> _sendToRecipient() async {
+    try {
+      final body = {
+        'user_id': int.tryParse(widget.userId) ?? widget.userId,
+        'amount': widget.amt,
+        'phone': widget.normalizedPhone,
+      };
+      if (widget.roundUp > 0) {
+        body['savings_amount'] = widget.roundUp;
+        if (widget.roundupGoalId != null) body['goal_id'] = widget.roundupGoalId as Object;
+      }
+      final r = await http.post(
+        Uri.parse('${AppConstants.apiBaseUrl}/withdraw'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode(body),
+      ).timeout(const Duration(seconds: 20));
+      final data = jsonDecode(r.body);
+      if (r.statusCode == 200 && data['status'] == 'success') {
+        if (mounted) setState(() => _stage = 'success');
+        widget.onDone();
+      } else {
+        if (mounted) setState(() { _stage = 'failed'; _error = data['message'] ?? 'Failed to send. Please try again.'; });
+      }
+    } catch (e) {
+      if (mounted) setState(() { _stage = 'failed'; _error = 'Network error. Please try again.'; });
+    }
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final mq = MediaQuery.of(context);
+    return Container(
+      padding: EdgeInsets.fromLTRB(24, 20, 24, mq.viewInsets.bottom + mq.padding.bottom + 28),
+      decoration: const BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      child: Column(mainAxisSize: MainAxisSize.min, children: [
+        Center(child: Container(width: 40, height: 4,
+            decoration: BoxDecoration(color: const Color(0xFFE5E7EB), borderRadius: BorderRadius.circular(2)))),
+        const SizedBox(height: 28),
+        if (_stage == 'success') ...[
+          Container(width: 64, height: 64,
+            decoration: BoxDecoration(color: AppColors.financeGreen.withValues(alpha: 0.1), shape: BoxShape.circle),
+            child: const Icon(Icons.check_circle_rounded, color: AppColors.financeGreen, size: 40)),
+          const SizedBox(height: 16),
+          const Text('Transfer Successful!', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF111827))),
+          const SizedBox(height: 6),
+          Text('KES ${widget.amt.toStringAsFixed(2)} sent to ${widget.phone}',
+              style: const TextStyle(fontSize: 13, color: Color(0xFF6B7280)), textAlign: TextAlign.center),
+          if (widget.roundUp > 0) ...[
+            const SizedBox(height: 4),
+            Text('+ KES ${widget.roundUp.toStringAsFixed(2)} saved',
+                style: TextStyle(fontSize: 12, color: AppColors.financeGreen.withValues(alpha: 0.85))),
+          ],
+          const SizedBox(height: 24),
+          _greenBtn('Done', () => Navigator.pop(context)),
+        ] else if (_stage == 'failed') ...[
+          Container(width: 64, height: 64,
+            decoration: BoxDecoration(color: Colors.red.withValues(alpha: 0.1), shape: BoxShape.circle),
+            child: const Icon(Icons.cancel_rounded, color: Colors.red, size: 40)),
+          const SizedBox(height: 16),
+          const Text('Transfer Failed', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF111827))),
+          const SizedBox(height: 6),
+          Text(_error ?? 'Something went wrong.',
+              style: const TextStyle(fontSize: 13, color: Color(0xFF6B7280)), textAlign: TextAlign.center),
+          const SizedBox(height: 24),
+          _greenBtn('Close', () => Navigator.pop(context)),
+        ] else ...[
+          SpinKitFadingCircle(color: AppColors.financeGreenV3, size: 56),
+          const SizedBox(height: 24),
+          Text(
+            _stage == 'sending' ? 'Sending money...' : 'Check your phone',
+            style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF111827)),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            _stage == 'sending'
+                ? 'M-Pesa confirmed — sending to ${widget.phone} now'
+                : 'Enter your SasaPay PIN to complete the payment',
+            style: const TextStyle(fontSize: 13, color: Color(0xFF6B7280)),
+            textAlign: TextAlign.center,
+          ),
+          if (_stage == 'waiting_pin') ...[
+            const SizedBox(height: 20),
+            _StkCountdown(seconds: 60),
+            const SizedBox(height: 16),
+            TextButton(
+              onPressed: () { _timer?.cancel(); Navigator.pop(context); },
+              child: const Text('Cancel', style: TextStyle(color: Colors.red, fontSize: 14)),
+            ),
+          ] else
+            const SizedBox(height: 16),
+        ],
+      ]),
+    );
+  }
+
+  Widget _greenBtn(String label, VoidCallback onTap) => SizedBox(
+    width: double.infinity,
+    child: ElevatedButton(
+      onPressed: onTap,
+      style: ElevatedButton.styleFrom(
+        backgroundColor: AppColors.financeGreen,
+        padding: const EdgeInsets.symmetric(vertical: 14),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+        elevation: 0,
+      ),
+      child: Text(label, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 15)),
+    ),
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────
 //  SUCCESS SHEET (wallet-direct payments)
 // ─────────────────────────────────────────────────────────────────
 
@@ -1706,8 +2248,9 @@ class _SuccessSheet extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final mq = MediaQuery.of(context);
     return Container(
-      padding: const EdgeInsets.all(28),
+      padding: EdgeInsets.fromLTRB(28, 28, 28, mq.padding.bottom + 28),
       decoration: const BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
@@ -1765,11 +2308,13 @@ Widget _field(
   Widget? prefix,
   Widget? suffix,
   FocusNode? focusNode,
+  void Function(String)? onChanged,
 }) {
   return TextField(
     controller: ctrl,
     focusNode: focusNode,
     keyboardType: keyboardType,
+    onChanged: onChanged,
     style: const TextStyle(fontSize: 15, color: Color(0xFF111827)),
     decoration: InputDecoration(
       hintText: hint,
@@ -1798,7 +2343,24 @@ Widget _field(
 class _SummaryCard extends StatelessWidget {
   final double payAmt, roundUp, total;
   final String source;
-  const _SummaryCard({required this.payAmt, required this.roundUp, required this.total, required this.source});
+  final bool useMpesa;
+  // Till/buy-goods pays via a single combined STK push straight to the
+  // merchant (one fee). PayBill's M-Pesa path is two separate PayHero calls —
+  // deposit to wallet, then wallet pays the bill — so it incurs two fee
+  // events and the STK total must cover both.
+  final bool twoStepMpesa;
+  const _SummaryCard({
+    required this.payAmt,
+    required this.roundUp,
+    required this.total,
+    required this.source,
+    required this.useMpesa,
+    this.twoStepMpesa = false,
+  });
+
+  double get _merchantFee => ((payAmt + roundUp) * 0.015).ceilToDouble();
+  double get _depositFee => (useMpesa && twoStepMpesa) ? (total * 0.015).ceilToDouble() : 0;
+  double get _totalWithFee => total + _merchantFee + _depositFee;
 
   @override
   Widget build(BuildContext context) {
@@ -1815,8 +2377,16 @@ class _SummaryCard extends StatelessWidget {
           const SizedBox(height: 6),
           _row('Round Savings', '+ KES ${roundUp.toStringAsFixed(2)}', bold: false, accent: true),
         ],
+        if (payAmt > 0) ...[
+          const SizedBox(height: 6),
+          _row('Fee', '+ KES ${_merchantFee.toStringAsFixed(2)}', bold: false),
+        ],
+        if (useMpesa && _depositFee > 0) ...[
+          const SizedBox(height: 6),
+          _row('Fee', '+ KES ${_depositFee.toStringAsFixed(2)}', bold: false),
+        ],
         const Padding(padding: EdgeInsets.symmetric(vertical: 8), child: Divider(height: 1)),
-        _row('Total', 'KES ${total.toStringAsFixed(2)}', bold: true),
+        _row('Total', 'KES ${_totalWithFee.toStringAsFixed(2)}', bold: true),
         const SizedBox(height: 8),
         Row(children: [
           Icon(Icons.info_outline_rounded, size: 12, color: const Color(0xFF9CA3AF)),
